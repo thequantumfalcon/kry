@@ -1,0 +1,43 @@
+Verifying presentation with k256 key: 031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
+
+**Ask yourself, do you trust this key?**
+
+-------------------------------------------------------------------
+Successfully verified that the data below came from a session with openrouter.ai at 2026-06-05 05:20:37 UTC.
+Note that the data which the Prover chose not to disclose are shown as X.
+
+Data sent:
+
+GET /api/v1/generation?id=gen-1780636706-2bPNL28CAqEGPVMKmnrW HTTP/1.1
+host: openrouter.ai
+accept: */*
+accept-encoding: identity
+connection: close
+user-agent: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+authorization: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+
+
+Data received:
+
+HTTP/1.1 200 OK
+Date: Fri, 05 Jun 2026 05:20:37 GMT
+Content-Type: application/json
+Transfer-Encoding: chunked
+Connection: close
+Access-Control-Allow-Origin: *
+Cache-Control: private, no-store
+Access-Control-Expose-Headers: X-Generation-Id,cf-ray
+Permissions-Policy: payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com" "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+Referrer-Policy: no-referrer, strict-origin-when-cross-origin
+X-Content-Type-Options: nosniff
+Server: cloudflare
+CF-RAY: a06cbaa96c9af481-SLC
+
+524
+{"data":{"created_at":"2026-06-05T05:18:26.908Z","model":"nvidia/nemotron-3-super-120b-a12b-20230311:free","app_id":null,"external_user":null,"streamed":true,"cancelled":false,"latency":3667,"moderation_latency":null,"generation_time":3667,"tokens_prompt":4,"tokens_completion":24,"native_tokens_prompt":23,"native_tokens_completion":12,"native_tokens_completion_images":null,"native_tokens_reasoning":12,"native_tokens_cached":0,"num_media_prompt":null,"num_input_audio_prompt":null,"num_media_completion":0,"num_search_results":null,"num_fetches":null,"web_search_engine":null,"origin":"","is_byok":false,"finish_reason":"length","native_finish_reason":"length","service_tier":null,"usage":0,"router":null,"provider_responses":[{"endpoint_id":"970aecad-f13b-4ec3-9362-e1758aea3e56","id":"chatcmpl-b59a03c394225451","is_byok":false,"latency":3667,"model_permaslug":"nvidia/nemotron-3-super-120b-a12b-20230311","provider_name":"Nvidia","status":200}],"user_agent":"curl/8.7.1","http_referer":null,"request_id":"req-1780636706-HKq0IuPOO7r9SqoI23gV","session_id":null,"preset_id":null,"api_type":"completions","id":"gen-1780636706-2bPNL28CAqEGPVMKmnrW","upstream_id":"chatcmpl-b59a03c394225451","total_cost":0,"cache_discount":null,"upstream_inference_cost":0,"provider_name":"Nvidia","response_cache_source_id":null}}
+0
+
+
+
+-------------------------------------------------------------------

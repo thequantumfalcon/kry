@@ -1,0 +1,164 @@
+[
+  {
+    "id": "gen-1780812882-nyZu9cZRNDqQU3w0MPDP",
+    "tokens_prompt": 1819,
+    "tokens_completion": 603,
+    "native_tokens_prompt": 1819,
+    "native_tokens_completion": 603,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780818031-puQpvDBg0GkHb8IFxfRB",
+    "tokens_prompt": 1817,
+    "tokens_completion": 759,
+    "native_tokens_prompt": 1817,
+    "native_tokens_completion": 759,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780819127-PaiePJ2pqoofCFIxOeBI",
+    "tokens_prompt": 1627,
+    "tokens_completion": 332,
+    "native_tokens_prompt": 1627,
+    "native_tokens_completion": 332,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780822219-LofN3ZCaRQpFtYbjviX6",
+    "tokens_prompt": 1575,
+    "tokens_completion": 399,
+    "native_tokens_prompt": 1575,
+    "native_tokens_completion": 399,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780837280-HLUveN99Kzwj4YeaGQMW",
+    "tokens_prompt": 995,
+    "tokens_completion": 245,
+    "native_tokens_prompt": 995,
+    "native_tokens_completion": 245,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780848371-Ithl1Wsj269HancrCRvh",
+    "tokens_prompt": 315,
+    "tokens_completion": 175,
+    "native_tokens_prompt": 315,
+    "native_tokens_completion": 175,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780848412-aKcYKQHINoMlUUnyfHBw",
+    "tokens_prompt": 432,
+    "tokens_completion": 181,
+    "native_tokens_prompt": 432,
+    "native_tokens_completion": 181,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780848422-gBlLypJvHaBnAHqoU6Kw",
+    "tokens_prompt": 432,
+    "tokens_completion": 198,
+    "native_tokens_prompt": 432,
+    "native_tokens_completion": 198,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780904300-aAIQnakVTg0h3M6m4B6w",
+    "tokens_prompt": 1610,
+    "tokens_completion": 372,
+    "native_tokens_prompt": 1610,
+    "native_tokens_completion": 372,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780905041-PhGxPPNSGIgLCsqCBPW9",
+    "tokens_prompt": 1800,
+    "tokens_completion": 823,
+    "native_tokens_prompt": 1800,
+    "native_tokens_completion": 823,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780905834-5YWiJSFC3S7jRZzvWkhl",
+    "tokens_prompt": 1527,
+    "tokens_completion": 485,
+    "native_tokens_prompt": 1527,
+    "native_tokens_completion": 485,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780923684-QUTG5yX04b3jQFAgnUR8",
+    "tokens_prompt": 690,
+    "tokens_completion": 1107,
+    "native_tokens_prompt": 690,
+    "native_tokens_completion": 1107,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780923720-ok4d2jZVJayjQrXNt8CV",
+    "tokens_prompt": 1506,
+    "tokens_completion": 275,
+    "native_tokens_prompt": 1506,
+    "native_tokens_completion": 275,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1780923774-JiDJQppurEiSEOoKWuSq",
+    "tokens_prompt": 1650,
+    "tokens_completion": 154,
+    "native_tokens_prompt": 1650,
+    "native_tokens_completion": 154,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781010192-uQ5u9o7jikgOmFr01b1b",
+    "tokens_prompt": 1026,
+    "tokens_completion": 144,
+    "native_tokens_prompt": 1026,
+    "native_tokens_completion": 144,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781049764-7NshhbEXfwziKK0i81eL",
+    "tokens_prompt": 1041,
+    "tokens_completion": 231,
+    "native_tokens_prompt": 1041,
+    "native_tokens_completion": 231,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781049837-scEbrX3SfrJW1HoO82Kc",
+    "tokens_prompt": 1009,
+    "tokens_completion": 191,
+    "native_tokens_prompt": 1009,
+    "native_tokens_completion": 191,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781056242-6gfeeu6w2fb2yq4YsqqE",
+    "tokens_prompt": 1539,
+    "tokens_completion": 343,
+    "native_tokens_prompt": 1539,
+    "native_tokens_completion": 343,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  }
+]

@@ -1,0 +1,1 @@
+{"kind":"cache_hit","class":"private","tokens_saved":10,"avoided_model":"or/anthropic/claude-opus-4.8","request_body":{"messages":[{"role":"user","content":"private prompt text"}]}}

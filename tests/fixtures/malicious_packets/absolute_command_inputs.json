@@ -1,0 +1,12 @@
+{
+  "schema": "kry_verified_savings_artifact/v1",
+  "ship_scope": "external_verified_savings_candidate",
+  "claim_allowed": {
+    "external_verified_savings": true
+  },
+  "command_inputs": {
+    "usage_log": "/private/tmp/kry/usage.jsonl",
+    "attestation": "attestation.json",
+    "t1_manifest": "t1_manifest.json"
+  }
+}

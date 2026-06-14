@@ -1,0 +1,40 @@
+### prove.rs: NOTARY_ADDR gate (item B) — diff vs item-A baseline
+--- crates/examples/attestation/prove.rs.bak_itemB	2026-06-05 19:12:43.638224331 -0600
++++ crates/examples/attestation/prove.rs	2026-06-05 19:10:48.284602975 -0600
+@@ -58,11 +58,21 @@
+         ExampleType::Authenticated => ("/protected", vec![("Authorization", "random_auth_token")]),
+     };
+ 
+-    let (notary_socket, prover_socket) = tokio::io::duplex(1 << 23);
++    // §7a: if NOTARY_ADDR is set, run the MPC-TLS session against an INDEPENDENT
++    // notary on another host over TCP (see the `notary_tcp` example). Otherwise
++    // fall back to the original in-process notary over an in-memory duplex —
++    // this default path is unchanged.
++    if let Ok(addr) = env::var("NOTARY_ADDR") {
++        info!("connecting to independent notary at {addr}");
++        let notary_tcp = tokio::net::TcpStream::connect(&addr).await?;
++        prover(notary_tcp, uri, extra_headers, &args.example_type).await?;
++    } else {
++        let (notary_socket, prover_socket) = tokio::io::duplex(1 << 23);
+ 
+-    tokio::spawn(async move { notary(notary_socket).await.unwrap() });
++        tokio::spawn(async move { notary(notary_socket).await.unwrap() });
+ 
+-    prover(prover_socket, uri, extra_headers, &args.example_type).await?;
++        prover(prover_socket, uri, extra_headers, &args.example_type).await?;
++    }
+ 
+     Ok(())
+ }
+
+### Cargo.toml: notary_tcp example entry
+--- crates/examples/Cargo.toml.bak_itemB	2026-06-05 19:12:43.638224331 -0600
++++ crates/examples/Cargo.toml	2026-06-05 19:10:56.359963503 -0600
+@@ -59,3 +59,7 @@
+ [[example]]
+ name = "attestation_verify"
+ path = "attestation/verify.rs"
++
++[[example]]
++name = "notary_tcp"
++path = "attestation/notary_tcp.rs"

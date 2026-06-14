@@ -1,0 +1,47 @@
+{
+  "schema": "kry_level1_sim_summary/v1",
+  "label": "MEASURED on a PUBLIC corpus (MBPP) \u2014 NOT real company traffic, NOT an external-counterparty anchor",
+  "honest_scope": "MBPP = public benchmark (real tasks, not real company traffic); deployable gate = executed tests (no oracle); net-not-gross; benchmark code is easier than production so the rate is an UPPER bound on the checkable slice; model-pair specific. Mechanism/lever-rate anchor only.",
+  "mode": "dry_reference_no_spend",
+  "budget_cap_usd": 15.0,
+  "cheap_model": "claude-haiku-4-5-20251001",
+  "frontier_model": "claude-sonnet-4-6",
+  "price_basis_usd_per_1M": {
+    "claude-haiku-4-5-20251001": [
+      1.0,
+      5.0
+    ],
+    "claude-sonnet-4-6": [
+      3.0,
+      15.0
+    ]
+  },
+  "tasks_measured": 10,
+  "cheap_test_pass": 10,
+  "cheap_adequacy_rate": 1.0,
+  "cheap_adequacy_wilson95": [
+    0.7225,
+    1.0
+  ],
+  "cheap_fail_rows_zeroed": 0,
+  "frontier_test_pass": 10,
+  "cheap_spend_usd": 0.0115,
+  "frontier_spend_usd_measured_baseline": 0.0345,
+  "demo_total_spend_usd": 0.046,
+  "measured_net_saving_usd": 0.023,
+  "net_cost_reduction_rate": 0.6667,
+  "saving_rule": "sum over cheap-test-pass rows of (frontier_cost - cheap_cost); cheap-fail rows -> $0; verbose-cheap rows that cost more -> negative (net-not-gross).",
+  "p0_pass_rows": 10,
+  "row_digests": [
+    "b2a2dfc9530177e0343d7c846341695aa712a46b98ee4c6ffbfca1f8b77f6096",
+    "e8a76c40ae81bd21cf00d80037cb2e98fa0462b4578d361d2bd5a4a56ab4d121",
+    "26e61985e6d7525f07474b98247f73a8c6e05e31d4fa9a87fba34a635eed427f",
+    "9a148462c4ed2ed72482b294b98f225c9c3dbeb50130698743a8661406f291c3",
+    "e14699b6191d1e4b79361770dcc688e304f823885cbff8f855bb8f7cb1d0880f",
+    "1f253a537ed327cd316f64e8a9f7f0cecf51aa10eab78336bc65b5b2ae800d13",
+    "93070b32cb29f66751eb268981ac71616b85bbdf7ff1ffe70e563c4222a57685",
+    "e74f23fdb277856466f44cf6ced9a9b2d1e4b98961a1c74019f87721eb67170e",
+    "6e3daa59a01f26f9636c1e3277d236dba9742eab00955d86709e3bb4b1389892",
+    "8a306b054cf5c1f00c93bf0c51e6f74a959dd15c2ed79d910936474aa908542f"
+  ]
+}

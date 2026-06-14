@@ -1,0 +1,1085 @@
+{
+  "schema": "kry_gsm8k_savings_proof/v1",
+  "benchmark": "GSM8K (real word problems)",
+  "cheap_model": "gpt-4o-mini",
+  "frontier_model": "gpt-4o",
+  "price_basis_usd_per_1M": {
+    "gpt-4o-mini": [
+      0.15,
+      0.6
+    ],
+    "gpt-4o": [
+      2.5,
+      10.0
+    ]
+  },
+  "tasks": 150,
+  "cheap_adequate": 131,
+  "adequacy_rate": 0.8733,
+  "adequacy_wilson_95ci": [
+    0.8106,
+    0.9174
+  ],
+  "frontier_correct": 138,
+  "real_cheap_cost_usd": 0.029525,
+  "real_frontier_cost_usd_avoided": 0.43768,
+  "validated_saving_usd": 0.347252,
+  "honest_claim": "Real benchmark, real paid calls. Saving counted ONLY on the 131/150 problems the cheap model got objectively right (last-number match to gold).",
+  "caveats": [
+    "cost = real tokens x stated OpenAI list prices, not provider-recorded",
+    "GSM8K is math word problems \u2014 one real task class, not all of real traffic",
+    "saving assumes the avoided frontier call would have been kept: cheap-correctness is tested, frontier-kept is not (so this is cost-avoidance under that assumption, and is specific to this cheap/frontier model pair)"
+  ],
+  "rows": [
+    {
+      "gold": "18",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017235,
+      "frontier_cost": 0.0029225
+    },
+    {
+      "gold": "45",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00030464999999999995,
+      "frontier_cost": 0.0041975
+    },
+    {
+      "gold": "230",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00012525,
+      "frontier_cost": 0.0019475
+    },
+    {
+      "gold": "26",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00013875,
+      "frontier_cost": 0.0019325
+    },
+    {
+      "gold": "35",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001395,
+      "frontier_cost": 0.002355
+    },
+    {
+      "gold": "8",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00018495,
+      "frontier_cost": 0.0016325
+    },
+    {
+      "gold": "8",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00010905,
+      "frontier_cost": 0.0019075
+    },
+    {
+      "gold": "3",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001395,
+      "frontier_cost": 0.001975
+    },
+    {
+      "gold": "300",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017805000000000002,
+      "frontier_cost": 0.0029875
+    },
+    {
+      "gold": "221",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015525,
+      "frontier_cost": 0.0030275
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002136,
+      "frontier_cost": 0.00254
+    },
+    {
+      "gold": "8000",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014084999999999998,
+      "frontier_cost": 0.0023675
+    },
+    {
+      "gold": "3",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017669999999999999,
+      "frontier_cost": 0.002565
+    },
+    {
+      "gold": "500",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002166,
+      "frontier_cost": 0.00289
+    },
+    {
+      "gold": "24",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.000162,
+      "frontier_cost": 0.00229
+    },
+    {
+      "gold": "240",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00012555,
+      "frontier_cost": 0.0023025
+    },
+    {
+      "gold": "880",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00029235,
+      "frontier_cost": 0.0043125
+    },
+    {
+      "gold": "6",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00010635,
+      "frontier_cost": 0.0020325
+    },
+    {
+      "gold": "20",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00031275,
+      "frontier_cost": 0.0036725
+    },
+    {
+      "gold": "4",
+      "cheap_correct": true,
+      "frontier_correct": false,
+      "cheap_cost": 0.00015135,
+      "frontier_cost": 0.0026925
+    },
+    {
+      "gold": "16",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001356,
+      "frontier_cost": 0.00219
+    },
+    {
+      "gold": "18",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015854999999999998,
+      "frontier_cost": 0.0026225
+    },
+    {
+      "gold": "100",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00018404999999999997,
+      "frontier_cost": 0.0023075
+    },
+    {
+      "gold": "25",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00037545,
+      "frontier_cost": 0.0049075
+    },
+    {
+      "gold": "91",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022695,
+      "frontier_cost": 0.0046725
+    },
+    {
+      "gold": "55",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017595,
+      "frontier_cost": 0.0028725
+    },
+    {
+      "gold": "76",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00012345,
+      "frontier_cost": 0.0023075
+    },
+    {
+      "gold": "220",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00016109999999999999,
+      "frontier_cost": 0.002645
+    },
+    {
+      "gold": "180",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00023115,
+      "frontier_cost": 0.0020025
+    },
+    {
+      "gold": "75",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00013394999999999998,
+      "frontier_cost": 0.0016325
+    },
+    {
+      "gold": "21",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014055,
+      "frontier_cost": 0.0030425
+    },
+    {
+      "gold": "300",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011205,
+      "frontier_cost": 0.0017475
+    },
+    {
+      "gold": "45",
+      "cheap_correct": true,
+      "frontier_correct": false,
+      "cheap_cost": 0.00023805,
+      "frontier_cost": 0.0032675
+    },
+    {
+      "gold": "400",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001515,
+      "frontier_cost": 0.001945
+    },
+    {
+      "gold": "5",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.00016425,
+      "frontier_cost": 0.0020975
+    },
+    {
+      "gold": "7",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00018240000000000002,
+      "frontier_cost": 0.00213
+    },
+    {
+      "gold": "3",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00018389999999999997,
+      "frontier_cost": 0.002275
+    },
+    {
+      "gold": "3",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00025485,
+      "frontier_cost": 0.0032575
+    },
+    {
+      "gold": "3200",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00030495,
+      "frontier_cost": 0.0043525
+    },
+    {
+      "gold": "32",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011235,
+      "frontier_cost": 0.0016725
+    },
+    {
+      "gold": "8",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022334999999999998,
+      "frontier_cost": 0.0039725
+    },
+    {
+      "gold": "2",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00016695,
+      "frontier_cost": 0.0023225
+    },
+    {
+      "gold": "72",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00023009999999999998,
+      "frontier_cost": 0.002175
+    },
+    {
+      "gold": "2",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002226,
+      "frontier_cost": 0.00296
+    },
+    {
+      "gold": "21",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011205,
+      "frontier_cost": 0.0019775
+    },
+    {
+      "gold": "25",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011760000000000001,
+      "frontier_cost": 0.00235
+    },
+    {
+      "gold": "18",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.00014984999999999998,
+      "frontier_cost": 0.0036575
+    },
+    {
+      "gold": "15",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00016979999999999998,
+      "frontier_cost": 0.00284
+    },
+    {
+      "gold": "32",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017820000000000002,
+      "frontier_cost": 0.00307
+    },
+    {
+      "gold": "34",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00023295,
+      "frontier_cost": 0.0037625
+    },
+    {
+      "gold": "48",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 9.09e-05,
+      "frontier_cost": 0.001275
+    },
+    {
+      "gold": "20",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002733,
+      "frontier_cost": 0.003585
+    },
+    {
+      "gold": "56",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002541,
+      "frontier_cost": 0.004195
+    },
+    {
+      "gold": "570",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002544,
+      "frontier_cost": 0.00314
+    },
+    {
+      "gold": "30",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00013275,
+      "frontier_cost": 0.0019925
+    },
+    {
+      "gold": "98",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002166,
+      "frontier_cost": 0.00384
+    },
+    {
+      "gold": "539",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002604,
+      "frontier_cost": 0.00282
+    },
+    {
+      "gold": "78",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002637,
+      "frontier_cost": 0.002995
+    },
+    {
+      "gold": "6",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00010035,
+      "frontier_cost": 0.0027925
+    },
+    {
+      "gold": "6",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001539,
+      "frontier_cost": 0.002685
+    },
+    {
+      "gold": "11",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017805000000000002,
+      "frontier_cost": 0.0027375
+    },
+    {
+      "gold": "6",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001236,
+      "frontier_cost": 0.00168
+    },
+    {
+      "gold": "38",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001479,
+      "frontier_cost": 0.003055
+    },
+    {
+      "gold": "2",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001593,
+      "frontier_cost": 0.003135
+    },
+    {
+      "gold": "120",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00010559999999999999,
+      "frontier_cost": 0.00242
+    },
+    {
+      "gold": "63",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00036314999999999996,
+      "frontier_cost": 0.0042025
+    },
+    {
+      "gold": "172",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00033285000000000004,
+      "frontier_cost": 0.0035575
+    },
+    {
+      "gold": "8",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.000132,
+      "frontier_cost": 0.00186
+    },
+    {
+      "gold": "80",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00013094999999999998,
+      "frontier_cost": 0.0027925
+    },
+    {
+      "gold": "450",
+      "cheap_correct": true,
+      "frontier_correct": false,
+      "cheap_cost": 0.00017685,
+      "frontier_cost": 0.0026175
+    },
+    {
+      "gold": "45",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001668,
+      "frontier_cost": 0.00296
+    },
+    {
+      "gold": "175",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022454999999999998,
+      "frontier_cost": 0.0037625
+    },
+    {
+      "gold": "11232",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00031709999999999996,
+      "frontier_cost": 0.005025
+    },
+    {
+      "gold": "2",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.00019874999999999998,
+      "frontier_cost": 0.0033425
+    },
+    {
+      "gold": "1",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015914999999999997,
+      "frontier_cost": 0.0026025
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014084999999999998,
+      "frontier_cost": 0.0018975
+    },
+    {
+      "gold": "8",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015765,
+      "frontier_cost": 0.0031075
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00010305,
+      "frontier_cost": 0.0015075
+    },
+    {
+      "gold": "85",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001719,
+      "frontier_cost": 0.002215
+    },
+    {
+      "gold": "45",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002034,
+      "frontier_cost": 0.00261
+    },
+    {
+      "gold": "43500",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002892,
+      "frontier_cost": 0.00362
+    },
+    {
+      "gold": "54",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014205,
+      "frontier_cost": 0.0025175
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014984999999999998,
+      "frontier_cost": 0.0023875
+    },
+    {
+      "gold": "32",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00024405,
+      "frontier_cost": 0.0022175
+    },
+    {
+      "gold": "2",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00036195,
+      "frontier_cost": 0.0050125
+    },
+    {
+      "gold": "20",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001704,
+      "frontier_cost": 0.00224
+    },
+    {
+      "gold": "100",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015825,
+      "frontier_cost": 0.0025875
+    },
+    {
+      "gold": "145",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0003044999999999999,
+      "frontier_cost": 0.003495
+    },
+    {
+      "gold": "50",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001605,
+      "frontier_cost": 0.002315
+    },
+    {
+      "gold": "14",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00024344999999999998,
+      "frontier_cost": 0.0036975
+    },
+    {
+      "gold": "4",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011729999999999999,
+      "frontier_cost": 0.002155
+    },
+    {
+      "gold": "40",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001893,
+      "frontier_cost": 0.002335
+    },
+    {
+      "gold": "3",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00019815000000000002,
+      "frontier_cost": 0.0024725
+    },
+    {
+      "gold": "4",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001626,
+      "frontier_cost": 0.0025
+    },
+    {
+      "gold": "240",
+      "cheap_correct": true,
+      "frontier_correct": false,
+      "cheap_cost": 0.0001596,
+      "frontier_cost": 0.00179
+    },
+    {
+      "gold": "16",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00018495,
+      "frontier_cost": 0.0028625
+    },
+    {
+      "gold": "675",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.00020204999999999998,
+      "frontier_cost": 0.0032775
+    },
+    {
+      "gold": "800",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 7.154999999999999e-05,
+      "frontier_cost": 0.0018325
+    },
+    {
+      "gold": "15",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00024555,
+      "frontier_cost": 0.0039125
+    },
+    {
+      "gold": "75",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00017805,
+      "frontier_cost": 0.0022075
+    },
+    {
+      "gold": "428",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00012735,
+      "frontier_cost": 0.0020925
+    },
+    {
+      "gold": "12",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00028575,
+      "frontier_cost": 0.0035825
+    },
+    {
+      "gold": "4500",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001119,
+      "frontier_cost": 0.001815
+    },
+    {
+      "gold": "52",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00019665,
+      "frontier_cost": 0.0025575
+    },
+    {
+      "gold": "42",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001437,
+      "frontier_cost": 0.002455
+    },
+    {
+      "gold": "16",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00026595,
+      "frontier_cost": 0.0027925
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00019065,
+      "frontier_cost": 0.0030075
+    },
+    {
+      "gold": "7",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002211,
+      "frontier_cost": 0.003765
+    },
+    {
+      "gold": "80",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00020730000000000002,
+      "frontier_cost": 0.002565
+    },
+    {
+      "gold": "13",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002526,
+      "frontier_cost": 0.00466
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00026235,
+      "frontier_cost": 0.0022725
+    },
+    {
+      "gold": "10",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 8.819999999999999e-05,
+      "frontier_cost": 0.00136
+    },
+    {
+      "gold": "250",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00012764999999999999,
+      "frontier_cost": 0.0027375
+    },
+    {
+      "gold": "8",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011265,
+      "frontier_cost": 0.0025475
+    },
+    {
+      "gold": "6",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00019784999999999998,
+      "frontier_cost": 0.0025575
+    },
+    {
+      "gold": "47",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002592,
+      "frontier_cost": 0.00344
+    },
+    {
+      "gold": "60",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00023459999999999998,
+      "frontier_cost": 0.00411
+    },
+    {
+      "gold": "250",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00029864999999999997,
+      "frontier_cost": 0.0044775
+    },
+    {
+      "gold": "34",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022875,
+      "frontier_cost": 0.0033225
+    },
+    {
+      "gold": "360",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.00018570000000000001,
+      "frontier_cost": 0.003485
+    },
+    {
+      "gold": "11",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00024075,
+      "frontier_cost": 0.0036125
+    },
+    {
+      "gold": "227",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022845,
+      "frontier_cost": 0.0029875
+    },
+    {
+      "gold": "540",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00036375,
+      "frontier_cost": 0.0051925
+    },
+    {
+      "gold": "342",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.000324,
+      "frontier_cost": 0.00416
+    },
+    {
+      "gold": "52",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00027105,
+      "frontier_cost": 0.0031075
+    },
+    {
+      "gold": "1",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00021690000000000001,
+      "frontier_cost": 0.004635
+    },
+    {
+      "gold": "230",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001755,
+      "frontier_cost": 0.002695
+    },
+    {
+      "gold": "138",
+      "cheap_correct": true,
+      "frontier_correct": false,
+      "cheap_cost": 0.00015675,
+      "frontier_cost": 0.0038425
+    },
+    {
+      "gold": "300",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00025739999999999997,
+      "frontier_cost": 0.00263
+    },
+    {
+      "gold": "450",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00015104999999999999,
+      "frontier_cost": 0.0023775
+    },
+    {
+      "gold": "736",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00021915000000000001,
+      "frontier_cost": 0.0030325
+    },
+    {
+      "gold": "7400",
+      "cheap_correct": false,
+      "frontier_correct": false,
+      "cheap_cost": 0.0002757,
+      "frontier_cost": 0.003755
+    },
+    {
+      "gold": "156",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00031845,
+      "frontier_cost": 0.0034175
+    },
+    {
+      "gold": "247",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00020879999999999998,
+      "frontier_cost": 0.00309
+    },
+    {
+      "gold": "85",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00030705,
+      "frontier_cost": 0.0026875
+    },
+    {
+      "gold": "72000",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001755,
+      "frontier_cost": 0.003145
+    },
+    {
+      "gold": "30",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00037709999999999995,
+      "frontier_cost": 0.005675
+    },
+    {
+      "gold": "240",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002088,
+      "frontier_cost": 0.00403
+    },
+    {
+      "gold": "24",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0001365,
+      "frontier_cost": 0.002145
+    },
+    {
+      "gold": "5",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00019004999999999998,
+      "frontier_cost": 0.0030875
+    },
+    {
+      "gold": "560",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00021405,
+      "frontier_cost": 0.0029975
+    },
+    {
+      "gold": "9",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 9.885e-05,
+      "frontier_cost": 0.0033275
+    },
+    {
+      "gold": "26",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00014835,
+      "frontier_cost": 0.0035225
+    },
+    {
+      "gold": "34",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00023774999999999998,
+      "frontier_cost": 0.0031125
+    },
+    {
+      "gold": "12",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.0002304,
+      "frontier_cost": 0.00307
+    },
+    {
+      "gold": "1125",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00016769999999999998,
+      "frontier_cost": 0.002505
+    },
+    {
+      "gold": "20",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00025695,
+      "frontier_cost": 0.0034325
+    },
+    {
+      "gold": "2",
+      "cheap_correct": false,
+      "frontier_correct": true,
+      "cheap_cost": 0.00029879999999999994,
+      "frontier_cost": 0.00467
+    },
+    {
+      "gold": "306",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00011384999999999999,
+      "frontier_cost": 0.0021475
+    },
+    {
+      "gold": "280",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 0.00022979999999999997,
+      "frontier_cost": 0.00256
+    }
+  ]
+}

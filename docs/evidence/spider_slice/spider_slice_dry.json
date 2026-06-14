@@ -1,0 +1,21 @@
+{
+  "schema": "kry_spider_slice/v1",
+  "label": "REAL Spider dev (frozen N=99) text-to-SQL via execute-gate; net-not-gross; deterministic",
+  "mode": "dry",
+  "cheap_model": "claude-haiku-4-5-20251001",
+  "frontier_model": "claude-sonnet-4-6",
+  "rows": 99,
+  "cheap_pass": 99,
+  "cheap_adequacy": 1.0,
+  "cheap_adequacy_wilson95": [
+    0.9626,
+    1.0
+  ],
+  "frontier_pass": 99,
+  "dev_index_mismatch": 0,
+  "gold_unrunnable_skipped": 0,
+  "cheap_spend_usd": 0.0,
+  "frontier_spend_usd": 0.0,
+  "measured_net_saving_usd": 0.0,
+  "net_cost_reduction_rate": null
+}

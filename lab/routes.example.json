@@ -1,0 +1,20 @@
+{
+  "frontier_model": "gh/claude-opus-4.8",
+  "frontier_node": "A",
+  "holdout_rate": 0.02,
+  "audit_rate": 0.25,
+  "seed": 7,
+  "nodes": {
+    "A": "http://node-a:11434",
+    "B": "http://node-b:11434",
+    "C": "http://node-c:11434"
+  },
+  "classes": {
+    "summarize": {"node": "B", "model": "local/qwen2.5:32b"},
+    "code":      {"node": "A", "model": "local/qwen2.5:14b"},
+    "translate": {"node": "C", "model": "local/llama3.1:8b"},
+    "greet":     {"node": "C", "model": "local/llama3.1:8b"}
+  },
+  "true_paid_prob": {"summarize": 0.85, "code": 0.70, "translate": 0.40, "greet": 0.0},
+  "_note": "true_paid_prob is the DRY-RUN/CI judge only. On the cluster pass a real judge (compare the local answer to the frontier's). frontier_node may point at a paid-API gateway to make the dollar leg real."
+}

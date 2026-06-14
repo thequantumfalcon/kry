@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # MANDATORY: keep third-party Actions pinned + patched (the tj-actions/GhostAction class of attack)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "thequantumfalcon"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The package itself is zero-dependency; this watches the optional dev/tee extras in pyproject.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "thequantumfalcon"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    groups:
+      python:
+        patterns: ["*"]

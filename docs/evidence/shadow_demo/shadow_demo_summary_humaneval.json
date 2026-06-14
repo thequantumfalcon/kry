@@ -1,0 +1,55 @@
+{
+  "schema": "kry_shadow_demo_summary/v1",
+  "label": "MECHANISM PROOF on a public benchmark (HumanEval) \u2014 NOT a real external-customer anchor",
+  "honest_scope": "HumanEval = public benchmark (synthetic, not real external traffic); deployable gate = executed tests (no oracle); net-not-gross (saving ONLY where the cheap code passed). Shows the realistic cheap-fail/fall-back-to-frontier dynamic the toy demo could not.",
+  "mode": "live_real_api",
+  "cheap_model": "claude-haiku-4-5-20251001",
+  "frontier_model": "claude-sonnet-4-6",
+  "price_basis_usd_per_1M": {
+    "claude-haiku-4-5-20251001": [
+      1.0,
+      5.0
+    ],
+    "claude-sonnet-4-6": [
+      3.0,
+      15.0
+    ]
+  },
+  "tasks": 25,
+  "cheap_test_pass": 23,
+  "cheap_fail_rows_zeroed": 2,
+  "frontier_test_pass": 23,
+  "cheap_adequacy_rate": 0.92,
+  "cheap_spend_usd": 0.030529,
+  "frontier_spend_usd_measured_baseline": 0.062052,
+  "measured_net_saving_usd": 0.022907,
+  "saving_rule": "sum over rows where the cheap code passed the deployable tests of (frontier_cost - cheap_cost); cheap-fail rows contribute $0 (net-not-gross gate fires).",
+  "p0_pass_rows": 23,
+  "row_digests": [
+    "3e1024ca5e580bdca66653a1762aa8e05688ed550081acfa9ebc5531297b4cdc",
+    "17779c72148985f5529c32ebc4f77f101b988e6d5b69322baedb00ac0861ef6f",
+    "3cfbac541a6b2f7ce1f5131850acddbba06201f44a1f340885c8a97f11ae1694",
+    "1ac01e23cd6976a492be345d69cb36b0c2e62e26637f4f2d0607d8f768371eb4",
+    "2dbf969c5c4073971928f7ca8581b2e2aa970b504c0a69b4588d59c56aee6ccf",
+    "cd9ff9b0a151047508200d2e2f46b6090d5d6347fc5ea812b29a10b382e463a0",
+    "679d43e1b9fad7450898ed74ad271f05b86c9de4ea7f8b7542ef4d0f4addd2ba",
+    "d6ca5779118e5280a59f2f20414d753a4d13e1fd318028a5cb055d1396f9963e",
+    "8d4b7f32ecbb3f87c93e5465f8821a8abb976b10aaa1fa1b8dc43cda07bd8186",
+    "510d68e5653d2fe220f220782bb43783e70830493dace93283be01dbbdc63df0",
+    "45f57c1d74351c893660d1193d1351540f472371b4bcfcd167264b6f8866d904",
+    "9c231cc99bac7fb536a476db0b63b85893ec3bac671aa5d1da4f355ee3af26de",
+    "25f183e8649055645501d0092efe4f44451c1e4a87f82c89cc716b4abcf70178",
+    "3a5c7cd8aa3919db0eb095b8440c3d65b8a4411a26def9017bbd27e7d48eaaf8",
+    "3c7a0941e38fafbe733d618972f73a6f78477d18f3a1466474d87e4c6b37a1e4",
+    "0ba111e3fdb49960f745a511809e18873639e5965cd4bfc8b1f4830ff2c0acaa",
+    "f0ef82ec5cb424d1d1193e928b2c20bb014ddc9566b804aedf9740f0fc46e3a4",
+    "23b5d4b854eb0ba783e34dfd2a599aaeea8fd8a2c64c46e7b1ee90fb8c3ee7a1",
+    "7a71bbd84eee8474d7ffa98def80cf5be51b05ecbff0f0d539d9fd6370a84aaa",
+    "b2b79af8b8e688bb4f765f3d1f3dc284f93a46239b60ed2d6163e12ff21c5951",
+    "533ac813ec60c33e5b1989851e16ffff7c51f1296e7637a314febe80d6316d4d",
+    "8ad1c89813d0602c39f98cf36c8d0bf6b75256caf211e01f4a4e5e0b0a8e9ec1",
+    "f409f1b2c64c4aabe658dceff57e6bc479b5807369231969476e8fd043878a71",
+    "fdc5876eab40629db4a63861966fa4c1828c1453cf732ec6cca68433d8eca212",
+    "61419ff12e78f9054b8b132fa6e2d659dd02c0c5aee0c5ea3033982351f898f4"
+  ]
+}

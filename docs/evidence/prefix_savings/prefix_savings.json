@@ -1,0 +1,14 @@
+{
+  "schema": "kry_multiturn_prefix_savings/v1",
+  "corpus": "allenai/WildChat-1M",
+  "multi_turn_convos": 1020,
+  "aggregate_input_tokens": 4985268,
+  "cacheable_prefix_tokens": 3537635,
+  "prefix_cacheable_fraction": 0.7096,
+  "median_per_convo_fraction": 0.4662,
+  "savings_anthropic_cached_read_pct": 0.6387,
+  "savings_openai_cached_input_pct": 0.3548,
+  "bounds": [
+    "input-side only (output never cacheable); char/4 token estimate; assumes standard re-send-full-history multi-turn + provider prefix caching; this is the prefix lever, SEPARATE from and additive to the 15.7% exact-match cache"
+  ]
+}

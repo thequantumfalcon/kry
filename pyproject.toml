@@ -1,0 +1,23 @@
+[build-system]
+requires = []
+build-backend = "build_backend"
+backend-path = ["."]
+
+[project]
+name = "kry"
+version = "0.1.0"
+description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
+license = {text = "PolyForm-Noncommercial-1.0.0"}
+requires-python = ">=3.11"
+dependencies = []   # zero-dependency, pure stdlib
+
+# The core token is stdlib-only. The `tee` extra adds the ONE thing you must never
+# hand-roll — audited public-key crypto — used solely by scripts/kry_tee_verify.py to
+# verify an AWS Nitro attestation's ECDSA-P384 signature + X.509 chain (the tee_attested
+# tier). Without it, tee verification fails closed; the rest of KRY is unaffected.
+[project.optional-dependencies]
+dev = ["pytest==9.0.3", "ruff==0.15.16"]
+tee = ["cryptography>=42"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

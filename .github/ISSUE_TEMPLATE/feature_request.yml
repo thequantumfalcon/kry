@@ -1,0 +1,31 @@
+name: "Feature request"
+description: Suggest an enhancement that fits KRY's scope
+labels: ["enhancement", "needs-discussion"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that KRY makes hard today?
+      placeholder: "I'm frustrated when ..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope fit
+      options:
+        - label: This stays stdlib-only (no third-party dependency in src/ or scripts/)
+        - label: This keeps claims honest (measured vs speculative; integrity ≠ veracity; no hidden veracity_floor)
+        - label: I searched existing requests for a duplicate
+          required: true

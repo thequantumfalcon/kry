@@ -1,0 +1,35 @@
+{
+  "schema": "kry_malicious_packet_fixtures/v1",
+  "cases": [
+    {
+      "id": "absolute_command_inputs",
+      "file": "absolute_command_inputs.json",
+      "expected_error": "command_inputs.usage_log must be relative, got absolute path"
+    },
+    {
+      "id": "stale_artifact_hash",
+      "file": "stale_artifact_hash.json",
+      "expected_error": "artifact_hash mismatch"
+    },
+    {
+      "id": "hidden_mint_log",
+      "file": "kry_mint_log.jsonl",
+      "expected_error": "private ledger/mint-log material present in packet"
+    },
+    {
+      "id": "raw_prompt_usage_log",
+      "file": "raw_prompt_usage.jsonl",
+      "expected_error": "usage log contains private field $[0].request_body"
+    },
+    {
+      "id": "raw_response_provider_export",
+      "file": "provider_export_raw_response.json",
+      "expected_error": "provider export contains private field $[0].raw_response"
+    },
+    {
+      "id": "symlink_packet_entry",
+      "dynamic": true,
+      "expected_error": "packet contains symlink"
+    }
+  ]
+}
