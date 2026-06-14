@@ -1,0 +1,27 @@
+{
+  "schema": "kry_cod_experiment/v1",
+  "label": "MEASURED on MBPP (public benchmark); CoD = output-axis lever, stacks on routing; net-not-gross",
+  "model": "claude-sonnet-4-6",
+  "out_price_usd_per_1M": 15.0,
+  "n": 50,
+  "budget_cap_usd": 4.0,
+  "pass_rate": {
+    "verbose": 0.82,
+    "cod": 0.78,
+    "terse": 0.82
+  },
+  "mean_output_tokens": {
+    "verbose": 643.2,
+    "cod": 134.1,
+    "terse": 140.5
+  },
+  "cod_vs_verbose": {
+    "both_pass_rows": 37,
+    "cod_pass_delta_vs_verbose": -0.04,
+    "mean_output_token_reduction": 0.859,
+    "output_tokens_saved_on_both_pass": 18381,
+    "usd_saved_this_model": 0.275715,
+    "usd_saved_if_opus_output_price": 1.378575
+  },
+  "honest_note": "CoD is a free win ONLY if cod_pass_delta \u2248 0 (quality preserved). A negative delta means capping reasoning HURT correctness \u2014 then it's a tradeoff, not a free saving."
+}

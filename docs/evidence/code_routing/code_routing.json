@@ -1,0 +1,34 @@
+{
+  "schema": "kry_code_routing_proof/v1",
+  "benchmark": "HumanEval (test-pass adequacy, executed)",
+  "cheap_model": "gpt-4o-mini",
+  "frontier_model": "gpt-4o",
+  "price_basis_usd_per_1M": {
+    "gpt-4o-mini": [
+      0.15,
+      0.6
+    ],
+    "gpt-4o": [
+      2.5,
+      10.0
+    ]
+  },
+  "problems": 164,
+  "cheap_adequate": 138,
+  "cheap_adequacy_rate": 0.8415,
+  "cheap_adequacy_wilson_95ci": [
+    0.7778,
+    0.8895
+  ],
+  "frontier_pass": 142,
+  "all_frontier_cost_usd": 0.217475,
+  "routed_cost_usd": 0.0535,
+  "routing_savings_usd": 0.163975,
+  "routing_savings_rate": 0.754,
+  "honest_claim": "Router serves cheap, escalates the 26 cheap-failures to frontier (charged twice). Saving = real avoided $ on the 138/164 the cheap model passed the executed tests on.",
+  "caveats": [
+    "HumanEval = toy functions; real production code adequacy is lower and contested",
+    "cost = real tokens x stated OpenAI list prices, not provider-recorded",
+    "this validates the ROUTING lever the company estimate excluded"
+  ]
+}

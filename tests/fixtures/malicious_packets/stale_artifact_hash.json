@@ -1,0 +1,10 @@
+{
+  "schema": "kry_verified_savings_artifact/v1",
+  "artifact_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ship_scope": "internal_or_demo_only",
+  "claim_allowed": {
+    "external_verified_savings": false,
+    "internal_efficiency_artifact": true
+  },
+  "command_inputs": {}
+}

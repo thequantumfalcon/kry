@@ -1,0 +1,9 @@
+[
+  {
+    "prompt_tokens": 10,
+    "completion_tokens": 5,
+    "raw_response": {
+      "content": "private response text"
+    }
+  }
+]

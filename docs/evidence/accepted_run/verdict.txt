@@ -1,0 +1,6 @@
+KRY Step-1 — research_grade assessment
+  T1 (provider_metered) receipts: 8
+  provider records matched:       8/8
+  independent agreement:          1.00  (bar 0.80)
+  readiness label:                research_grade
+  VERDICT: research_grade REACHED — an independent oracle agrees >= the bar.

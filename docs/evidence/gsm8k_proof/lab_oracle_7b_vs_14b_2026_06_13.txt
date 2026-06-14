@@ -1,0 +1,95 @@
+REAL GSM8K: 80 test problems (seeded sample). cheap=qwen2.5:7b capable=qwen3:14b
+
+  [1/80] easy(1-2) cheap=OK capable=OK
+  [2/80] med(3-4)  cheap=OK capable=OK
+  [3/80] easy(1-2) cheap=OK capable=OK
+  [4/80] med(3-4)  cheap=OK capable=OK
+  [5/80] med(3-4)  cheap=OK capable=OK
+  [6/80] easy(1-2) cheap=OK capable=OK
+  [7/80] med(3-4)  cheap=XX capable=OK
+  [8/80] easy(1-2) cheap=OK capable=OK
+  [9/80] med(3-4)  cheap=XX capable=OK
+  [10/80] med(3-4)  cheap=XX capable=OK
+  [11/80] easy(1-2) cheap=OK capable=OK
+  [12/80] easy(1-2) cheap=OK capable=OK
+  [13/80] easy(1-2) cheap=OK capable=OK
+  [14/80] easy(1-2) cheap=OK capable=XX
+  [15/80] med(3-4)  cheap=OK capable=XX
+  [16/80] easy(1-2) cheap=OK capable=OK
+  [17/80] easy(1-2) cheap=OK capable=OK
+  [18/80] med(3-4)  cheap=OK capable=OK
+  [19/80] easy(1-2) cheap=OK capable=OK
+  [20/80] med(3-4)  cheap=OK capable=OK
+  [21/80] med(3-4)  cheap=OK capable=OK
+  [22/80] easy(1-2) cheap=OK capable=OK
+  [23/80] easy(1-2) cheap=OK capable=OK
+  [24/80] hard(5+)  cheap=OK capable=XX
+  [25/80] easy(1-2) cheap=OK capable=XX
+  [26/80] easy(1-2) cheap=OK capable=OK
+  [27/80] hard(5+)  cheap=OK capable=OK
+  [28/80] med(3-4)  cheap=XX capable=OK
+  [29/80] med(3-4)  cheap=OK capable=OK
+  [30/80] hard(5+)  cheap=XX capable=OK
+  [31/80] med(3-4)  cheap=OK capable=OK
+  [32/80] med(3-4)  cheap=OK capable=OK
+  [33/80] med(3-4)  cheap=OK capable=OK
+  [34/80] easy(1-2) cheap=XX capable=OK
+  [35/80] med(3-4)  cheap=OK capable=OK
+  [36/80] med(3-4)  cheap=OK capable=OK
+  [37/80] hard(5+)  cheap=OK capable=OK
+  [38/80] easy(1-2) cheap=OK capable=OK
+  [39/80] med(3-4)  cheap=XX capable=XX
+  [40/80] med(3-4)  cheap=XX capable=XX
+  [41/80] hard(5+)  cheap=OK capable=XX
+  [42/80] med(3-4)  cheap=OK capable=OK
+  [43/80] easy(1-2) cheap=OK capable=OK
+  [44/80] med(3-4)  cheap=OK capable=OK
+  [45/80] easy(1-2) cheap=OK capable=OK
+  [46/80] med(3-4)  cheap=XX capable=OK
+  [47/80] easy(1-2) cheap=OK capable=XX
+  [48/80] med(3-4)  cheap=OK capable=OK
+  [49/80] med(3-4)  cheap=OK capable=OK
+  [50/80] easy(1-2) cheap=OK capable=OK
+  [51/80] hard(5+)  cheap=OK capable=OK
+  [52/80] easy(1-2) cheap=OK capable=OK
+  [53/80] med(3-4)  cheap=OK capable=OK
+  [54/80] easy(1-2) cheap=OK capable=OK
+  [55/80] med(3-4)  cheap=OK capable=OK
+  [56/80] easy(1-2) cheap=OK capable=OK
+  [57/80] easy(1-2) cheap=OK capable=OK
+  [58/80] hard(5+)  cheap=OK capable=OK
+  [59/80] med(3-4)  cheap=OK capable=OK
+  [60/80] easy(1-2) cheap=OK capable=OK
+  [61/80] med(3-4)  cheap=OK capable=OK
+  [62/80] med(3-4)  cheap=OK capable=OK
+  [63/80] med(3-4)  cheap=OK capable=XX
+  [64/80] med(3-4)  cheap=OK capable=OK
+  [65/80] hard(5+)  cheap=OK capable=OK
+  [66/80] easy(1-2) cheap=XX capable=OK
+  [67/80] hard(5+)  cheap=OK capable=OK
+  [68/80] easy(1-2) cheap=OK capable=OK
+  [69/80] easy(1-2) cheap=OK capable=XX
+  [70/80] easy(1-2) cheap=OK capable=XX
+  [71/80] hard(5+)  cheap=XX capable=OK
+  [72/80] hard(5+)  cheap=OK capable=XX
+  [73/80] easy(1-2) cheap=XX capable=OK
+  [74/80] easy(1-2) cheap=OK capable=OK
+  [75/80] med(3-4)  cheap=OK capable=OK
+  [76/80] hard(5+)  cheap=OK capable=OK
+  [77/80] med(3-4)  cheap=OK capable=OK
+  [78/80] easy(1-2) cheap=OK capable=XX
+  [79/80] easy(1-2) cheap=OK capable=OK
+  [80/80] med(3-4)  cheap=OK capable=OK
+
+cheap   adequacy: 68/80 = 85%  (95% CI [0.76,0.91])
+capable adequacy: 67/80 = 84%  (95% CI [0.74,0.90])
+adequacy GAP: -1%   rescue rate P(cheap wrong & capable right): 10/80 = 12%
+routing economics: KRY could route the 68/80 cheap-adequate problems to the 7B and stay correct; the rest must escalate (the real 'paid' rate = 15%).
+
+holdout-vs-truth (cheap 'paid' = cheap wrong), bucketed by gold difficulty:
+bucket            holdout est   production truth  brackets?
+easy(1-2)    1/17 [0.01,0.27]          2/17=0.12        YES
+hard(5+)      1/6 [0.03,0.56]           1/6=0.17        YES
+med(3-4)     4/17 [0.10,0.47]          3/17=0.18        YES
+
+independent_agreement = 3/3 = 1.00  (PASS >= 0.80) on REAL GSM8K. Internal cross-check on own hardware, not an external counterparty.

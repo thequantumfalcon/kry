@@ -1,0 +1,121 @@
+diff --git a/crates/examples/Cargo.toml b/crates/examples/Cargo.toml
+index 27d428c..5d20f80 100644
+--- a/crates/examples/Cargo.toml
++++ b/crates/examples/Cargo.toml
+@@ -14,6 +14,7 @@ tls-server-fixture = { workspace = true }
+ tlsn-server-fixture = { workspace = true }
+ tlsn-server-fixture-certs = { workspace = true }
+ spansy = { workspace = true }
++webpki-root-certs = "1"
+ 
+ anyhow = { workspace = true }
+ bincode = { workspace = true }
+diff --git a/crates/examples/attestation/present.rs b/crates/examples/attestation/present.rs
+index 3e67646..318e63a 100644
+--- a/crates/examples/attestation/present.rs
++++ b/crates/examples/attestation/present.rs
+@@ -77,7 +77,7 @@ async fn create_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
+     match &body.content {
+         tlsn_formats::http::BodyContent::Json(json) => {
+             // For experimentation, reveal the entire response or just a selection.
+-            let reveal_all = false;
++            let reveal_all = true;
+             if reveal_all {
+                 builder.reveal_recv(response)?;
+             } else {
+diff --git a/crates/examples/attestation/prove.rs b/crates/examples/attestation/prove.rs
+index 6e25508..b7f9c79 100644
+--- a/crates/examples/attestation/prove.rs
++++ b/crates/examples/attestation/prove.rs
+@@ -77,6 +77,9 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+     let server_port: u16 = env::var("SERVER_PORT")
+         .map(|port| port.parse().expect("port should be valid integer"))
+         .unwrap_or(DEFAULT_FIXTURE_PORT);
++    let server_domain = env::var("SERVER_DOMAIN").unwrap_or_else(|_| SERVER_DOMAIN.to_string());
++    let uri_owned = env::var("URI").unwrap_or_else(|_| uri.to_string());
++    let uri = uri_owned.as_str();
+ 
+     // Create a session with the notary.
+     let session = Session::new(socket.compat());
+@@ -106,18 +109,16 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+     // Bind the prover to the server connection.
+     let (tls_connection, prover) = prover.connect(
+         TlsClientConfig::builder()
+-            .server_name(ServerName::Dns(SERVER_DOMAIN.try_into()?))
++            .server_name(ServerName::Dns(server_domain.as_str().try_into()?))
+             // Create a root certificate store with the server-fixture's self-signed
+             // certificate. This is only required for offline testing with the
+             // server-fixture.
+             .root_store(RootCertStore {
+-                roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
++                roots: webpki_root_certs::TLS_SERVER_ROOT_CERTS
++                    .iter()
++                    .map(|c| CertificateDer(c.as_ref().to_vec()))
++                    .collect(),
+             })
+-            // (Optional) Set up TLS client authentication if required by the server.
+-            .client_auth((
+-                vec![CertificateDer(CLIENT_CERT_DER.to_vec())],
+-                PrivateKeyDer(CLIENT_KEY_DER.to_vec()),
+-            ))
+             .build()?,
+         client_socket.compat(),
+     )?;
+@@ -136,7 +137,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+     // Build a simple HTTP request with common headers.
+     let request_builder = Request::builder()
+         .uri(uri)
+-        .header("Host", SERVER_DOMAIN)
++        .header("Host", server_domain.as_str())
+         .header("Accept", "*/*")
+         // Using "identity" instructs the Server not to use compression for its HTTP response.
+         // TLSNotary tooling does not support compression.
+@@ -147,6 +148,9 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+     for (key, value) in extra_headers {
+         request_builder = request_builder.header(key, value);
+     }
++    if let Ok(auth) = env::var("AUTH_HEADER") {
++        request_builder = request_builder.header("Authorization", auth);
++    }
+     let request = request_builder.body(Empty::<Bytes>::new())?;
+ 
+     info!("Starting connection with the server");
+@@ -156,7 +160,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+ 
+     info!("Got a response from the server: {}", response.status());
+ 
+-    assert!(response.status() == StatusCode::OK);
++    info!("server status: {}", response.status());
+ 
+     // The prover task should be done now, so we can await it.
+     let mut prover = prover_task.await??;
+@@ -223,7 +227,7 @@ async fn prover<S: AsyncWrite + AsyncRead + Send + Sync + Unpin + 'static>(
+     let mut builder = AttestationRequest::builder(&request_config);
+ 
+     builder
+-        .server_name(ServerName::Dns(SERVER_DOMAIN.try_into().unwrap()))
++        .server_name(ServerName::Dns(env::var("SERVER_DOMAIN").unwrap_or_else(|_| SERVER_DOMAIN.to_string()).as_str().try_into().unwrap()))
+         .handshake_data(HandshakeData {
+             certs: tls_transcript
+                 .server_cert_chain()
+diff --git a/crates/examples/attestation/verify.rs b/crates/examples/attestation/verify.rs
+index 1b2d1ca..88449c7 100644
+--- a/crates/examples/attestation/verify.rs
++++ b/crates/examples/attestation/verify.rs
+@@ -44,13 +44,9 @@ async fn verify_presentation(example_type: &ExampleType) -> Result<(), Box<dyn s
+     //
+     // This is only required for offline testing with the server-fixture. In
+     // production, use `CryptoProvider::default()` instead.
+-    let root_cert_store = RootCertStore {
+-        roots: vec![CertificateDer(CA_CERT_DER.to_vec())],
+-    };
+-    let crypto_provider = CryptoProvider {
+-        cert: ServerCertVerifier::new(&root_cert_store)?,
+-        ..Default::default()
+-    };
++    // Production: default crypto provider uses real webpki root certificates,
++    // so it verifies a genuine CA-signed server cert (e.g. openrouter.ai).
++    let crypto_provider = CryptoProvider::default();
+ 
+     let VerifyingKey {
+         alg,

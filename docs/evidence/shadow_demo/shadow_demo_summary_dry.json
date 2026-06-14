@@ -1,0 +1,38 @@
+{
+  "schema": "kry_shadow_demo_summary/v1",
+  "label": "MECHANISM PROOF on synthetic toy coding tasks \u2014 NOT a real external-customer savings anchor",
+  "honest_scope": "tasks hand-written by us (synthetic); deployable gate = executed unit tests (no oracle); net-not-gross; saving counts ONLY where the cheap model's code PASSED the tests. Toy functions => cheap adequacy is optimistic; real/harder code is lower.",
+  "mode": "dry_mock_no_spend",
+  "cheap_model": "claude-haiku-4-5-20251001",
+  "frontier_model": "claude-sonnet-4-6",
+  "price_basis_usd_per_1M": {
+    "claude-haiku-4-5-20251001": [
+      1.0,
+      5.0
+    ],
+    "claude-sonnet-4-6": [
+      3.0,
+      15.0
+    ]
+  },
+  "tasks": 10,
+  "cheap_test_pass": 10,
+  "frontier_test_pass": 10,
+  "cheap_spend_usd": 0.008,
+  "frontier_spend_usd_measured_baseline": 0.024,
+  "measured_net_saving_usd": 0.016,
+  "saving_rule": "sum over rows where the cheap code passed the deployable tests of (frontier_cost - cheap_cost)",
+  "p0_pass_rows": 10,
+  "row_digests": [
+    "dec37bdeabc917563f73539436330b7de3bdbdda27bc60ac03314a54c62e14eb",
+    "f748d216bb04e8633aeeb4d1d46411ab735f7ae231d9e1fe6e36ab714c8d9e6e",
+    "7e034570eaba5fa37764747d64db2373eb165ab361e072fd98d691b689e37d64",
+    "b4020b843e43473a63af562c3ce7a52204f02972a87c029f08952470cef5ba3b",
+    "95b2e964fc5957579154ac509f1a6ca2cf3613000190d3f4c07e9f7f2e1dcd9c",
+    "37d813fa543def858a780aa5c1ac68a70e1e5c465067fc888db902ba841419a8",
+    "39de0bc51b98377753da45956119f9458707babb588c862430a6c3ec24824da7",
+    "ec4f647ffdfb1998e224a329bfdd00dcd0118d041a8abac9d6752477d97c631d",
+    "567cdc81d1f9eb9c1f3b3abead899b79c30c7ce9f4fc6d95cbb09431a5211391",
+    "f8b171a1d074a5f48e344be776b3a8ff8b5cd160a8a611c966a29aa0f95835d0"
+  ]
+}

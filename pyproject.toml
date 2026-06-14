@@ -1,0 +1,32 @@
+[build-system]
+requires = []
+build-backend = "build_backend"
+backend-path = ["."]
+
+[project]
+name = "kry"
+version = "0.1.0"
+description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
+license = {text = "PolyForm-Noncommercial-1.0.0"}
+requires-python = ">=3.11"
+dependencies = []   # zero-dependency, pure stdlib
+
+# The core token is stdlib-only. The `tee` extra adds the ONE thing you must never
+# hand-roll — audited public-key crypto — used solely by scripts/kry_tee_verify.py to
+# verify an AWS Nitro attestation's ECDSA-P384 signature + X.509 chain (the tee_attested
+# tier). Without it, tee verification fails closed; the rest of KRY is unaffected.
+[project.optional-dependencies]
+dev = ["pytest==9.1.0", "ruff==0.15.17"]
+tee = ["cryptography>=49.0.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# The core library (src/) is held to ruff's full default rules and stays clean.
+# The research/proof scripts and example shims are deliberately written in a compact
+# one-liner idiom (grouped imports, semicolon-joined statements, inline lambdas in
+# __main__ self-test mocks). Relax ONLY those style codes there — the bug-catching
+# F-codes and the readability rule E741 stay enforced everywhere.
+"scripts/*" = ["E401", "E701", "E702"]
+"examples/*" = ["E731"]

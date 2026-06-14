@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+
+# Least privilege: the default GITHUB_TOKEN is read-only. Jobs that need more raise it explicitly.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.11"
+      - name: Install tooling (stdlib-only package — just the test/lint tools)
+        run: python -m pip install --upgrade pip pytest==9.0.3 ruff==0.15.16
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Lint (must stay clean)
+        run: ruff check src/ scripts/ tests/ examples/ lab/
+      - name: Tests
+        run: python -m pytest tests/ -q
+      - name: Reproducibility smoke
+        run: bash lab/reproduce.sh 1
+      - name: Packet workflow smoke
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          export KRY_DATA_DIR="$tmp/kry_data"
+          python3 scripts/kry_doctor.py
+          python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
+          python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
+          python3 scripts/kry_verify.py "$tmp/att.json"
+          python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
+            --attestation "$tmp/att.json" \
+            --mint-log "$KRY_DATA_DIR/kry_mint_log.jsonl" \
+            --bundle-dir "$tmp/packet"
+          python3 scripts/kry_verified_artifact.py --verify-artifact "$tmp/packet/artifact.json"
+          python3 scripts/kry_finops_report.py "$tmp/packet/artifact.json"
+          python3 scripts/kry_doctor.py --artifact "$tmp/packet/artifact.json"
+
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.11"
+      - name: Run release verifier
+        run: python3 scripts/kry_release_verify.py --json-out release-verify.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: release-verify
+          path: release-verify.json
+
+  full-reproducibility:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.11"
+      - name: Run full release verifier
+        run: python3 scripts/kry_release_verify.py --full --json-out release-verify-full.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: release-verify-full
+          path: release-verify-full.json

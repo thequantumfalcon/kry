@@ -1,0 +1,17 @@
+[package]
+name = "kry-attest-enclave"
+version = "0.1.0"
+edition = "2021"
+
+# The enclave workload: receive (user_data, nonce) over vsock from the parent, ask the
+# Nitro Security Module for a signed attestation document carrying them, send it back.
+# API verified against aws/aws-nitro-enclaves-nsm-api (src/api/mod.rs) — Request::Attestation
+# { user_data, nonce, public_key: Option<ByteBuf> } -> Response::Attestation { document: Vec<u8> }.
+[dependencies]
+aws-nitro-enclaves-nsm-api = "0.4"
+serde_bytes = "0.11"
+vsock = "0.5"
+
+[[bin]]
+name = "kry-attest-enclave"
+path = "src/main.rs"

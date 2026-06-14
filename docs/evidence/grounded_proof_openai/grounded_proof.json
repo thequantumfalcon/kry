@@ -1,0 +1,143 @@
+{
+  "schema": "kry_grounded_savings_openai/v1",
+  "cheap_model": "gpt-4o-mini",
+  "frontier_model": "gpt-4o",
+  "price_basis_usd_per_1M": {
+    "gpt-4o-mini": [
+      0.15,
+      0.6
+    ],
+    "gpt-4o": [
+      2.5,
+      10.0
+    ]
+  },
+  "price_note": "real token counts; cost at STATED OpenAI list prices \u2014 verify openai.com/pricing",
+  "tasks": 16,
+  "cheap_adequate": 16,
+  "adequacy_rate": 1.0,
+  "adequacy_wilson_95ci": [
+    0.8064,
+    1.0
+  ],
+  "frontier_correct": 16,
+  "real_cheap_cost_usd": 6.2e-05,
+  "real_frontier_cost_usd_avoided": 0.00104,
+  "validated_saving_usd": 0.000978,
+  "honest_claim": "Saving counted ONLY on the 16/16 tasks where the cheap model was objectively correct.",
+  "bounded_claim": "Grounded tasks = the easy case for adequacy; not open-ended real traffic. Cost is real-tokens x stated public prices, not provider-recorded.",
+  "rows": [
+    {
+      "gold": "9603",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 4.35e-06,
+      "frontier_cost": 7.25e-05
+    },
+    {
+      "gold": "1632",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 4.35e-06,
+      "frontier_cost": 7.25e-05
+    },
+    {
+      "gold": "63",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "6970",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 4.35e-06,
+      "frontier_cost": 7.25e-05
+    },
+    {
+      "gold": "165",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "152",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "69",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "6536",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 4.35e-06,
+      "frontier_cost": 7.25e-05
+    },
+    {
+      "gold": "Au",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "O",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "Fe",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "Na",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "H",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "C",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "Ag",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    },
+    {
+      "gold": "K",
+      "cheap_correct": true,
+      "frontier_correct": true,
+      "cheap_cost": 3.75e-06,
+      "frontier_cost": 6.25e-05
+    }
+  ]
+}

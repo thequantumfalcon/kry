@@ -1,0 +1,74 @@
+[
+  {
+    "id": "gen-1781073360-NWKglyT6csO7QY1LU4qc",
+    "tokens_prompt": 75,
+    "tokens_completion": 23,
+    "native_tokens_prompt": 75,
+    "native_tokens_completion": 23,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073362-2Vv81ifZThnDyUPTOir9",
+    "tokens_prompt": 72,
+    "tokens_completion": 30,
+    "native_tokens_prompt": 72,
+    "native_tokens_completion": 30,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073364-AHJzsGBzlzVintTFbmST",
+    "tokens_prompt": 74,
+    "tokens_completion": 21,
+    "native_tokens_prompt": 74,
+    "native_tokens_completion": 21,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073365-NOIWnXwSpr5DvYeZnD3Y",
+    "tokens_prompt": 75,
+    "tokens_completion": 25,
+    "native_tokens_prompt": 75,
+    "native_tokens_completion": 25,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073375-obDr4UJgXkYqN1NlAIWG",
+    "tokens_prompt": 75,
+    "tokens_completion": 17,
+    "native_tokens_prompt": 75,
+    "native_tokens_completion": 17,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073376-G8iAxnXjbYfQX9ck0eWu",
+    "tokens_prompt": 72,
+    "tokens_completion": 24,
+    "native_tokens_prompt": 72,
+    "native_tokens_completion": 24,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073378-fMDicg7CkqbzAGG2a4L7",
+    "tokens_prompt": 74,
+    "tokens_completion": 41,
+    "native_tokens_prompt": 74,
+    "native_tokens_completion": 41,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  },
+  {
+    "id": "gen-1781073380-RnKBqwgFu0R4z467XHSZ",
+    "tokens_prompt": 76,
+    "tokens_completion": 26,
+    "native_tokens_prompt": 76,
+    "native_tokens_completion": 26,
+    "total_cost": 0,
+    "provider_name": "OpenInference"
+  }
+]

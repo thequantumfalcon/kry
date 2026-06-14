@@ -1,0 +1,15 @@
+# Code owners for KRY. Pair this with the main-branch ruleset setting
+# "Require review from Code Owners" so these paths cannot change without review.
+# Single maintainer for now.
+
+* @thequantumfalcon
+
+# Self-protecting governance + supply-chain-sensitive files
+/.github/                @thequantumfalcon
+/.github/workflows/      @thequantumfalcon
+/.github/CODEOWNERS      @thequantumfalcon
+/.github/dependabot.yml  @thequantumfalcon
+/SECURITY.md             @thequantumfalcon
+/LICENSE.md              @thequantumfalcon
+/pyproject.toml          @thequantumfalcon
+/src/                    @thequantumfalcon

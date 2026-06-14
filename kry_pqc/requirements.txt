@@ -1,0 +1,11 @@
+# Dependencies for the OPTIONAL kry_pqc tier ONLY.
+#
+# KRY core (src/kry/*) remains zero-dependency, pure Python stdlib. Nothing in
+# src/kry imports this tier, so installing the line below changes the core's
+# dependency footprint not at all -- it is opt-in.
+#
+# liboqs-python provides the `oqs` module: NIST-standard post-quantum signatures
+# (ML-DSA / FIPS 204) backed by the audited liboqs C library. Prior validation used
+# liboqs-python 0.15.0 / liboqs 0.15.0; rerun kry_pqc/test_kry_pqc.py in your
+# release environment before treating this optional tier as verified.
+liboqs-python>=0.15.0

@@ -1,0 +1,99 @@
+cheap=qwen2.5:1.5b  N=80  K=5 self-consistency samples @ temp 0.8  (no-gold gate)
+
+  [1/80] agree=1.0 cheap_majority=OK
+  [2/80] agree=0.6 cheap_majority=OK
+  [3/80] agree=1.0 cheap_majority=OK
+  [4/80] agree=0.8 cheap_majority=OK
+  [5/80] agree=0.6 cheap_majority=XX
+  [6/80] agree=1.0 cheap_majority=OK
+  [7/80] agree=0.2 cheap_majority=XX
+  [8/80] agree=1.0 cheap_majority=OK
+  [9/80] agree=0.4 cheap_majority=XX
+  [10/80] agree=0.4 cheap_majority=XX
+  [11/80] agree=1.0 cheap_majority=OK
+  [12/80] agree=0.2 cheap_majority=XX
+  [13/80] agree=0.4 cheap_majority=XX
+  [14/80] agree=0.8 cheap_majority=OK
+  [15/80] agree=0.8 cheap_majority=XX
+  [16/80] agree=1.0 cheap_majority=OK
+  [17/80] agree=1.0 cheap_majority=OK
+  [18/80] agree=0.8 cheap_majority=OK
+  [19/80] agree=0.8 cheap_majority=OK
+  [20/80] agree=0.6 cheap_majority=OK
+  [21/80] agree=1.0 cheap_majority=OK
+  [22/80] agree=0.6 cheap_majority=XX
+  [23/80] agree=0.2 cheap_majority=XX
+  [24/80] agree=0.2 cheap_majority=XX
+  [25/80] agree=0.6 cheap_majority=OK
+  [26/80] agree=1.0 cheap_majority=OK
+  [27/80] agree=0.2 cheap_majority=XX
+  [28/80] agree=0.6 cheap_majority=XX
+  [29/80] agree=1.0 cheap_majority=OK
+  [30/80] agree=0.8 cheap_majority=OK
+  [31/80] agree=0.8 cheap_majority=OK
+  [32/80] agree=1.0 cheap_majority=OK
+  [33/80] agree=1.0 cheap_majority=OK
+  [34/80] agree=1.0 cheap_majority=OK
+  [35/80] agree=0.8 cheap_majority=XX
+  [36/80] agree=0.8 cheap_majority=OK
+  [37/80] agree=0.6 cheap_majority=OK
+  [38/80] agree=1.0 cheap_majority=OK
+  [39/80] agree=0.4 cheap_majority=XX
+  [40/80] agree=0.6 cheap_majority=XX
+  [41/80] agree=0.6 cheap_majority=OK
+  [42/80] agree=0.6 cheap_majority=OK
+  [43/80] agree=0.8 cheap_majority=OK
+  [44/80] agree=1.0 cheap_majority=OK
+  [45/80] agree=0.8 cheap_majority=OK
+  [46/80] agree=0.2 cheap_majority=XX
+  [47/80] agree=0.8 cheap_majority=XX
+  [48/80] agree=1.0 cheap_majority=OK
+  [49/80] agree=0.8 cheap_majority=OK
+  [50/80] agree=0.8 cheap_majority=OK
+  [51/80] agree=0.4 cheap_majority=XX
+  [52/80] agree=1.0 cheap_majority=OK
+  [53/80] agree=0.6 cheap_majority=OK
+  [54/80] agree=0.8 cheap_majority=OK
+  [55/80] agree=0.6 cheap_majority=OK
+  [56/80] agree=1.0 cheap_majority=OK
+  [57/80] agree=1.0 cheap_majority=OK
+  [58/80] agree=0.6 cheap_majority=XX
+  [59/80] agree=1.0 cheap_majority=OK
+  [60/80] agree=1.0 cheap_majority=OK
+  [61/80] agree=0.4 cheap_majority=XX
+  [62/80] agree=1.0 cheap_majority=OK
+  [63/80] agree=0.8 cheap_majority=OK
+  [64/80] agree=0.4 cheap_majority=OK
+  [65/80] agree=0.4 cheap_majority=XX
+  [66/80] agree=0.6 cheap_majority=XX
+  [67/80] agree=1.0 cheap_majority=OK
+  [68/80] agree=1.0 cheap_majority=OK
+  [69/80] agree=0.8 cheap_majority=OK
+  [70/80] agree=0.6 cheap_majority=XX
+  [71/80] agree=1.0 cheap_majority=OK
+  [72/80] agree=0.4 cheap_majority=XX
+  [73/80] agree=0.8 cheap_majority=OK
+  [74/80] agree=1.0 cheap_majority=OK
+  [75/80] agree=0.4 cheap_majority=XX
+  [76/80] agree=0.8 cheap_majority=OK
+  [77/80] agree=1.0 cheap_majority=OK
+  [78/80] agree=1.0 cheap_majority=OK
+  [79/80] agree=0.8 cheap_majority=OK
+  [80/80] agree=1.0 cheap_majority=OK
+
+--- does agreement predict cheap correctness? ---
+  agreement 5/5  : 29 problems, cheap correct 29/29 = 100%
+  agreement 4/5  : 20 problems, cheap correct 17/20 = 85%
+  agreement 3/5  : 15 problems, cheap correct 8/15 = 53%
+  agreement <=2/5: 16 problems, cheap correct 1/16 = 6%
+
+baselines: all-cheap accuracy = 69%   all-capable accuracy = 76%   random-route ~ midpoint
+
+--- gate: route cheap when agreement >= threshold, else escalate to capable ---
+ thresh route-cheap  route-cheap prec  system acc gate cost (cap-equiv/prob)
+    1.0       29/80             100%         80%                       1.19
+    0.8       49/80              94%         80%                       0.94
+    0.6       64/80              84%         76%                       0.76
+
+(all-capable costs 1.00 cap-equiv/prob. Gate beats it on cost only if K/9+escalate-frac < 1.)
+No-gold gate on REAL GSM8K. Internal prototype; the deployable gate + external counterparty remain open.

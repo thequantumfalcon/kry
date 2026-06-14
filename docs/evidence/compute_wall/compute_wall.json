@@ -1,0 +1,316 @@
+{
+  "schema": "kry_compute_wall/v1",
+  "provider": "openai",
+  "method": "multi-step-wall recalibration on cheap models; numeric single-token gold (no oracle)",
+  "reference": "paired-model research, multi-step wall: Opus fast multi~0.13, CoT 1.00",
+  "results": [
+    {
+      "model": "gpt-4o-mini",
+      "provider": "openai",
+      "grid": {
+        "fact": {
+          "fast": 1.0,
+          "cot": 1.0
+        },
+        "arith1": {
+          "fast": 1.0,
+          "cot": 1.0
+        },
+        "multi": {
+          "fast": 1.0,
+          "cot": 1.0
+        },
+        "deep": {
+          "fast": 0.0,
+          "cot": 1.0
+        }
+      },
+      "deep_fast": 0.0,
+      "deep_cot": 1.0,
+      "wall_gap": 1.0,
+      "wall_present_signature": true,
+      "rows": [
+        {
+          "id": "fact:legs does a spider have",
+          "tier": "fact",
+          "gold": "8",
+          "fast_pred": "8",
+          "cot_pred": "8",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "8"
+        },
+        {
+          "id": "fact:sides does a hexagon have",
+          "tier": "fact",
+          "gold": "6",
+          "fast_pred": "6",
+          "cot_pred": "6",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "6"
+        },
+        {
+          "id": "fact:days are in a week",
+          "tier": "fact",
+          "gold": "7",
+          "fast_pred": "7",
+          "cot_pred": "7",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "7"
+        },
+        {
+          "id": "fact:sides does a pentagon have",
+          "tier": "fact",
+          "gold": "5",
+          "fast_pred": "5",
+          "cot_pred": "5",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "5"
+        },
+        {
+          "id": "arith1:8plus3",
+          "tier": "arith1",
+          "gold": "11",
+          "fast_pred": "11",
+          "cot_pred": "11",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "11"
+        },
+        {
+          "id": "arith1:6times2",
+          "tier": "arith1",
+          "gold": "12",
+          "fast_pred": "12",
+          "cot_pred": "12",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "12"
+        },
+        {
+          "id": "arith1:7times4",
+          "tier": "arith1",
+          "gold": "28",
+          "fast_pred": "28",
+          "cot_pred": "28",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "28"
+        },
+        {
+          "id": "arith1:5plus4",
+          "tier": "arith1",
+          "gold": "9",
+          "fast_pred": "9",
+          "cot_pred": "9",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "9"
+        },
+        {
+          "id": "arith1:8minus4",
+          "tier": "arith1",
+          "gold": "4",
+          "fast_pred": "4",
+          "cot_pred": "4",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "4"
+        },
+        {
+          "id": "arith1:6plus5",
+          "tier": "arith1",
+          "gold": "11",
+          "fast_pred": "11",
+          "cot_pred": "11",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "11"
+        },
+        {
+          "id": "multi:legs does a spider haveplussides does a triangle have",
+          "tier": "multi",
+          "gold": "11",
+          "fast_pred": "11",
+          "cot_pred": "11",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "11"
+        },
+        {
+          "id": "multi:sides does a hexagon havetimes2",
+          "tier": "multi",
+          "gold": "12",
+          "fast_pred": "12",
+          "cot_pred": "12",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "12"
+        },
+        {
+          "id": "multi:legs does a spider haveplus5",
+          "tier": "multi",
+          "gold": "13",
+          "fast_pred": "13",
+          "cot_pred": "13",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "13"
+        },
+        {
+          "id": "multi:days are in a weektimessides does a square have",
+          "tier": "multi",
+          "gold": "28",
+          "fast_pred": "28",
+          "cot_pred": "28",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "28"
+        },
+        {
+          "id": "multi:sides does a pentagon haveplussides does a square have",
+          "tier": "multi",
+          "gold": "9",
+          "fast_pred": "9",
+          "cot_pred": "9",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "9"
+        },
+        {
+          "id": "multi:sides does an octagon haveplussides does a triangle have",
+          "tier": "multi",
+          "gold": "11",
+          "fast_pred": "11",
+          "cot_pred": "11",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "11"
+        },
+        {
+          "id": "multi:legs does a spider havetimessides does a square have",
+          "tier": "multi",
+          "gold": "32",
+          "fast_pred": "32",
+          "cot_pred": "32",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "32"
+        },
+        {
+          "id": "multi:days are in a weekplussides does a hexagon have",
+          "tier": "multi",
+          "gold": "13",
+          "fast_pred": "13",
+          "cot_pred": "13",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "13"
+        },
+        {
+          "id": "multi:sides does a hexagon haveplussides does a pentagon have",
+          "tier": "multi",
+          "gold": "11",
+          "fast_pred": "11",
+          "cot_pred": "11",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "11"
+        },
+        {
+          "id": "multi:sides does an octagon havetimes2",
+          "tier": "multi",
+          "gold": "16",
+          "fast_pred": "16",
+          "cot_pred": "16",
+          "fast_ok": true,
+          "cot_ok": true,
+          "fast_raw": "16"
+        },
+        {
+          "id": "deep:0",
+          "tier": "deep",
+          "gold": "22",
+          "fast_pred": "20",
+          "cot_pred": "22",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "20"
+        },
+        {
+          "id": "deep:1",
+          "tier": "deep",
+          "gold": "25",
+          "fast_pred": "20",
+          "cot_pred": "25",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "20"
+        },
+        {
+          "id": "deep:2",
+          "tier": "deep",
+          "gold": "38",
+          "fast_pred": "78",
+          "cot_pred": "38",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "78"
+        },
+        {
+          "id": "deep:3",
+          "tier": "deep",
+          "gold": "42",
+          "fast_pred": "144",
+          "cot_pred": "42",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "144"
+        },
+        {
+          "id": "deep:4",
+          "tier": "deep",
+          "gold": "24",
+          "fast_pred": "32",
+          "cot_pred": "24",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "32"
+        },
+        {
+          "id": "deep:5",
+          "tier": "deep",
+          "gold": "48",
+          "fast_pred": "60",
+          "cot_pred": "48",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "60"
+        },
+        {
+          "id": "deep:6",
+          "tier": "deep",
+          "gold": "17",
+          "fast_pred": "19",
+          "cot_pred": "17",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "19"
+        },
+        {
+          "id": "deep:7",
+          "tier": "deep",
+          "gold": "50",
+          "fast_pred": "70",
+          "cot_pred": "50",
+          "fast_ok": false,
+          "cot_ok": true,
+          "fast_raw": "70"
+        }
+      ]
+    }
+  ]
+}

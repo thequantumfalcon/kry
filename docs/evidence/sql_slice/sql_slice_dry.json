@@ -1,0 +1,123 @@
+{
+  "schema": "kry_sql_slice/v1",
+  "label": "SLICE-EXTENSION probe: SQL via execute-gate (synthetic questions, REAL deterministic gate); net-not-gross",
+  "mode": "dry",
+  "cheap_model": "claude-haiku-4-5-20251001",
+  "frontier_model": "claude-sonnet-4-6",
+  "tasks": 15,
+  "cheap_pass": 15,
+  "cheap_adequacy": 1.0,
+  "frontier_pass": 15,
+  "cheap_spend_usd": 0.0,
+  "frontier_spend_usd": 0.0,
+  "measured_net_saving_usd": 0.0,
+  "net_cost_reduction_rate": null,
+  "rows": [
+    {
+      "q": "How many customers are there?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "List the names of customers from the US.",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "How many orders have status 'completed'?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "What is the average price of all products?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "List the names of products in the 'hardware' category.",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "Which customer name has placed the most orders?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "What is the total quantity ordered of the product named 'Widget'?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "How many products have never been ordered?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "List each product category with its number of products.",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "How many completed orders were placed by US customers?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "Which product category has the highest total price summed over its products?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "Name the customer who signed up earliest.",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "How many distinct products have been ordered?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "What is the name of the highest-priced product?",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    },
+    {
+      "q": "List the names of customers who have no orders.",
+      "cheap_pass": true,
+      "frontier_pass": true,
+      "cheap_cost": 0.0,
+      "frontier_cost": 0.0
+    }
+  ],
+  "honest_note": "Compare cheap_adequacy here vs code's ~83%: if comparable, the deterministic-check slice EXTENDS to SQL (addressable share grows). Synthetic questions; the execute-gate is real."
+}

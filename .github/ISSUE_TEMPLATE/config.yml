@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private)
+    url: https://github.com/thequantumfalcon/kry/security/policy
+    about: Report security issues privately — never as a public issue.
+  - name: Questions & discussion
+    url: https://github.com/thequantumfalcon/kry/discussions
+    about: Ask questions and discuss ideas.
+  - name: Documentation / getting started
+    url: https://github.com/thequantumfalcon/kry/blob/main/README.md
+    about: Start here if you're new or continuing.
