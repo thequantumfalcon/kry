@@ -76,12 +76,12 @@ def main():
            "rows": rows}
     Path("docs/evidence/grounded_proof_openai").mkdir(parents=True, exist_ok=True)
     Path("docs/evidence/grounded_proof_openai/grounded_proof.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\n=== VALIDATED SAVINGS (real tokens, objective adequacy, OpenAI) ===")
+    print("\n=== VALIDATED SAVINGS (real tokens, objective adequacy, OpenAI) ===")
     print(f"  cheap ({CHEAP}) adequate: {cheap_ok}/{n} = {100*cheap_ok/n:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier correct (sanity):  {front_ok}/{n}")
     print(f"  real frontier cost (avoided): ${sum_front:.6f}   real cheap cost: ${sum_cheap:.6f}")
     print(f"  VALIDATED saving (only where cheap AND frontier both correct — net): ${saving:.6f}")
-    print(f"  -> docs/evidence/grounded_proof_openai/grounded_proof.json")
+    print("  -> docs/evidence/grounded_proof_openai/grounded_proof.json")
     return 0
 
 

@@ -155,7 +155,7 @@ def main(argv):
           f"{summary['net_cost_reduction_rate']}")
     print(f"  real spend: cheap ${cs:.4f} + frontier ${fs:.4f} = ${cs+fs:.4f}  (cap ${budget})")
     print(f"  rows: {outdir}/level1_sim_rows_{tag}.jsonl   summary: {outdir}/level1_sim_summary_{tag}.json")
-    print(f"  (MEASURED on a public benchmark — not real company traffic; not the external anchor)")
+    print("  (MEASURED on a public benchmark — not real company traffic; not the external anchor)")
     return 0
 
 

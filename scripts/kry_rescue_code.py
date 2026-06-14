@@ -77,7 +77,7 @@ def main():
            "honest_scope": f"HumanEval toy functions; n={n}; Haiku/Sonnet; the acceptance-gate measurement counterfactual confound stands; "
                            "deployable gate = executed tests (no oracle).", "rows": rows}
     Path("docs/evidence/adequacy_gate/rescue_code_results.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\n=== CODE RESCUE (deployable gate) ===")
+    print("\n=== CODE RESCUE (deployable gate) ===")
     print(f"  fast_adequacy: {kf}/{n}={out['metrics']['fast_adequacy']}  rescue_rate: {rescued}/{ff}={rate}  "
           f"residual_escalation: {esc}/{n}={out['metrics']['residual_escalation_rate']}  frontier_pass_on_esc: {fp}/{esc}")
     print(f"  SEALED VERDICT: {verdict}")

@@ -99,7 +99,7 @@ def main() -> int:
     print(f"  true-accept (keeps adequate):  {r['true_accept_rate']:.0%}  (good: no over-escalation)")
     print(f"  FALSE-accept (keeps WRONG):     {r['false_accept_rate']:.0%}  ->  specificity {r['specificity']:.0%}")
     print(f"  => wrongly accepts {r['wrongly_accepted']}/{r['of_inadequate']} confident-wrong outputs")
-    print(f"  -> docs/evidence/adequacy_gate/gate_specificity.json")
+    print("  -> docs/evidence/adequacy_gate/gate_specificity.json")
     print("\n  the acceptance-gate measurement hand-off: the host system plugs its REAL adequacy_gate into measure() -> its own specificity,")
     print("  replacing 'assumed' with 'measured'. Expand the seed set with code_routing / GSM8K outputs.")
     return 0

@@ -78,13 +78,13 @@ def main():
     outdir = Path("docs/evidence/shadow_demo"); outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "shadow_demo_rows_humaneval.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     (outdir / "shadow_demo_summary_humaneval.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    print(f"\n=== RECEIPT (LIVE — HumanEval) ===")
+    print("\n=== RECEIPT (LIVE — HumanEval) ===")
     print(f"  cheap adequacy (passed deployable tests): {cp}/{n} = {100*cp/n:.0f}%   "
           f"cheap-fail rows zeroed: {cheap_fail}   frontier passed: {fp}/{n}")
     print(f"  MEASURED net saving (cheap-passed rows, net-not-gross): ${saving:.6f}")
     print(f"  demo's own API spend: cheap ${cs:.6f} + frontier ${fs:.6f} = ${cs+fs:.6f}")
     print(f"  rows: {outdir}/shadow_demo_rows_humaneval.jsonl   summary: {outdir}/shadow_demo_summary_humaneval.json")
-    print(f"  (MECHANISM proof on a public benchmark — not a real external anchor)")
+    print("  (MECHANISM proof on a public benchmark — not a real external anchor)")
     return 0
 
 

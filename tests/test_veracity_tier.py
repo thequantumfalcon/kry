@@ -342,7 +342,7 @@ def test_v4_forged_tier_is_rejected_by_both_verifiers(isolated):
     forged = json.loads(json.dumps(honest))
     for lk in forged["links"]:
         lk["evidence_tier"] = "tee_attested"                          # forge an external anchor
-    tot = sum(l["kry_minted"] for l in forged["links"])
+    tot = sum(row["kry_minted"] for row in forged["links"])
     forged["veracity"] = {"by_tier": {"tee_attested": round(tot, 4)},
                           "externally_anchored_kry": round(tot, 4),
                           "self_reported_kry": 0.0, "veracity_floor": 1.0}

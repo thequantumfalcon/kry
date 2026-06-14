@@ -155,12 +155,12 @@ def main():
     }
     Path("docs/evidence/grounded_proof").mkdir(parents=True, exist_ok=True)
     Path("docs/evidence/grounded_proof/grounded_proof.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\n=== VALIDATED SAVINGS PROOF (real costs, objective adequacy) ===")
+    print("\n=== VALIDATED SAVINGS PROOF (real costs, objective adequacy) ===")
     print(f"  free model adequate: {free_ok}/{n} = {100*free_ok/n:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier correct:    {frontier_ok}/{n} (sanity)")
     print(f"  real frontier cost (avoided): ${sum_frontier:.6f}   real free cost: ${sum_free:.6f}")
     print(f"  VALIDATED saving (only where free AND frontier both correct — net): ${saving:.6f}")
-    print(f"  -> docs/evidence/grounded_proof/grounded_proof.json")
+    print("  -> docs/evidence/grounded_proof/grounded_proof.json")
     return 0
 
 

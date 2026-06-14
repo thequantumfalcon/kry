@@ -166,7 +166,7 @@ def main(dry):
     print(f"  MEASURED net saving (cheap-passed rows, net-not-gross): ${saving:.6f}")
     print(f"  demo's own API spend: cheap ${cheap_spend:.6f} + frontier ${front_spend:.6f} = ${cheap_spend+front_spend:.6f}")
     print(f"  rows: {outdir}/shadow_demo_rows_{tag}.jsonl   summary: {outdir}/shadow_demo_summary_{tag}.json")
-    print(f"  (MECHANISM proof on synthetic tasks — not a real external anchor)")
+    print("  (MECHANISM proof on synthetic tasks — not a real external anchor)")
     return 0
 
 

@@ -42,7 +42,7 @@ def load_gsm8k():
     if not os.path.exists(p):
         import urllib.request
         urllib.request.urlretrieve(GSM8K_URL, p)
-    return [json.loads(l) for l in open(p, encoding="utf-8") if l.strip()]
+    return [json.loads(ln) for ln in open(p, encoding="utf-8") if ln.strip()]
 
 
 def _call(prompt: str, model: str, max_tokens: int) -> str:
@@ -138,7 +138,7 @@ def main():
     Path("docs/evidence/adequacy_gate").mkdir(parents=True, exist_ok=True)
     outpath = "docs/evidence/adequacy_gate/rescue_gsm8k_results.json"
     Path(outpath).write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\n=== GSM8K RESCUE BATTERY ===")
+    print("\n=== GSM8K RESCUE BATTERY ===")
     print(f"  fast_adequacy:            {kept_fast}/{n} = {out['metrics']['fast_adequacy']}")
     print(f"  rescue_rate:              {rescued}/{fast_fail} = {rescue_rate}")
     print(f"  residual_escalation_rate: {escalated}/{n} = {out['metrics']['residual_escalation_rate']}")

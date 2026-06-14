@@ -91,7 +91,7 @@ def main() -> int:
     print(f"  surface gate:  specificity {surf['specificity']:.0%}   true-accept {surf['true_accept_rate']:.0%}")
     print(f"  layered gate:  specificity {lay['specificity']:.0%}   true-accept {lay['true_accept_rate']:.0%}")
     print(f"  escalation cost: {escalated}/{n} = {100*escalated/n:.0f}% of traffic (force-CoT recovers those)")
-    print(f"  -> docs/evidence/adequacy_gate/correctness_layer.json")
+    print("  -> docs/evidence/adequacy_gate/correctness_layer.json")
     print("\n  Build target proven in principle: escalate the multi-step wall high-risk class -> specificity recovers.")
     print("  Production = the host system: real classifier (the multi-step wall difficulty classifier) + force-CoT/frontier-verify on the gate.")
     return 0

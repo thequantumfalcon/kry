@@ -18,7 +18,7 @@ import json, os, re, sqlite3, sys, time, urllib.error
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kry_shadow_demo import call, cost, CHEAP, FRONTIER, PRICES
+from kry_shadow_demo import call, cost, CHEAP, FRONTIER
 
 SCHEMA = """
 CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, country TEXT, signup TEXT);

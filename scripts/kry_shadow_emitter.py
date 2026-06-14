@@ -23,7 +23,6 @@ Run the self-test (no providers, no network):  python3 scripts/kry_shadow_emitte
 from __future__ import annotations
 import hashlib
 import json
-import sys
 
 SCHEMA = "kry_live_shadow_first_batch_row/v1"
 ANNEX_VERSION = "kry_external_emitter_annex/v1"

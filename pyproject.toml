@@ -21,3 +21,12 @@ tee = ["cryptography>=42"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+# The core library (src/) is held to ruff's full default rules and stays clean.
+# The research/proof scripts and example shims are deliberately written in a compact
+# one-liner idiom (grouped imports, semicolon-joined statements, inline lambdas in
+# __main__ self-test mocks). Relax ONLY those style codes there — the bug-catching
+# F-codes and the readability rule E741 stay enforced everywhere.
+"scripts/*" = ["E401", "E701", "E702"]
+"examples/*" = ["E731"]

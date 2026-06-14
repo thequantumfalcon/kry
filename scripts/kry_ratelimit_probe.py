@@ -8,7 +8,6 @@ is the chat client's UI for your plan and is not programmatically exposed). For 
 the API headers below are the correct, real signal.
 """
 import json, os, urllib.request
-from pathlib import Path
 
 req = urllib.request.Request(
     "https://api.anthropic.com/v1/messages",
