@@ -8,4 +8,4 @@
 # (ML-DSA / FIPS 204) backed by the audited liboqs C library. Prior validation used
 # liboqs-python 0.15.0 / liboqs 0.15.0; rerun kry_pqc/test_kry_pqc.py in your
 # release environment before treating this optional tier as verified.
-liboqs-python>=0.10
+liboqs-python>=0.15.0
