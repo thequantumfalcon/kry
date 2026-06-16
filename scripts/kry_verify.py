@@ -175,7 +175,14 @@ def _magnitude_errors(link: dict) -> list[str]:
                               nonnegative=True)
     except ValueError as exc:
         return [str(exc)]
+    # A link that DECLARES its inputs cannot mint positive KRY from zero tokens/rate
+    # (0 × 0 × M = 0) — a positive kry_minted is fabricated (zero-rate magnitude bypass).
+    # Only a genuine legacy link that OMITS the inputs is honestly uncheckable.
+    declares_inputs = "earn_rate" in link and "tokens_saved" in link
     if ts <= 0 or rate <= 0:
+        if declares_inputs and kry_minted > 0:
+            return [f"seq {link.get('seq')}: kry_minted {kry_minted} with tokens_saved={ts} "
+                    f"/ earn_rate={rate} — magnitude not derivable from declared inputs"]
         return []
     et = link.get("event_type", "")
     pub_rate = _EARN_RATES.get(et)
@@ -184,7 +191,7 @@ def _magnitude_errors(link: dict) -> list[str]:
             f"seq {link.get('seq')}: earn_rate {rate} != published {pub_rate} "
             f"for '{et}' — non-standard rate")
     implied = kry_minted / (ts * rate)
-    if not any(abs(implied - m) <= 0.01 for m in legal_multipliers()):
+    if not any(abs(implied - m) <= 1e-3 for m in legal_multipliers()):
         errors.append(
             f"seq {link.get('seq')}: implied price multiplier {implied:.4f} is "
             f"not a published value — magnitude used a non-public price")
@@ -571,9 +578,16 @@ def main(argv: list[str] | None = None) -> int:
                        if a_ok else "FAIL — re-mint/rollback vs the published anchor")
 
     v = att.get("veracity", {})
+    # Display the verifier's OWN recomputed figures, not the operator-declared `receipts`/
+    # `total_kry` fields — so a reader never mistakes an echoed claim for a verified number.
+    _links = att.get("links") if isinstance(att.get("links"), list) else []
+    _recomputed_total = sum(
+        ln["kry_minted"] for ln in _links
+        if isinstance(ln, dict) and isinstance(ln.get("kry_minted"), (int, float))
+        and not isinstance(ln.get("kry_minted"), bool))
     print(f"KRY external verification — {scope}")
-    print(f"  receipts:        {att.get('receipts')}")
-    print(f"  total_kry:       {att.get('total_kry')}")
+    print(f"  receipts:        {len(_links)} (recomputed from links)")
+    print(f"  total_kry:       {round(_recomputed_total, 4)} (recomputed from links, not the declared field)")
     print(f"  veracity_floor:  {v.get('veracity_floor', 0.0)} "
           f"(fraction externally anchored; rest rests on operator self-report)")
     print(f"  price basis:     ${_FRONTIER_USD_PER_M}/M frontier, as of {_PRICE_AS_OF} "
@@ -581,7 +595,8 @@ def main(argv: list[str] | None = None) -> int:
     if anchor_line:
         print(f"  anchor check:    {anchor_line}")
     if ok:
-        print("  VERDICT: VALID — integrity + conservation + magnitude hold; trust surface honest.")
+        print("  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; "
+              "trust surface honest (read veracity_floor for what is operator-asserted).")
     else:
         print("  VERDICT: INVALID")
         for e in errors:

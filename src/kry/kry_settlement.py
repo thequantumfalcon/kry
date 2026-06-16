@@ -249,6 +249,8 @@ def _write_tip(count: int, tip: str) -> None:
     try:
         with os.fdopen(fd, "w") as f:
             f.write(_json_dumps({"count": count, "tip": tip}))
+            f.flush()
+            os.fsync(f.fileno())   # durability: the checkpoint must survive a crash, not tear
         os.replace(tmp, p)
     except Exception:
         if os.path.exists(tmp):
@@ -372,6 +374,58 @@ def _load_registry() -> dict:
     return totals
 
 
+# ── External settlement-registry anchor (HOLE-F fix: the rollback checkpoint is LOCAL) ──
+#
+# The HOLE-F tip checkpoint catches a truncation only if the attacker does NOT also rewrite the
+# checkpoint — but it is a local file in the same trust domain, so an operator rewrites it too and
+# rolls the registry back to UN-SPEND. The only durable fix is an EXTERNAL commitment. The operator
+# exports the per-party cumulative-settled totals and PUBLISHES them to an append-only medium; a
+# verifier holding that published anchor detects a rollback because settled totals can only grow
+# (compaction preserves them), so a live total BELOW the anchored total is an un-spend.
+
+REGISTRY_ANCHOR_SCHEMA = "kry_settlement_anchor/v1"
+
+
+def export_registry_anchor() -> dict:
+    """Content-free commitment to the per-party cumulative-settled totals, for the operator to
+    PUBLISH externally. (Party identifiers can be hashed by the caller if they are sensitive.)
+    Once published, a rollback that un-spends a party is detected by verify_registry_against_anchor."""
+    settled = _load_registry()
+    if settled.get("__tampered__"):
+        settled = {}
+    return {"schema": REGISTRY_ANCHOR_SCHEMA,
+            "settled": {p: round(a, 4) for p, a in settled.items() if p != "__tampered__"}}
+
+
+def verify_registry_against_anchor(anchor: dict) -> tuple[bool, list[str]]:
+    """Detect a rollback/un-spend against a PUBLISHED registry anchor obtained out-of-band. Settled
+    totals are monotonic (only grow; compaction preserves them), so for every anchored party the
+    LIVE cumulative-settled must be >= the anchored amount. A truncation that frees balance to
+    re-spend drops it below — caught here. Only as strong as the anchor's external publication."""
+    if not isinstance(anchor, dict) or anchor.get("schema") != REGISTRY_ANCHOR_SCHEMA:
+        return False, [f"anchor must be a {REGISTRY_ANCHOR_SCHEMA} object"]
+    anchored = anchor.get("settled")
+    if not isinstance(anchored, dict):
+        return False, ["anchor.settled must be an object of {party: cumulative_kry}"]
+    valid, errs = verify_registry()
+    if not valid:
+        return False, ["live registry is not internally valid: " + "; ".join(str(e) for e in errs[:2])]
+    live = _load_registry()
+    if live.get("__tampered__"):
+        return False, ["live registry tampered — failing closed"]
+    errors: list[str] = []
+    for party, amt in anchored.items():
+        try:
+            anchored_amt = _finite_number(amt, f"anchor.settled[{party}]", nonnegative=True)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        if live.get(party, 0.0) < anchored_amt - 1e-9:
+            errors.append(f"party {party}: live settled {live.get(party, 0.0)} < anchored "
+                          f"{anchored_amt} — rollback/un-spend detected")
+    return len(errors) == 0, errors
+
+
 def _record_settled(party: str, amount: float, grant_id: str) -> None:
     """Append a hash-chained settlement entry (tamper-evident).
 
@@ -405,6 +459,8 @@ def _record_settled(party: str, amount: float, grant_id: str) -> None:
         _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_REGISTRY_PATH, "a", encoding="utf-8") as f:
             f.write(_json_dumps(rec) + "\n")
+            f.flush()
+            os.fsync(f.fileno())   # durability: a torn append reads as tampered -> fail-closed DoS
         _write_tip(len(entries) + 1, entry_hash)   # HOLE F: advance the rollback checkpoint
     except Exception as exc:
         raise SettlementPersistenceError(
@@ -453,14 +509,36 @@ def _lease_dir() -> Optional[Path]:
     return Path(d).expanduser() if d else None
 
 
+_LEASE_LOCK_STALE_S = 30.0   # a .lock older than this is presumed orphaned (holder crashed)
+
+
 def _lease_lock(authdir: Path) -> None:
     lock = authdir / ".lock"
+    deadline = time.monotonic() + 60.0   # bounded: never spin forever on an orphaned lock
     while True:
         try:
             fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
+            try:
+                os.write(fd, f"{os.getpid()}:{time.time():.3f}".encode())
+            finally:
+                os.close(fd)
             return
         except FileExistsError:
+            # Steal an orphaned lock — a holder that crashed between create and unlink would
+            # otherwise deadlock every future settlement (availability DoS).
+            try:
+                age = time.time() - lock.stat().st_mtime
+            except FileNotFoundError:
+                continue   # lock vanished — race the create again
+            if age > _LEASE_LOCK_STALE_S:
+                try:
+                    lock.unlink()
+                except FileNotFoundError:
+                    pass
+                continue
+            if time.monotonic() > deadline:
+                raise SettlementPersistenceError(
+                    "lease lock contended > 60s — aborting rather than deadlocking")
             time.sleep(0.001)
 
 

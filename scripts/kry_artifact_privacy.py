@@ -63,6 +63,28 @@ PRIVATE_STRING_VALUE_RE = re.compile(
     r")",
     re.IGNORECASE,
 )
+# Word-level private markers: matched against the key's "_"-split words, so `prompts`,
+# `the_prompt`, `system_prompt`, `message_content`, `conversation` are caught — but generic
+# metadata like `request_id` / `request_class` (whose words are request/id/class) are NOT.
+PRIVATE_KEY_WORDS = {
+    "prompt", "prompts", "completion", "completions", "message", "messages",
+    "content", "conversation", "conversations", "chat", "transcript", "dialog",
+    "dialogue", "body",
+}
+# Bounded schemas — usage logs and provider exports must carry ONLY documented fields, so an
+# UNRECOGNIZED key holding a string/dict/list value (which could smuggle prompt content under a
+# generic name like msg/text/data/note/query) is rejected. Token keys are exempted separately.
+USAGE_LOG_ALLOWED_KEYS = {
+    "id", "request_id", "requestid", "request_class", "class", "tag", "kind",
+    "cache_hit", "cached", "displacement", "holdout", "model", "model_name",
+    "avoided_model", "served_model", "usage", "tokens_saved", "evidence_tier",
+    "ts", "timestamp", "time", "seq", "saved", "cost", "treated",
+} | USAGE_LOG_PUBLIC_TOKEN_KEYS
+PROVIDER_EXPORT_ALLOWED_KEYS = {
+    "id", "request_id", "requestid", "generation_id", "gen_id", "model", "model_name",
+    "provider", "object", "type", "index", "created", "created_at", "ts", "timestamp",
+    "finish_reason", "native_finish_reason", "usage", "cost", "total_cost",
+} | PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS
 
 
 def _json_key_label(value) -> str:
@@ -79,6 +101,7 @@ def _private_key_errors(
     *,
     allowed_token_keys: set[str],
     source_label: str,
+    allowed_keys: set[str] | None = None,
     path: str = "$",
     limit: int = 8,
 ) -> list[str]:
@@ -91,14 +114,25 @@ def _private_key_errors(
             for key, item in current.items():
                 key_label = _json_key_label(key)
                 child_path = f"{current_path}.{key}"
-                if (
-                    key_label not in allowed_token_keys
-                    and (
-                        key_label in PROVIDER_EXPORT_PRIVATE_KEYS
-                        or any(fragment in key_label for fragment in PROVIDER_EXPORT_PRIVATE_KEY_FRAGMENTS)
-                    )
-                ):
+                key_words = set(key_label.split("_"))
+                is_private = key_label not in allowed_token_keys and (
+                    key_label in PROVIDER_EXPORT_PRIVATE_KEYS
+                    or any(fragment in key_label for fragment in PROVIDER_EXPORT_PRIVATE_KEY_FRAGMENTS)
+                    or bool(key_words & PRIVATE_KEY_WORDS)
+                )
+                if is_private:
                     errors.append(f"{source_label} contains private field {child_path}")
+                    if len(errors) >= limit:
+                        return
+                elif (
+                    allowed_keys is not None
+                    and key_label not in allowed_keys
+                    and key_label not in allowed_token_keys
+                    and isinstance(item, (str, dict, list))
+                ):
+                    errors.append(
+                        f"{source_label} has unrecognized field {child_path} that may carry "
+                        f"private content (only documented schema fields are allowed)")
                     if len(errors) >= limit:
                         return
                 visit(item, child_path)
@@ -118,6 +152,7 @@ def _usage_log_privacy_errors(records: list[dict]) -> list[str]:
     errors = _private_key_errors(
         records,
         allowed_token_keys=USAGE_LOG_PUBLIC_TOKEN_KEYS,
+        allowed_keys=USAGE_LOG_ALLOWED_KEYS,
         source_label="usage log",
     )
     if errors:
@@ -141,6 +176,7 @@ def _provider_export_privacy_errors(
     errors = _private_key_errors(
         raw,
         allowed_token_keys=PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS,
+        allowed_keys=PROVIDER_EXPORT_ALLOWED_KEYS,
         source_label="provider export",
     )
     if errors:

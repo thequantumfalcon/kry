@@ -443,3 +443,16 @@ def test_stranger_anchor_catches_remint():
     assert ok2 is False and any("re-mint detected" in e for e in errs2), errs2
     # truncation: attestation shorter than the anchored count is also caught
     assert v.verify_attestation_against_anchor({"links": [{"seq": 1, "chain_hash": h1}]}, anchor)[0] is False
+
+
+def test_magnitude_rejects_zero_rate_and_skim():
+    """Audit A: a link that DECLARES inputs cannot mint positive KRY from zero tokens/rate,
+    and a ~1% multiplier skim is caught (tolerance tightened 0.01 -> 1e-3)."""
+    v = _load_verifier()
+    assert v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1e6,
+                                "tokens_saved": 0.0, "earn_rate": 0.0})            # zero-rate bypass
+    assert v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1000 * 1.0099,
+                                "tokens_saved": 1000.0, "earn_rate": 1.0})         # 1% skim
+    assert not v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1000.0,
+                                    "tokens_saved": 1000.0, "earn_rate": 1.0})     # legit mult 1.0
+    assert not v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1000.0})  # legacy (no inputs)

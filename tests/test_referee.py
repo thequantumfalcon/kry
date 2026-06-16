@@ -105,3 +105,13 @@ def test_referee_writes_strict_json(monkeypatch):
             model="m",
             kry_cost=float("nan"),
         )
+
+
+def test_sanctioned_legacy_list_enters_probation_not_unbounded():
+    """Audit E: a legacy list-format sanctioned file (or a rule omitting cap) must migrate into
+    the bounded PROBATION cap, not an effectively-unbounded 10**9 that bypasses probation."""
+    import kry.kry_referee as kr
+    s = kr._normalise_sanctioned(["metabolic_gate:rule_x"])
+    assert s["metabolic_gate:rule_x"]["cap"] == kr._PROBATION_CAP < 10 ** 9
+    s2 = kr._normalise_sanctioned({"daily_budget:r": {"uses": 0}})
+    assert s2["daily_budget:r"]["cap"] == kr._PROBATION_CAP

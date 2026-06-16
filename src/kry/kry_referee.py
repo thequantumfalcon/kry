@@ -95,8 +95,8 @@ def _env_positive_float(name: str, default: float) -> float:
 
 
 def _normalise_sanctioned(data) -> dict:
-    if isinstance(data, list):   # legacy set format -> migrate
-        return {str(k): {"uses": 0, "cap": 10**9, "ratified_ts": 0.0} for k in data}
+    if isinstance(data, list):   # legacy set format -> migrate into PROBATION, not unbounded
+        return {str(k): {"uses": 0, "cap": _PROBATION_CAP, "ratified_ts": 0.0} for k in data}
     if not isinstance(data, dict):
         raise ValueError("sanctioned rules file must be a JSON object")
     out: dict = {}
@@ -107,7 +107,7 @@ def _normalise_sanctioned(data) -> dict:
             raise ValueError(f"sanctioned rule {key} must be an object")
         out[key] = {
             "uses": _nonnegative_int(rec.get("uses", 0), f"{key}.uses"),
-            "cap": _nonnegative_int(rec.get("cap", 10**9), f"{key}.cap"),
+            "cap": _nonnegative_int(rec.get("cap", _PROBATION_CAP), f"{key}.cap"),
             "ratified_ts": _finite_number(rec.get("ratified_ts", 0.0),
                                           f"{key}.ratified_ts",
                                           nonnegative=True),
@@ -418,7 +418,7 @@ def is_sanctioned(gate_class: str, rule: str) -> bool:
         rec = sanctioned.get(key)
         if rec is None:
             return False
-        if rec.get("uses", 0) >= rec.get("cap", 10**9):
+        if rec.get("uses", 0) >= rec.get("cap", _PROBATION_CAP):
             logger.warning("KRY probation cap reached for %s — auto-gated pending re-confirm", key)
             return False
         rec["uses"] = rec.get("uses", 0) + 1

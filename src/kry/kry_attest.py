@@ -190,7 +190,15 @@ def _magnitude_errors(link: dict) -> list[str]:
                                    nonnegative=True)
     except ValueError as exc:
         return [str(exc)]
+    # A link that DECLARES its F2 inputs cannot mint positive KRY from zero tokens/rate:
+    # 0 × 0 × M = 0, so a positive kry_minted here is fabricated (the zero-rate magnitude
+    # bypass). Only a genuine legacy link that OMITS the inputs is honestly uncheckable.
+    declares_inputs = "earn_rate" in link and "tokens_saved" in link
     if tokens_saved <= 0 or earn_rate <= 0:
+        if declares_inputs and kry_minted > 0:
+            errors.append(
+                f"seq {seq}: kry_minted {kry_minted} with tokens_saved={tokens_saved} / "
+                f"earn_rate={earn_rate} — magnitude not derivable from declared inputs")
         return errors
     try:
         from kry.kry_mint import _EARN_RATES
@@ -204,7 +212,7 @@ def _magnitude_errors(link: dict) -> list[str]:
             f"seq {seq}: earn_rate {earn_rate} != published {published_rate} "
             f"for '{event_type}' — non-standard rate")
     implied = kry_minted / (tokens_saved * earn_rate)
-    if not any(abs(implied - m) <= 0.01 for m in set(published_multipliers().values())):
+    if not any(abs(implied - m) <= 1e-3 for m in set(published_multipliers().values())):
         errors.append(
             f"seq {seq}: implied price multiplier {implied:.4f} is "
             f"not a published value — magnitude used a non-public price")

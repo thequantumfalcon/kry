@@ -257,3 +257,37 @@ def test_settle_holds_cross_process_lock(monkeypatch):
     settle(o, grant, debit_a_fn=lambda k: k, receiver=ReceiverLedger(party="B"),
            a_balance_before=1000.0)
     assert any("settlement_reg" in c for c in calls), calls
+
+
+def test_registry_anchor_detects_rollback_unspend():
+    """Audit C: HOLE-F rollback (truncate + rewrite local tip) passes verify_registry, but a
+    PUBLISHED registry anchor catches the un-spend (settled totals can only grow)."""
+    import json
+    import kry.kry_settlement as ks
+    for to in ("B", "C"):
+        o = make_offer("A", to, 1000.0, 1000, now=1.0)
+        g, _ = verify_and_accept(o, _attestation(10000.0), now=2.0)
+        settle(o, g, debit_a_fn=lambda k: k, receiver=ReceiverLedger(party=to), a_balance_before=10000.0)
+    anchor = ks.export_registry_anchor()
+    assert anchor["settled"]["A"] == 2000.0
+    assert ks.verify_registry_against_anchor(anchor)[0]
+    lines = ks._REGISTRY_PATH.read_text().strip().splitlines()           # rollback: keep only the first spend
+    ks._REGISTRY_PATH.write_text(lines[0] + "\n")
+    ks._write_tip(1, json.loads(lines[0])["entry_hash"])                 # operator rewrites the local checkpoint too
+    assert ks.verify_registry()[0]                                       # HOLE-F defeated locally
+    ok, errs = ks.verify_registry_against_anchor(anchor)
+    assert ok is False and any("rollback/un-spend" in e for e in errs), errs
+
+
+def test_lease_lock_steals_orphaned_stale_lock(tmp_path):
+    """Audit G: an orphaned .lock (crashed holder) must not deadlock every future settlement."""
+    import os
+    import time
+    import kry.kry_settlement as ks
+    lock = tmp_path / ".lock"
+    lock.write_text("999999:0")                                          # orphan from a crashed pid
+    old = time.time() - ks._LEASE_LOCK_STALE_S - 5
+    os.utime(lock, (old, old))
+    ks._lease_lock(tmp_path)                                             # steals the stale lock, does not hang
+    assert lock.exists()                                                # we now hold it
+    ks._lease_unlock(tmp_path)
