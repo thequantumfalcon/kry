@@ -9,7 +9,9 @@ Checks performed:
     2. authenticity      — ML-DSA signature verifies under the public key   [this tier]
     3. integrity (opt.)  — KRY's verify_attestation: hash chain intact       [KRY core]
 
-Exit code 0 = all performed checks passed; 1 = any failure.
+Exit codes: 0 = authentic under a PINNED key; 2 = signature internally consistent but
+the key is SELF-PROVIDED (authenticity UNVERIFIED — supply --public-key or
+--expect-fingerprint); 1 = a check failed (digest / signature / fingerprint / chain).
 """
 from __future__ import annotations
 
@@ -57,7 +59,12 @@ def main(argv=None) -> int:
     p.add_argument("--attestation", required=True, help="the attestation JSON file")
     p.add_argument("--signature", required=True, help="the .sig.json artifact")
     p.add_argument("--public-key", default=None,
-                   help="public key file (default: the key embedded in the signature artifact)")
+                   help="the SIGNER'S PUBLISHED public-key file, obtained out-of-band. Without "
+                        "it the artifact's embedded key is self-provided and authenticity is "
+                        "UNVERIFIABLE (anyone can self-sign their own artifact).")
+    p.add_argument("--expect-fingerprint", default=None,
+                   help="pin the signer's key by its published sha256 fingerprint (any prefix); "
+                        "verification fails if the key does not match it.")
     p.add_argument("--require-chain", action="store_true",
                    help="fail unless KRY's chain-integrity check can also run and passes")
     args = p.parse_args(argv)
@@ -70,15 +77,28 @@ def main(argv=None) -> int:
     signature = _unb64(artifact["signature"])
     if args.public_key:
         public_key = _unb64(Path(args.public_key).read_text().strip())
+        key_source = "out-of-band (--public-key)"
     else:
         public_key = _unb64(artifact["public_key"])
-    pk_fp = hashlib.sha256(public_key).hexdigest()[:16]
+        key_source = "SELF-PROVIDED (embedded in the artifact)"
+    full_fp = hashlib.sha256(public_key).hexdigest()
+    pk_fp = full_fp[:16]
+    # Authenticity is ESTABLISHED only if the key is pinned — supplied out-of-band, or
+    # matched to a published fingerprint. A valid signature under a self-provided key
+    # proves only internal consistency; anyone can self-sign their own attestation.
+    pinned = bool(args.public_key) or bool(args.expect_fingerprint)
 
     print(f"attestation : {att_path}")
     print(f"scheme/alg  : {artifact.get('scheme', '?')} / {alg}")
-    print(f"public key  : {pk_fp}")
+    print(f"public key  : {pk_fp}  [{key_source}]")
 
     ok = True
+
+    if args.expect_fingerprint:
+        want = args.expect_fingerprint.strip().lower()
+        fp_ok = bool(want) and full_fp.startswith(want)
+        print(f"[{'PASS' if fp_ok else 'FAIL'}] key fingerprint matches pinned --expect-fingerprint")
+        ok = ok and fp_ok
 
     digest = hashlib.sha256(attestation_bytes).hexdigest()
     digest_ok = (digest == artifact.get("message_sha256"))
@@ -104,10 +124,16 @@ def main(argv=None) -> int:
             print(f"[skip] {msg}")
 
     print()
-    if ok:
-        print("RESULT: VERIFIED -- this attestation was signed by the holder of public "
-              f"key {pk_fp} and is post-quantum authentic.")
+    if ok and pinned:
+        print(f"RESULT: VERIFIED -- signed by the holder of the PINNED public key {pk_fp} "
+              "and post-quantum authentic.")
         return 0
+    if ok and not pinned:
+        print("RESULT: UNVERIFIED -- the signature is internally consistent, but the public "
+              "key is SELF-PROVIDED, so this proves NOTHING about authenticity (anyone can "
+              "self-sign). Re-run with --public-key <the signer's published key> or "
+              "--expect-fingerprint <published fp> to establish authenticity.")
+        return 2
     print("RESULT: FAILED — do not trust this attestation.")
     return 1
 

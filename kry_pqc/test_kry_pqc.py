@@ -52,12 +52,36 @@ def attestation(tmp_path) -> Path:
 # ----------------------------------------------------------------- single signer
 
 
-def test_single_roundtrip_verifies(attestation, tmp_path):
+def test_single_roundtrip_verifies_when_key_pinned(attestation, tmp_path):
     pk, sk = signer.generate_keypair()
     artifact = signer.sign_attestation(attestation, sk, pk)
     sig = tmp_path / "att.sig.json"
     sig.write_text(json.dumps(artifact))
-    assert verify.main(["--attestation", str(attestation), "--signature", str(sig)]) == 0
+    pk_file = tmp_path / "signer.pub"           # the signer's PUBLISHED key, obtained out-of-band
+    pk_file.write_text(base64.b64encode(pk).decode())
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig),
+                        "--public-key", str(pk_file)]) == 0
+
+
+def test_single_selfprovided_key_is_unverified(attestation, tmp_path):
+    """Finding #2: a valid signature under the artifact's OWN embedded key is NOT authenticity."""
+    pk, sk = signer.generate_keypair()
+    sig = tmp_path / "att.sig.json"
+    sig.write_text(json.dumps(signer.sign_attestation(attestation, sk, pk)))
+    # no --public-key / --expect-fingerprint -> self-provided key -> UNVERIFIED (exit 2), not 0
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig)]) == 2
+
+
+def test_single_expect_fingerprint_pins(attestation, tmp_path):
+    import hashlib
+    pk, sk = signer.generate_keypair()
+    sig = tmp_path / "att.sig.json"
+    sig.write_text(json.dumps(signer.sign_attestation(attestation, sk, pk)))
+    good_fp = hashlib.sha256(pk).hexdigest()[:16]
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig),
+                        "--expect-fingerprint", good_fp]) == 0
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig),
+                        "--expect-fingerprint", "deadbeefdeadbeef"]) == 1
 
 
 def test_single_tampered_attestation_fails(attestation, tmp_path):
