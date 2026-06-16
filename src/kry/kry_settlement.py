@@ -117,7 +117,8 @@ class SettlementReceipt:
     a_balance_after: float
     b_received_before: float
     b_received_after: float
-    conserved: bool              # a_debit == b_credit (the currency invariant)
+    conserved: bool              # the currency invariant held (interpret with conservation_basis)
+    conservation_basis: str      # "measured" = A's real post-debit balance was read; "self_asserted" = trusts debit_fn
     receipt_hash: str
 
 
@@ -158,19 +159,19 @@ def make_offer(from_party: str, to_party: str, kry_amount: float,
 # settlement among adversarial strangers needs global consensus (out of scope,
 # and legally undesirable).
 #
-# HOLE D corollary (cross-node scope — state it plainly): _REGISTRY_LOCK gives
-# ATOMIC verify+record only WITHIN one process. The double-spend guard here —
-# and the stranger re-check in scripts/kry_verify.py (verify_settlement) — is
-# post-facto and SNAPSHOT-based: it is sound only against the COMPLETE, MERGED
-# federation registry it can see. Real-time atomic prevention holds per-process
-# only; two nodes settling the same attested balance concurrently, each against
-# its own unmerged registry file, are NOT caught until those registries merge.
-# Single-node (today) is fully covered. If federation ever goes multi-node, the
-# ranked fix by trust÷effort is: lease/nonce/TTL (best) > signed-sync replicated
-# log > primary-registry-node > full consensus (overkill). See
-# docs/KRY_VERACITY_BINDING.md.
+# Locking scope (state it plainly): registry verify+record is held under BOTH the
+# in-process _REGISTRY_LOCK (thread-safety for the reservation map) AND a
+# cross_process_lock on the registry file (atomicity across processes on one host) —
+# so single-HOST, multi-process settlement is correct, matching kry_mint/kry_sanctions.
+# What is NOT covered is cross-NODE: the double-spend guard and the stranger re-check
+# in scripts/kry_verify.py (verify_settlement) are post-facto and SNAPSHOT-based, sound
+# only against the COMPLETE, MERGED federation registry. Two NODES settling the same
+# attested balance concurrently, each against its own unmerged registry file, are not
+# caught until those registries merge (default-off file lease narrows that window). The
+# ranked multi-node fix by trust÷effort: lease/nonce/TTL (best) > signed-sync replicated
+# log > primary-registry-node > full consensus (overkill). See docs/KRY_VERACITY_BINDING.md.
 _REGISTRY_PATH = _kry_data_dir() / "kry_settlement_registry.jsonl"
-_REGISTRY_LOCK = threading.Lock()   # HOLE D (single-process): atomic verify+record
+_REGISTRY_LOCK = threading.Lock()   # thread-safety; paired with cross_process_lock(_REGISTRY_PATH)
 
 # In-process reservation ledger — closes the verify_and_accept -> settle TOCTOU WITHIN
 # one process. The registry only updates on settle(), so two concurrent accepts for the
@@ -277,18 +278,27 @@ def compact_registry(keep_recent: int = 1000) -> bool:
     # Sum everything except the recent tail into per-party checkpoints
     old, tail = entries[:-keep_recent], entries[-keep_recent:]
     totals: dict = {}
+    party_gids: dict = {}
     for e in old:
         totals[e["party"]] = totals.get(e["party"], 0.0) + e["amount"]
-    with _REGISTRY_LOCK:
+        # Preserve consumed grant-ids so the no-double-settle guard survives compaction.
+        party_gids.setdefault(e["party"], set()).update(
+            e["grant_ids"] if "grant_ids" in e
+            else ([e["grant_id"]] if e.get("grant_id") else []))
+    from kry._locks import cross_process_lock
+    with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
         prev = "0" * 64
         lines = []
         for party, amt in totals.items():
-            eh = hashlib.sha256(f"{prev}:{party}:{amt}".encode()).hexdigest()
-            lines.append({"party": party, "amount": amt, "prev_hash": prev,
-                          "entry_hash": eh, "checkpoint": True})
+            gids = sorted(party_gids.get(party, ()))
+            eh = hashlib.sha256(
+                f"{prev}:{party}:{amt}:{','.join(gids)}".encode()).hexdigest()
+            lines.append({"party": party, "amount": amt, "grant_ids": gids,
+                          "prev_hash": prev, "entry_hash": eh, "checkpoint": True})
             prev = eh
         for e in tail:  # re-chain the preserved tail onto the checkpoint
-            eh = hashlib.sha256(f"{prev}:{e['party']}:{e['amount']}".encode()).hexdigest()
+            eh = hashlib.sha256(
+                f"{prev}:{e['party']}:{e['amount']}:{_entry_grant_payload(e)}".encode()).hexdigest()
             e = {**e, "prev_hash": prev, "entry_hash": eh}
             lines.append(e)
             prev = eh
@@ -300,6 +310,17 @@ def compact_registry(keep_recent: int = 1000) -> bool:
         os.replace(tmp, _REGISTRY_PATH)
         _write_tip(len(lines), prev)   # HOLE F: compaction legitimately shrinks the log
     return True
+
+
+def _entry_grant_payload(e: dict) -> str:
+    """The grant-id component bound into a registry entry's hash. An individual
+    settlement binds its single grant_id; a compaction checkpoint binds the sorted
+    union of the grant_ids it collapsed — so the consume-once (no-double-settle)
+    guard is part of the tamper-evident chain and survives compaction."""
+    if "grant_ids" in e:
+        return ",".join(sorted(e.get("grant_ids") or ()))
+    gid = e.get("grant_id")
+    return gid if gid else ""
 
 
 def verify_registry() -> tuple[bool, list]:
@@ -315,7 +336,7 @@ def verify_registry() -> tuple[bool, list]:
     for i, e in enumerate(entries, 1):
         count = i
         expect = hashlib.sha256(
-            f"{prev}:{e['party']}:{e['amount']}".encode()).hexdigest()
+            f"{prev}:{e['party']}:{e['amount']}:{_entry_grant_payload(e)}".encode()).hexdigest()
         if e.get("entry_hash") != expect:
             errors.append(f"entry {i} ({e.get('party')}): hash broken — tampered")
         prev = e.get("entry_hash", prev)
@@ -351,24 +372,35 @@ def _load_registry() -> dict:
     return totals
 
 
-def _record_settled(party: str, amount: float) -> None:
+def _record_settled(party: str, amount: float, grant_id: str) -> None:
     """Append a hash-chained settlement entry (tamper-evident).
 
     Persistence is part of settlement correctness: if the registry or rollback
     checkpoint cannot be durably updated, callers must fail closed rather than
     returning a receipt the double-spend guard cannot see.
+
+    `grant_id` is consumed once: a second settle() of the same grant (the
+    accept->settle->settle in-process double-record) is rejected here, and the
+    id is bound into the chain so a stranger re-verifies the one-settle invariant.
     """
     try:
         amount = _finite_number(amount, "settlement amount", positive=True)
     except ValueError as exc:
         raise SettlementPersistenceError(f"invalid settlement amount {amount}: {exc}") from exc
+    if not isinstance(grant_id, str) or not grant_id:
+        raise SettlementPersistenceError("settlement requires a non-empty grant_id")
     try:
         entries = _registry_entries()
     except ValueError as exc:
         raise SettlementPersistenceError(f"settlement registry invalid: {exc}") from exc
+    if any(grant_id == e.get("grant_id") or grant_id in e.get("grant_ids", ())
+           for e in entries):
+        raise SettlementPersistenceError(
+            f"grant {grant_id} already settled — refusing double-settle")
     prev = entries[-1]["entry_hash"] if entries else "0" * 64
-    entry_hash = hashlib.sha256(f"{prev}:{party}:{amount}".encode()).hexdigest()
-    rec = {"party": party, "amount": amount, "prev_hash": prev, "entry_hash": entry_hash}
+    entry_hash = hashlib.sha256(f"{prev}:{party}:{amount}:{grant_id}".encode()).hexdigest()
+    rec = {"party": party, "amount": amount, "grant_id": grant_id,
+           "prev_hash": prev, "entry_hash": entry_hash}
     try:
         _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_REGISTRY_PATH, "a", encoding="utf-8") as f:
@@ -542,7 +574,9 @@ def verify_and_accept(
     # and this process's accepted-but-not-yet-settled reservations, so two concurrent
     # accepts for the same party cannot both pass before either settles (the in-process
     # verify->settle TOCTOU). On success it reserves the amount; settle() clears it.
-    with _REGISTRY_LOCK:
+    from kry._locks import cross_process_lock
+    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
         registry = _load_registry()
         if registry.get("__tampered__"):
             return None, "settlement registry tampered — failing closed (HOLE E)"
@@ -600,15 +634,23 @@ def settle(
     offer: SettlementOffer,
     grant: RoutingGrant,
     *,
-    debit_a_fn,          # callable(kry) -> actual_debited  (A's spend side)
+    debit_a_fn,          # callable(kry) -> amount the debit REPORTS moving (A's spend side)
     receiver: ReceiverLedger,
     a_balance_before: float,
+    a_balance_after_fn=None,   # callable() -> A's REAL balance after the debit (independent read)
 ) -> SettlementReceipt:
-    """Execute the settlement: debit A, credit B, enforce conservation.
+    """Execute the settlement: debit A, credit B, check conservation.
 
-    debit_a_fn debits A's real KRY ledger and returns the amount actually moved.
-    receiver is B's ReceiverLedger, credited by exactly the same amount.
-    The receipt records whether conservation held (a_debit == b_credit).
+    debit_a_fn debits A's real KRY ledger and returns the amount it REPORTS moving;
+    receiver is B's ReceiverLedger, credited by exactly that amount.
+
+    Conservation honesty: if a_balance_after_fn is given, A's real post-debit balance
+    is read INDEPENDENTLY and conservation is checked against the real ledger movement
+    (conservation_basis="measured") — this catches a debit_fn that reports moving X
+    while the ledger moved something else (the previously tautological check). Without
+    it, conservation only confirms the debit reported the agreed grant amount
+    (conservation_basis="self_asserted"); the receipt LABELS which, so a stranger never
+    reads an unverified check as a guarantee.
     """
     amount = _finite_number(grant.accepted_kry, "accepted_kry", positive=True)
     a_balance_before = _finite_number(a_balance_before, "a_balance_before",
@@ -616,11 +658,20 @@ def settle(
     b_before = _finite_number(receiver.received_kry, "b_received_before",
                               nonnegative=True)
     debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
-    a_after = a_balance_before - debited
     b_after = b_before + debited
 
-    # The currency invariant: what A lost == what B gained (no creation/destruction)
-    conserved = abs((a_balance_before - a_after) - (b_after - b_before)) < 1e-9
+    if a_balance_after_fn is not None:
+        # Independent observation of A's ledger — the only thing that catches a lying debit.
+        a_after = _finite_number(a_balance_after_fn(), "a_balance_after", nonnegative=True)
+        conserved = abs((a_balance_before - a_after) - debited) < 1e-9  # A's REAL move == B's credit
+        conservation_basis = "measured"
+    else:
+        # No independent read: B is credited exactly what the debit REPORTS moving, so the
+        # invariant holds relative to that report — but it is NOT verified against A's real
+        # ledger. LABEL it self_asserted so a consumer never reads conserved as a guarantee.
+        a_after = a_balance_before - debited
+        conserved = True
+        conservation_basis = "self_asserted"
 
     rid = hashlib.sha256(f"{offer.offer_id}:{grant.grant_id}:{debited}".encode()).hexdigest()[:12]
     receipt = SettlementReceipt(
@@ -628,6 +679,7 @@ def settle(
         a_balance_before=a_balance_before, a_balance_after=a_after,
         b_received_before=b_before, b_received_after=b_after,
         conserved=conserved,
+        conservation_basis=conservation_basis,
         receipt_hash="",
     )
     receipt.receipt_hash = hashlib.sha256(
@@ -640,8 +692,10 @@ def settle(
     # so the lease must hold A's spent amount until its TTL (releasing it would let another
     # node double-spend the same balance). The lease/registry consume the same amount, so
     # this is conservative, not a true double-count.
-    with _REGISTRY_LOCK:
-        _record_settled(offer.from_party, debited)
+    from kry._locks import cross_process_lock
+    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
+        _record_settled(offer.from_party, debited, grant.grant_id)
         _PENDING_RESERVATIONS[offer.from_party] = [
             r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
             if r["offer_id"] != offer.offer_id

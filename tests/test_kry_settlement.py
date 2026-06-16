@@ -106,7 +106,7 @@ def test_settlement_fails_closed_if_registry_record_fails(monkeypatch):
     grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
     b = ReceiverLedger(party="B")
 
-    def fail_record(party, amount):
+    def fail_record(party, amount, grant_id):
         raise SettlementPersistenceError("simulated registry failure")
 
     monkeypatch.setattr(ks, "_record_settled", fail_record)
@@ -126,7 +126,7 @@ def test_record_settled_fails_if_tip_checkpoint_fails(monkeypatch):
 
     monkeypatch.setattr(ks, "_write_tip", fail_tip)
     with pytest.raises(SettlementPersistenceError):
-        ks._record_settled("A", 100.0)
+        ks._record_settled("A", 100.0, "g1")
 
 
 def test_partial_debit_still_conserves():
@@ -183,3 +183,77 @@ def test_partial_then_remainder_settles(tmp_path, monkeypatch):
     o3 = make_offer("A", "B", 1.0, 10, now=1004.0)
     g3, r3 = verify_and_accept(o3, att, now=1005.0)
     assert g3 is None and "double-spend" in r3
+
+
+# ── Regression: security-review findings (double-settle, conservation, lock) ──
+
+def test_double_settle_same_grant_rejected():
+    """A grant settles AT MOST ONCE — a second settle() is rejected (review finding B)."""
+    o = make_offer("A", "B", 100.0, 1000, now=1000.0)
+    grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
+    b = ReceiverLedger(party="B")
+    settle(o, grant, debit_a_fn=lambda k: k, receiver=b, a_balance_before=1000.0)
+    assert b.received_kry == 100.0
+    with pytest.raises(SettlementPersistenceError):
+        settle(o, grant, debit_a_fn=lambda k: k, receiver=b, a_balance_before=1000.0)
+    assert b.received_kry == 100.0  # B not credited twice
+
+
+def test_double_settle_rejected_after_compaction():
+    """A grant collapsed into a compaction checkpoint still can't be re-settled."""
+    import kry.kry_settlement as ks
+    o = make_offer("A", "B", 50.0, 500, now=1000.0)
+    grant, _ = verify_and_accept(o, _attestation(100000.0), now=1001.0)
+    b = ReceiverLedger(party="B")
+    settle(o, grant, debit_a_fn=lambda k: k, receiver=b, a_balance_before=100000.0)
+    for i in range(60):  # push the real grant out of the tail into a checkpoint
+        ks._record_settled("X", 1.0, f"filler{i}")
+    assert ks.compact_registry(keep_recent=10) is True
+    assert ks.verify_registry()[0]                    # chain still valid post-compaction
+    with pytest.raises(SettlementPersistenceError):   # consumed id survives compaction
+        settle(o, grant, debit_a_fn=lambda k: k, receiver=b, a_balance_before=100000.0)
+
+
+def test_conservation_measured_catches_lying_debit():
+    """With an independent balance read, a debit reporting more than it moved fails (finding A)."""
+    o = make_offer("A", "B", 100.0, 1000, now=1000.0)
+    grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
+    b = ReceiverLedger(party="B")
+    # reports moving 100, but A's real ledger only dropped by 1
+    r = settle(o, grant, debit_a_fn=lambda k: 100.0, receiver=b,
+               a_balance_before=1000.0, a_balance_after_fn=lambda: 999.0)
+    assert r.conservation_basis == "measured"
+    assert r.conserved is False
+    # an honest measured debit conserves
+    o2 = make_offer("A", "C", 100.0, 1000, now=1002.0)
+    g2, _ = verify_and_accept(o2, _attestation(1000.0), now=1003.0)
+    c = ReceiverLedger(party="C")
+    r2 = settle(o2, g2, debit_a_fn=lambda k: 100.0, receiver=c,
+                a_balance_before=1000.0, a_balance_after_fn=lambda: 900.0)
+    assert r2.conservation_basis == "measured" and r2.conserved is True
+
+
+def test_conservation_self_asserted_is_labeled():
+    """Without an independent read, conservation is labeled self_asserted — not a silent guarantee."""
+    o = make_offer("A", "B", 100.0, 1000, now=1000.0)
+    grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
+    b = ReceiverLedger(party="B")
+    r = settle(o, grant, debit_a_fn=lambda k: k, receiver=b, a_balance_before=1000.0)
+    assert r.conservation_basis == "self_asserted"
+    assert r.conserved is True and verify_conservation(r)
+
+
+def test_settle_holds_cross_process_lock(monkeypatch):
+    """Registry verify+record is serialized across processes, not just threads (finding #3)."""
+    import kry._locks as locks_mod
+    calls = []
+    real = locks_mod.cross_process_lock
+    def spy(path, *a, **k):
+        calls.append(str(path))
+        return real(path, *a, **k)
+    monkeypatch.setattr(locks_mod, "cross_process_lock", spy)
+    o = make_offer("A", "B", 100.0, 1000, now=1000.0)
+    grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
+    settle(o, grant, debit_a_fn=lambda k: k, receiver=ReceiverLedger(party="B"),
+           a_balance_before=1000.0)
+    assert any("settlement_reg" in c for c in calls), calls

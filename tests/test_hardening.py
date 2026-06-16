@@ -29,8 +29,8 @@ def _attestation():
 # ── HOLE F: registry tail truncation / rollback ──────────────────────────────
 
 def test_registry_tail_truncation_is_detected():
-    ks._record_settled("A", 1000.0)
-    ks._record_settled("A", 2000.0)
+    ks._record_settled("A", 1000.0, "g1")
+    ks._record_settled("A", 2000.0, "g2")
     assert ks.verify_registry()[0]
     assert ks._load_registry().get("A") == 3000.0
 
@@ -91,9 +91,9 @@ def test_replay_of_one_evidence_is_decay_bounded():
 # ── Compaction advances the tip (no false truncation) ─────────────────────────
 
 def test_compaction_advances_tip_and_preserves_totals():
-    for _ in range(30):
-        ks._record_settled("A", 1.0)
-    ks._record_settled("B", 7.0)
+    for i in range(30):
+        ks._record_settled("A", 1.0, f"gA{i}")
+    ks._record_settled("B", 7.0, "gB0")
     before = ks._load_registry()
     assert ks.compact_registry(keep_recent=5) is True   # 31 > 2*5 -> compacts
     ok, errs = ks.verify_registry()

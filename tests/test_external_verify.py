@@ -415,8 +415,8 @@ def test_magnitude_catches_nonstandard_earn_rate(isolated):
 def test_stranger_catches_tampered_registry(isolated):
     kt, km, ka, ks, log = isolated
     from kry.kry_settlement import _record_settled
-    _record_settled("A", 1000.0)
-    _record_settled("A", 2000.0)
+    _record_settled("A", 1000.0, "g1")
+    _record_settled("A", 2000.0, "g2")
     entries = [json.loads(ln) for ln in ks._REGISTRY_PATH.read_text(encoding="utf-8").splitlines() if ln.strip()]
     entries[0]["amount"] = 1.0   # shrink a recorded settlement to free up balance
 

@@ -19,7 +19,7 @@ What a stranger can confirm with only:
   3. VERACITY SURFACE — declared veracity_floor matches the per-link tiers
                         (how much of the balance is externally anchored vs the
                         operator's word). See docs/KRY_VERACITY_BINDING.md.
-  4. SETTLEMENT       — the registry chain (entry_hash == SHA256(prev:party:amount))
+  4. SETTLEMENT       — the registry chain (entry_hash == SHA256(prev:party:amount:grant_ids))
                         is intact, and the offer fits inside
                         attested_balance − already_settled[party] (double-spend).
 
@@ -412,7 +412,18 @@ def verify_registry(entries: list[dict]) -> tuple[bool, list[str]]:
         prev_hash = e.get("prev_hash")
         if prev_hash is not None and prev_hash != prev:
             errors.append(f"entry {i} ({party}): prev_hash does not match previous entry")
-        expected = _sha(f"{prev}:{party}:{amount}")
+        # Grant-id component: individual settlements bind their grant_id; compaction
+        # checkpoints bind the sorted union of collapsed ids (the no-double-settle guard).
+        try:
+            if "grant_ids" in e:
+                grant_payload = ",".join(sorted(e.get("grant_ids") or ()))
+            else:
+                grant_payload = e.get("grant_id") or ""
+        except TypeError:
+            errors.append(f"entry {i} ({party}): malformed grant ids — tampered")
+            prev = entry_hash
+            continue
+        expected = _sha(f"{prev}:{party}:{amount}:{grant_payload}")
         if entry_hash != expected:
             errors.append(f"entry {i} ({party}): hash broken — tampered")
         prev = entry_hash
