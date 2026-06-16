@@ -417,3 +417,46 @@ def test_v1_receipt_cannot_claim_external_tier(isolated):
         r["evidence_tier"] = "self_reported"
     log.write_text("".join(json.dumps(r) + "\n" for r in rows))
     assert km.verify_chain()[0]
+
+
+def test_chain_head_anchor_detects_remint(isolated):
+    """P3 (#1 root cause): verify_chain passes a full re-mint because it is internally
+    consistent, but a PUBLISHED chain-head anchor catches it — the external root of trust."""
+    import kry.kry_mint as km
+    km.mint(event_type="displacement", tokens_saved=1000, evidence="a1",
+            avoided_model="anthropic/claude-opus-4")
+    km.mint(event_type="displacement", tokens_saved=1000, evidence="a2",
+            avoided_model="anthropic/claude-opus-4")
+    anchor = km.export_chain_anchor()                    # operator publishes this externally
+    assert anchor["count"] == 2
+    assert km.verify_chain_against_anchor(anchor)[0]     # honest chain matches the anchor
+
+    # honest extension (more mints after the anchor) still carries the anchored prefix
+    km.mint(event_type="displacement", tokens_saved=500, evidence="a3",
+            avoided_model="anthropic/claude-opus-4")
+    assert km.verify_chain_against_anchor(anchor)[0]
+
+    # operator re-mints from genesis: inflate value, recompute ALL hashes, rewrite checkpoint
+    log = km._MINT_LOG_PATH
+    rows = [json.loads(ln) for ln in log.read_text().splitlines() if ln.strip()]
+    prev = "0" * 64
+    for r in rows:
+        r["tokens_saved"] = 9_000_000.0
+        r["kry_minted"] = 9_000_000.0
+        hv = r.get("hash_version", 1)
+        metered = km._json_dumps(r.get("metered_tokens"), sort_keys=True, separators=(",", ":"))
+        content = (f"{r['event_type']}:{r['tokens_saved']}:{r['ts']}:{r['evidence_hash']}"
+                   f":{r['evidence_tier']}:{metered}")
+        r["receipt_hash"] = hashlib.sha256(content.encode()).hexdigest()
+        block = km._v4_public_block(hash_version=hv, tokens_saved=r["tokens_saved"], ts=r["ts"],
+            evidence_tier=r["evidence_tier"], metered_tokens=r.get("metered_tokens"),
+            kry_minted=r["kry_minted"], earn_rate=r["earn_rate"])
+        r["chain_hash"] = hashlib.sha256(f"{prev}:{r['receipt_hash']}:{block}".encode()).hexdigest()
+        prev = r["chain_hash"]
+    log.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    km._write_mint_tip(len(rows), prev)
+
+    assert km.verify_chain()[0]                          # internally valid (the #1 gap)
+    ok, errs = km.verify_chain_against_anchor(anchor)    # vs the PUBLISHED anchor
+    assert ok is False
+    assert any("re-mint detected" in e for e in errs), errs

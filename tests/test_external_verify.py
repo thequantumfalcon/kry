@@ -424,3 +424,22 @@ def test_stranger_catches_tampered_registry(isolated):
     ok, errs = v.verify_registry(entries)
     assert not ok
     assert any("tampered" in e for e in errs)
+
+
+def test_stranger_anchor_catches_remint():
+    """P3 (stranger side): a re-mint that passes verify_attestation is caught against a
+    PUBLISHED chain-head anchor — the link at seq==count must still match the anchored tip."""
+    import hashlib
+    v = _load_verifier()
+    h1 = hashlib.sha256(b"c1").hexdigest()
+    h2 = hashlib.sha256(b"c2").hexdigest()
+    att = {"links": [{"seq": 1, "chain_hash": h1}, {"seq": 2, "chain_hash": h2}]}
+    anchor = {"schema": "kry_chain_anchor/v1", "count": 2, "tip": h2}
+    assert v.verify_attestation_against_anchor(att, anchor)[0] is True
+    # operator re-minted -> the link at seq 2 now has a different chain_hash
+    forged = {"links": [{"seq": 1, "chain_hash": h1},
+                        {"seq": 2, "chain_hash": hashlib.sha256(b"forged").hexdigest()}]}
+    ok2, errs2 = v.verify_attestation_against_anchor(forged, anchor)
+    assert ok2 is False and any("re-mint detected" in e for e in errs2), errs2
+    # truncation: attestation shorter than the anchored count is also caught
+    assert v.verify_attestation_against_anchor({"links": [{"seq": 1, "chain_hash": h1}]}, anchor)[0] is False

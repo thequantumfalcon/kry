@@ -881,6 +881,69 @@ def verify_chain() -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 
 
+# ── External chain-head anchor (the fix the verify_chain docstring names: PUBLISH the tip) ──
+#
+# verify_chain proves the chain is INTERNALLY consistent — it cannot tell an honest chain
+# from one an operator re-derived from genesis (keyless SHA-256, local checkpoint). The only
+# way to make a retroactive re-mint detectable is an EXTERNAL root of trust on the chain head.
+# These two functions provide it without any new dependency: the operator exports a content-free
+# commitment {count, tip} and PUBLISHES it to an append-only medium they cannot silently rewrite
+# (a git commit, a public timestamp, a transparency log, a notarized note). A verifier who holds
+# that PUBLISHED anchor (obtained out-of-band, like a pinned key — never handed over at verify
+# time) can then prove the live chain still contains the anchored prefix. Optionally sign the
+# anchor with kry_pqc for authenticity; the re-mint detection itself comes from the publication.
+
+CHAIN_ANCHOR_SCHEMA = "kry_chain_anchor/v1"
+
+
+def export_chain_anchor() -> dict:
+    """A content-free commitment to the current chain head, for the operator to PUBLISH
+    externally. Leaks nothing (only a receipt count + a hash). Once published, any later
+    re-mint of a receipt at or before `count` changes the head and is detectable via
+    verify_chain_against_anchor()."""
+    count, tip = 0, "0" * 64
+    if _MINT_LOG_PATH.exists():
+        rows = [_json_loads(ln) for ln in _MINT_LOG_PATH.read_text(encoding="utf-8").splitlines()
+                if ln.strip()]
+        count = len(rows)
+        if rows:
+            tip = rows[-1].get("chain_hash", tip)
+    return {"schema": CHAIN_ANCHOR_SCHEMA, "count": count, "tip": tip}
+
+
+def verify_chain_against_anchor(anchor: dict) -> tuple[bool, list[str]]:
+    """Detect retroactive re-mint against a PUBLISHED anchor obtained out-of-band. The live
+    chain must (a) be internally valid and (b) still carry the anchored prefix: at receipt
+    #anchor['count'] its chain_hash must equal anchor['tip']. A re-mint of any receipt <= count
+    changes that hash; a truncation makes the chain too short — both are caught. Returns
+    (False, [...]) on mismatch. NOTE: this is only as strong as the anchor's external
+    publication — an anchor handed over by the operator at verify time proves nothing."""
+    if not isinstance(anchor, dict) or anchor.get("schema") != CHAIN_ANCHOR_SCHEMA:
+        return False, [f"anchor must be a {CHAIN_ANCHOR_SCHEMA} object"]
+    count, tip = anchor.get("count"), anchor.get("tip")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        return False, ["anchor.count must be a non-negative integer"]
+    if not isinstance(tip, str) or len(tip) != 64:
+        return False, ["anchor.tip must be a 64-char hex chain hash"]
+    valid, errs = verify_chain()
+    if not valid:
+        return False, ["live chain is not internally valid: " + "; ".join(errs[:2])]
+    rows = []
+    if _MINT_LOG_PATH.exists():
+        rows = [_json_loads(ln) for ln in _MINT_LOG_PATH.read_text(encoding="utf-8").splitlines()
+                if ln.strip()]
+    if count == 0:
+        return (tip == "0" * 64), ([] if tip == "0" * 64 else ["anchor.count 0 but tip is not genesis"])
+    if len(rows) < count:
+        return False, [f"live chain has {len(rows)} receipts < anchored {count} — "
+                       f"rollback/re-mint/truncation"]
+    live_tip_at_count = rows[count - 1].get("chain_hash")
+    if live_tip_at_count != tip:
+        return False, [f"chain head at receipt {count} does not match the published anchor — "
+                       f"retroactive re-mint detected"]
+    return True, []
+
+
 def retained_dollars_dated() -> dict:
     """R4 (peg stability): the AUTHORITATIVE retained-dollars figure — sum of each
     receipt's usd_equivalent STAMPED AT MINT TIME, not recomputed from the live

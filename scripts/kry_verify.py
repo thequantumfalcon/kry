@@ -492,12 +492,43 @@ def _read_registry(path: str) -> list[dict]:
     return entries
 
 
+def verify_attestation_against_anchor(attestation: dict, anchor: dict) -> tuple[bool, list[str]]:
+    """A stranger's RE-MINT check. verify_attestation proves the chain is internally consistent;
+    it cannot tell an honest chain from one the operator re-derived from genesis. A chain-head
+    anchor {count, tip} the operator PUBLISHED externally closes that gap: the attestation's link
+    at seq==count must still have chain_hash==tip. A re-mint of any receipt <= count changes that
+    hash. Only meaningful if the anchor came from the operator's external publication, obtained
+    out-of-band — an anchor handed over at verify time proves nothing."""
+    if not isinstance(anchor, dict) or anchor.get("schema") != "kry_chain_anchor/v1":
+        return False, ["anchor must be a kry_chain_anchor/v1 object"]
+    count, tip = anchor.get("count"), anchor.get("tip")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        return False, ["anchor.count must be a non-negative integer"]
+    if not isinstance(tip, str) or len(tip) != 64:
+        return False, ["anchor.tip must be a 64-char hex chain hash"]
+    if count == 0:
+        return (tip == _GENESIS), ([] if tip == _GENESIS else ["anchor.count 0 but tip is not genesis"])
+    links = attestation.get("links")
+    if not isinstance(links, list):
+        return False, ["attestation has no links to check against the anchor"]
+    match = next((ln for ln in links if isinstance(ln, dict) and ln.get("seq") == count), None)
+    if match is None:
+        return False, [f"attestation has no link at seq {count} — chain shorter than the published "
+                       f"anchor (rollback/re-mint/truncation)"]
+    if match.get("chain_hash") != tip:
+        return False, [f"chain hash at seq {count} does not match the published anchor — "
+                       f"retroactive re-mint detected"]
+    return True, []
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="KRY external verifier (stdlib-only)")
     p.add_argument("attestation", help="path to attestation JSON")
     p.add_argument("--registry", help="path to settlement registry JSONL")
     p.add_argument("--party", help="settling party (with --offer)")
     p.add_argument("--offer", type=float, help="offered KRY amount to check")
+    p.add_argument("--anchor", help="path to a PUBLISHED kry_chain_anchor JSON; checks the "
+                                    "attestation's chain still carries the anchored prefix (re-mint check)")
     args = p.parse_args(argv)
 
     try:
@@ -526,6 +557,19 @@ def main(argv: list[str] | None = None) -> int:
         ok, errors = verify_attestation(att)
         scope = "attestation"
 
+    anchor_line = None
+    if args.anchor:
+        try:
+            with open(args.anchor, encoding="utf-8") as f:
+                anchor = _json_load(f)
+            a_ok, a_errs = verify_attestation_against_anchor(att, anchor)
+        except Exception as exc:
+            a_ok, a_errs = False, [f"anchor unreadable: {exc}"]
+        ok = ok and a_ok
+        errors = errors + [f"anchor: {e}" for e in a_errs]
+        anchor_line = ("PASS — chain still carries the published anchor prefix (no re-mint)"
+                       if a_ok else "FAIL — re-mint/rollback vs the published anchor")
+
     v = att.get("veracity", {})
     print(f"KRY external verification — {scope}")
     print(f"  receipts:        {att.get('receipts')}")
@@ -534,6 +578,8 @@ def main(argv: list[str] | None = None) -> int:
           f"(fraction externally anchored; rest rests on operator self-report)")
     print(f"  price basis:     ${_FRONTIER_USD_PER_M}/M frontier, as of {_PRICE_AS_OF} "
           f"(magnitude recomputed from the public price table)")
+    if anchor_line:
+        print(f"  anchor check:    {anchor_line}")
     if ok:
         print("  VERDICT: VALID — integrity + conservation + magnitude hold; trust surface honest.")
     else:
