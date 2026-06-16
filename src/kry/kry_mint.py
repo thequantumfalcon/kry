@@ -827,6 +827,14 @@ def verify_chain() -> tuple[bool, list[str]]:
                 # Monotonic version: once the chain reaches v4 it can't drop back to a legacy format
                 # that binds nothing public — a v-decrease is a partial downgrade/rollback attempt.
                 hv = rec.get("hash_version", 1)
+                # Legacy v1 does NOT bind evidence_tier into the receipt hash, so a forged v1
+                # receipt claiming an external tier would otherwise verify. A v1 receipt may
+                # ONLY be self_reported (the honest legacy default); a higher tier is rejected.
+                if hv < 2 and rec.get("evidence_tier", TIER_SELF_REPORTED) != TIER_SELF_REPORTED:
+                    errors.append(
+                        f"Line {lineno} ({rec.get('receipt_id', '?')}): hash_version {hv} cannot "
+                        f"carry a non-self_reported tier ({rec.get('evidence_tier')}) — "
+                        f"the tier is unbound at this version")
                 if hv < prev_version:
                     errors.append(
                         f"Line {lineno} ({rec.get('receipt_id', '?')}): hash_version {hv} < "

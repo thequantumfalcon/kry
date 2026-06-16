@@ -282,6 +282,13 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         if not isinstance(tier, str):
             errors.append(f"seq {seq}: evidence_tier must be a string")
             tier = "self_reported"
+        # The tier is only bound on the PUBLIC surface at v4 (the v4 block above). A pre-v4
+        # link claiming a non-self_reported tier is operator-asserted, not chain-bound, so it
+        # must not inflate the anchored fraction of the veracity floor — reject and coerce.
+        if hv < 4 and tier != "self_reported":
+            errors.append(f"seq {seq}: hash_version {hv} cannot carry a non-self_reported "
+                          f"tier ({tier}) — unbound on the public surface (only v4+ binds it)")
+            tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
         errors.extend(_magnitude_errors(link))   # F2: magnitude is public arithmetic
         errors.extend(_tier_schema_errors(link))

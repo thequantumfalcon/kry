@@ -388,3 +388,32 @@ def test_v4_partial_tail_downgrade_is_rejected_by_both_verifiers(isolated):
     spec.loader.exec_module(kv)
     ok_v, errs_v = kv.verify_attestation(att)
     assert ok_v is False and any("version downgrade" in e for e in errs_v), errs_v
+
+
+def test_v1_receipt_cannot_claim_external_tier(isolated):
+    """Finding D: v1 does NOT bind the tier into its receipt hash, so a forged v1 receipt
+    claiming an external tier must be rejected — a v1 receipt may only be self_reported."""
+    import kry.kry_mint as km
+    log = km._MINT_LOG_PATH
+    prev = "0" * 64
+    rows = []
+    for i in range(2):
+        ts = 1000.0 + i
+        eh = hashlib.sha256(f"e{i}".encode()).hexdigest()[:16]
+        content = f"cache_hit:{1000.0}:{ts}:{eh}"           # exact v1 content (no tier bound)
+        rh = hashlib.sha256(content.encode()).hexdigest()
+        ch = hashlib.sha256(f"{prev}:{rh}".encode()).hexdigest()
+        rows.append({"receipt_id": f"r{i}", "event_type": "cache_hit", "tokens_saved": 1000.0,
+                     "kry_minted": 1000.0, "earn_rate": 1.0, "ts": ts, "usd_equivalent": 0.025,
+                     "evidence_hash": eh, "evidence_tier": "tlsn_attested",   # forged high tier
+                     "hash_version": 1, "receipt_hash": rh, "chain_hash": ch})
+        prev = ch
+    log.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    ok, errors = km.verify_chain()
+    assert not ok
+    assert any("non-self_reported tier" in e for e in errors), errors
+    # freeze-safety: the SAME chain as honest self_reported still verifies bit-for-bit
+    for r in rows:
+        r["evidence_tier"] = "self_reported"
+    log.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    assert km.verify_chain()[0]
