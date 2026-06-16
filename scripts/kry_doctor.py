@@ -210,7 +210,7 @@ def _resolve_artifact_path(root: Path, artifact: str | None) -> Path | None:
     return path
 
 
-def _artifact_verification(root: Path, artifact: str | None) -> dict | None:
+def _artifact_verification(root: Path, artifact: str | None, *, trust_local_inputs: bool = False) -> dict | None:
     path = _resolve_artifact_path(root, artifact)
     if path is None:
         return None
@@ -221,13 +221,13 @@ def _artifact_verification(root: Path, artifact: str | None) -> dict | None:
         return _check("artifact_verification", FAIL, "cannot load scripts/kry_verified_artifact.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    result = mod.verify_artifact_file(str(path))
+    result = mod.verify_artifact_file(str(path), trust_local_inputs=trust_local_inputs)
     if result.get("ok"):
         return _check("artifact_verification", PASS, f"{artifact} verifies; ship_scope={result.get('ship_scope')}")
     return _check("artifact_verification", FAIL, "; ".join(result.get("errors") or ["verification failed"]))
 
 
-def _packet_report_current(root: Path, artifact: str | None) -> dict | None:
+def _packet_report_current(root: Path, artifact: str | None, *, trust_local_inputs: bool = False) -> dict | None:
     path = _resolve_artifact_path(root, artifact)
     if path is None:
         return None
@@ -257,6 +257,7 @@ def _packet_report_current(root: Path, artifact: str | None) -> dict | None:
         path,
         display_artifact_path=path.name,
         require_packet_surfaces=False,
+        trust_local_inputs=trust_local_inputs,
     )
     if not report.get("ok"):
         return _check("packet_report_current", FAIL, "cannot render report from artifact: " + "; ".join(report.get("errors") or []))
@@ -593,7 +594,7 @@ def _external_evidence_status(root: Path, artifact: str | None, *, artifact_veri
     return _check("external_evidence_status", WARN, "artifact is not externally claimable; blockers: " + detail)
 
 
-def run_checks(root: str | Path = ROOT, *, artifact: str | None = None) -> dict:
+def run_checks(root: str | Path = ROOT, *, artifact: str | None = None, trust_local_inputs: bool = False) -> dict:
     root_path = Path(root)
     checks = [
         _python_version(),
@@ -608,7 +609,7 @@ def run_checks(root: str | Path = ROOT, *, artifact: str | None = None) -> dict:
         _verified_artifact_surface(root_path),
         _sample_log_disclosure(root_path),
     ]
-    artifact_check = _artifact_verification(root_path, artifact)
+    artifact_check = _artifact_verification(root_path, artifact, trust_local_inputs=trust_local_inputs)
     if artifact_check is not None:
         checks.append(artifact_check)
     ship_scope_check = _artifact_ship_scope_status(
@@ -618,7 +619,7 @@ def run_checks(root: str | Path = ROOT, *, artifact: str | None = None) -> dict:
     )
     if ship_scope_check is not None:
         checks.append(ship_scope_check)
-    packet_report_check = _packet_report_current(root_path, artifact)
+    packet_report_check = _packet_report_current(root_path, artifact, trust_local_inputs=trust_local_inputs)
     if packet_report_check is not None:
         checks.append(packet_report_check)
     packet_checklist_check = _packet_checklist_current(root_path, artifact)
@@ -662,8 +663,10 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Check local KRY verifier/reviewer readiness")
     p.add_argument("--artifact", default=None, help="optional packet/artifact.json to verify")
     p.add_argument("--json", action="store_true", help="emit machine-readable kry_doctor/v1 JSON")
+    p.add_argument("--trust-local-inputs", action="store_true",
+                   help="trust command_inputs that point outside the bundle — only for verifying YOUR OWN local packet")
     args = p.parse_args(argv)
-    result = run_checks(artifact=args.artifact)
+    result = run_checks(artifact=args.artifact, trust_local_inputs=args.trust_local_inputs)
     if args.json:
         print(_json_pretty(result))
     else:

@@ -277,7 +277,7 @@ def test_finops_report_blocks_external_claim_for_demo_artifact(monkeypatch, tmp_
     artifact_path = tmp_path / "artifact.json"
     artifact_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    report = finops.build_report(artifact_path)
+    report = finops.build_report(artifact_path, trust_local_inputs=True)
     md = finops.render_markdown(report)
 
     assert report["ok"] is True

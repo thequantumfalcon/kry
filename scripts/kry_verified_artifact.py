@@ -1918,6 +1918,34 @@ def _command_input_portability_errors(artifact_path: Path, artifact: dict) -> li
     return errors
 
 
+def _command_input_containment_errors(artifact_path: Path, command_inputs: object) -> list[str]:
+    """UNGATED path-containment for verification. Every command_inputs file MUST be a relative
+    path that stays inside the artifact's bundle directory — enforced for ALL artifacts (NOT just
+    externally-claimable) and BEFORE any read, so verifying an UNTRUSTED artifact cannot be tricked
+    into reading out-of-bundle files (/etc/..., ../secret). Operator-side BUILD is unaffected: it
+    resolves real CLI paths, never an artifact's self-declared inputs."""
+    errors: list[str] = []
+    if not isinstance(command_inputs, dict):
+        return errors
+    bundle = artifact_path.parent.resolve()
+    for key in ARTIFACT_PATH_INPUTS:
+        value = command_inputs.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value:
+            errors.append(f"command_inputs.{key} must be a relative bundle path")
+            continue
+        if Path(value).is_absolute():
+            errors.append(f"command_inputs.{key}: absolute path not allowed — must stay in the bundle")
+            continue
+        resolved = (bundle / value).resolve()
+        try:
+            resolved.relative_to(bundle)
+        except ValueError:
+            errors.append(f"command_inputs.{key}: path escapes the bundle directory ({value!r})")
+    return errors
+
+
 def _packet_surface_errors(artifact_path: Path, artifact: dict) -> list[str]:
     if not _externally_claimable_artifact(artifact):
         return []
@@ -2425,7 +2453,8 @@ def build_artifact(
     return artifact
 
 
-def verify_artifact_file(path: str | Path, *, require_packet_surfaces: bool = True) -> dict:
+def verify_artifact_file(path: str | Path, *, require_packet_surfaces: bool = True,
+                         trust_local_inputs: bool = False) -> dict:
     artifact_path = Path(path)
     try:
         saved = _load_json(artifact_path)
@@ -2446,6 +2475,14 @@ def verify_artifact_file(path: str | Path, *, require_packet_surfaces: bool = Tr
     errors.extend(_command_input_portability_errors(artifact_path, saved))
     if require_packet_surfaces:
         errors.extend(_packet_surface_errors(artifact_path, saved))
+    # Path containment BEFORE any rebuild read: by default an artifact being verified is UNTRUSTED,
+    # so its command_inputs may not point outside its own bundle (absolute or ../) — fail closed so
+    # the read never happens (closes arbitrary-file-read via `kry_doctor --artifact`). The operator
+    # re-verifying their OWN non-bundled packet opts in with trust_local_inputs=True.
+    if not trust_local_inputs:
+        containment = _command_input_containment_errors(artifact_path, cmd)
+        if containment:
+            return {"ok": False, "errors": errors + containment}
     try:
         rebuilt = build_artifact(
             cmd["usage_log"],
@@ -3061,10 +3098,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--template-dir", default=None,
                    help="write non-passing evidence request templates with current input hashes")
     p.add_argument("--out", default=None, help="write artifact JSON here; stdout if omitted")
+    p.add_argument("--trust-local-inputs", action="store_true",
+                   help="trust command_inputs that point outside the bundle — only for verifying YOUR OWN local packet")
     args = p.parse_args(argv)
 
     if args.verify_artifact:
-        result = verify_artifact_file(args.verify_artifact)
+        result = verify_artifact_file(args.verify_artifact, trust_local_inputs=args.trust_local_inputs)
         print(_json_pretty(result), end="")
         return 0 if result.get("ok") else 1
     if args.write_t1_manifest:

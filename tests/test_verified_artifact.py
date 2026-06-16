@@ -3023,7 +3023,7 @@ def test_saved_packet_rejects_broken_claim_evidence_manifest(minted_sample, tmp_
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True), encoding="utf-8")
 
-    result = art.verify_artifact_file(str(out))
+    result = art.verify_artifact_file(str(out), trust_local_inputs=True)
 
     assert result["ok"] is False
     assert (
@@ -3043,7 +3043,7 @@ def test_saved_packet_rejects_stale_claim_evidence_manifest_metadata(minted_samp
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True), encoding="utf-8")
 
-    result = art.verify_artifact_file(str(out))
+    result = art.verify_artifact_file(str(out), trust_local_inputs=True)
 
     assert result["ok"] is False
     assert "claim_evidence_manifest artifact path mismatch" in result["errors"]
@@ -3059,7 +3059,7 @@ def test_saved_packet_rejects_stale_claim_evidence_manifest_hash_only(minted_sam
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True), encoding="utf-8")
 
-    result = art.verify_artifact_file(str(out))
+    result = art.verify_artifact_file(str(out), trust_local_inputs=True)
 
     assert result["ok"] is False
     assert "claim_evidence_manifest artifact hash mismatch" in result["errors"]
@@ -3081,7 +3081,7 @@ def test_saved_packet_rejects_toolchain_drift(minted_sample, tmp_path, monkeypat
 
     monkeypatch.setattr(art, "_tool_manifest", drifted_manifest)
 
-    result = art.verify_artifact_file(str(out))
+    result = art.verify_artifact_file(str(out), trust_local_inputs=True)
 
     assert result["ok"] is False
     assert "artifact body does not match recomputed gates" in result["errors"]
@@ -4063,7 +4063,7 @@ def test_recompute_catches_tampered_packet_even_with_updated_hash(minted_sample,
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True), encoding="utf-8")
 
-    result = art.verify_artifact_file(str(out))
+    result = art.verify_artifact_file(str(out), trust_local_inputs=True)
 
     assert result["ok"] is False
     assert "artifact body does not match recomputed gates" in result["errors"]
@@ -5826,3 +5826,21 @@ def test_tampered_attestation_triggers_kill_gate(minted_sample, tmp_path):
     assert "product:attestation_verifies" in packet["external_blockers"]
     assert "kill:attestation_failed" in packet["external_blockers"]
     assert packet["ship_scope"] == "do_not_ship"
+
+
+def test_verify_rejects_out_of_bundle_path_inputs(tmp_path):
+    """Finding C: verifying an UNTRUSTED artifact must not read files outside its bundle —
+    absolute or ../ command_inputs are rejected BEFORE any read, regardless of ship_scope."""
+    kva = _load(_ARTIFACT, "kry_verified_artifact_containment")
+    art = {"schema": "kry_verified_savings_artifact/v1",
+           "ship_scope": "internal_or_demo_only",
+           "command_inputs": {"usage_log": "/etc/hostname"}}      # absolute, out of bundle
+    p = tmp_path / "artifact.json"
+    p.write_text(json.dumps(art))
+    res = kva.verify_artifact_file(p)
+    assert res["ok"] is False
+    assert any("absolute path not allowed" in e for e in res["errors"]), res["errors"]
+    art["command_inputs"]["usage_log"] = "../../etc/hostname"     # ../ traversal also blocked
+    p.write_text(json.dumps(art))
+    res2 = kva.verify_artifact_file(p)
+    assert any("escapes the bundle" in e for e in res2["errors"]), res2["errors"]

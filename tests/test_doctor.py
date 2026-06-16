@@ -292,7 +292,7 @@ def test_doctor_can_verify_saved_artifact(monkeypatch, tmp_path):
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    result = doctor.run_checks(ROOT, artifact=str(out))
+    result = doctor.run_checks(ROOT, artifact=str(out), trust_local_inputs=True)
 
     assert result["summary"]["fail"] == 0
     checks = {check["name"]: check for check in result["checks"]}
@@ -316,7 +316,7 @@ def test_doctor_fails_valid_do_not_ship_artifact(tmp_path):
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    result = doctor.run_checks(ROOT, artifact=str(out))
+    result = doctor.run_checks(ROOT, artifact=str(out), trust_local_inputs=True)
 
     assert result["summary"]["fail"] == 1
     checks = {check["name"]: check for check in result["checks"]}
@@ -807,10 +807,10 @@ def test_doctor_detects_nonportable_packet_absolute_inputs(monkeypatch, tmp_path
     )
     (packet_dir / "reviewer_checklist.json").write_text(json.dumps(checklist, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     finops = _load(ROOT / "scripts" / "kry_finops_report.py", "kry_finops_report_for_doctor_nonportable")
-    report = finops.build_report(out, display_artifact_path=out.name)
+    report = finops.build_report(out, display_artifact_path=out.name, trust_local_inputs=True)
     (packet_dir / "finops_report.md").write_text(finops.render_markdown(report), encoding="utf-8")
 
-    result = doctor.run_checks(ROOT, artifact=str(out))
+    result = doctor.run_checks(ROOT, artifact=str(out), trust_local_inputs=True)
 
     assert result["summary"]["fail"] == 1
     checks = {check["name"]: check for check in result["checks"]}

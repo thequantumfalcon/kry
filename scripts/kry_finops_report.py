@@ -211,12 +211,14 @@ def build_report(
     *,
     display_artifact_path: str | Path | None = None,
     require_packet_surfaces: bool = True,
+    trust_local_inputs: bool = False,
 ) -> dict:
     tool = _load_artifact_tool()
     display_path = str(display_artifact_path or artifact_path)
     verification = tool.verify_artifact_file(
         str(artifact_path),
         require_packet_surfaces=require_packet_surfaces,
+        trust_local_inputs=trust_local_inputs,
     )
     if not verification.get("ok"):
         return {
@@ -530,9 +532,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("artifact", help="verified-savings artifact JSON")
     p.add_argument("--json", action="store_true", help="emit kry_finops_report/v1 JSON")
     p.add_argument("--out", default=None, help="write report to this path instead of stdout")
+    p.add_argument("--trust-local-inputs", action="store_true",
+                   help="trust command_inputs that point outside the bundle — only for verifying YOUR OWN local packet")
     args = p.parse_args(argv)
 
-    report = build_report(args.artifact)
+    report = build_report(args.artifact, trust_local_inputs=args.trust_local_inputs)
     text = _json_pretty(report) if args.json else render_markdown(report)
     if args.out:
         Path(args.out).write_text(text + ("\n" if not text.endswith("\n") else ""), encoding="utf-8")
