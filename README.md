@@ -276,15 +276,25 @@ classified by *how the event was witnessed*, weakest to strongest:
 | **T1** | `provider_metered` | the **provider**, for a call that *did* happen | a displacement's cheap leg, with a retained real `usage` payload | shipped + reconcilable (F1) |
 | **T2** | `tee_attested` / TLS-notary | hardware / a TLS-notary signature | the only honest external anchor for counterfactual savings | **mechanism proven on a TLSNotary prototype; provider-call + mint integration in progress** |
 
-- The tier is **bound into the receipt hash** (`hash_version >= 2`): an operator cannot
- upgrade a receipt's tier after the fact without breaking the chain. New T1 receipts
+- The tier is **bound into the receipt hash** (`hash_version >= 2`): editing one receipt's
+ tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
+ only be `self_reported` — a v1 receipt claiming a higher tier is rejected. New T1 receipts
  also hash-bind their `metered_tokens` (`hash_version = 3`), so provider reconciliation
- cannot swap token counts under the same receipt hash. Legacy v1 receipts default to
- `self_reported` (the honest assumption) and verify bit-for-bit unchanged.
-- An attestation exposes a **`veracity_floor`** = the fraction backed by an *external*
- anchor (T1+T2), not operator self-report. `verify_attestation()` **re-derives** the
- floor from the per-link tiers and rejects a misstated one — the trust surface is itself
- tamper-evident.
+ cannot swap token counts under the same receipt hash.
+- **`verify_chain` proves integrity, not veracity.** It cannot distinguish an honest chain
+ from one an operator re-derived from genesis (keyless SHA-256 + a local checkpoint): a full
+ re-mint with upgraded tiers and inflated value passes it clean. The external root of trust
+ that closes this is the **chain-head anchor** — export a content-free `{count, tip}`
+ commitment and *publish* it to an append-only medium (`scripts/kry_chain_anchor.py`); a
+ verifier holding the published anchor then catches any retroactive re-mint
+ (`kry_verify.py --anchor`). Absent a published anchor, a self-reported balance is
+ operator-trusted by construction — which is exactly what `veracity_floor` discloses.
+- An attestation exposes a **`veracity_floor`** = the fraction backed by an *external* anchor
+ (T1+T2), not operator self-report. `verify_attestation()` **re-derives** the floor from the
+ per-link tiers (so it can't be misstated *relative to the tiers shown*) and only credits a
+ tier the public surface actually binds (v4) — a pre-v4 link claiming an external tier is
+ coerced to `self_reported`. That is tamper-evident against anyone who cannot recompute the
+ chain; against the operator (who can), publish a chain anchor to be re-mint-evident.
 - A balance with no external traffic reads **`veracity_floor = 0.0`** (100% self-reported).
  That is the *honest label* for what KRY is by default: internal-operator measurement.
  It is published as-is, never hidden.
@@ -305,8 +315,11 @@ proves **who** vouched for an attestation — to a stranger, a real ledger and a
 one are cryptographically indistinguishable, because the stdlib core has no public-key
 crypto. The **optional `kry_pqc/` tier** fills exactly that gap: it signs an attestation's
 raw bytes with NIST **ML-DSA (FIPS 204)** so the holder of a published public key is
-provably the signer, plus an **m-of-n council** mode where no single party — the operator
-included — can forge a proof (operator-trust becomes a tunable `M/N`). It is opt-in and
+provably the signer **to a verifier who supplies that published key out-of-band**
+(`--public-key` / `--expect-fingerprint`) — a signature under the artifact's *own embedded*
+key proves nothing (anyone can self-sign), so the verifier reports it UNVERIFIED. The
+**m-of-n council** mode distributes that trust **as long as the council's public keys are
+themselves published/pinned** (otherwise an operator who generates all N keys is the council). It is opt-in and
 **zero-impact on the core**: `src/kry/*` stays pure stdlib and imports neither `oqs` nor
 `kry_pqc` (`grep -r "oqs\|kry_pqc" src/kry` → nothing). Signatures are post-quantum, so a
 credit meant to retain value cannot be retroactively forged. This adds *authenticity +
@@ -445,8 +458,10 @@ capability matrix, not defects:
 - **Per-event counterfactual proof** — a single cache hit cannot be externally witnessed;
  the holdout gives a *statistical* answer, never a per-event one.
 - **Source-truth of self-report** — a determined operator can still author conserved T0
- events for savings that didn't occur. The attestation *says so* (`veracity_floor = 0.0`),
- which is the contribution; it does not prevent it.
+ events for savings that didn't occur, and (controlling the runtime) re-derive the whole
+ chain from genesis with upgraded tiers; `verify_chain` proves integrity, not veracity. The
+ attestation *says so* (`veracity_floor = 0.0`), which is the contribution; publishing a
+ `kry_chain_anchor` makes a retroactive re-mint detectable, but neither prevents it.
 - **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
  not solve identity.
 - **Cross-node settlement (HOLE D)** — the double-spend guard is atomic per-process; two
