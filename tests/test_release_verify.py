@@ -10,7 +10,7 @@ import scripts.kry_release_verify as release_verify
 
 
 def test_release_verifier_pins_test_and_lint_tools():
-    assert release_verify.DEV_REQUIREMENTS == ("pytest==9.0.3", "ruff==0.15.16")
+    assert release_verify.DEV_REQUIREMENTS == ("pytest==9.1.0", "ruff==0.15.17")
 
 
 def test_release_verifier_scrubs_python_path_overrides(monkeypatch):

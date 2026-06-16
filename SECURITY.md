@@ -14,7 +14,7 @@ relevant surface is:
 - the **magnitude recompute** (a fabricated price multiplier must be rejected against the public
  price table),
 - the **stranger verifier** (`scripts/kry_verify.py`) and the attestation format,
-- the optional **audited crypto** tiers (TEE / PQC) behind the `tee` / `oqs` extras.
+- the optional **audited crypto** tiers (TEE / PQC) behind the `tee` / `pqc` extras.
 
 By design, **integrity ≠ veracity**: the chain proves *untampered + conserved*, not that an event
 happened. A balance with no external anchor honestly reports `veracity_floor = 0.0`. That is the

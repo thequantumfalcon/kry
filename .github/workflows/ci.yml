@@ -21,9 +21,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install tooling (stdlib-only package — just the test/lint tools)
-        run: python -m pip install --upgrade pip pytest==9.0.3 ruff==0.15.16
+        run: python -m pip install --upgrade pip
       - name: Install package
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[dev]"   # dev tools pinned in pyproject (single source of truth)
       - name: Lint (must stay clean)
         run: ruff check src/ scripts/ tests/ examples/ lab/
       - name: Tests

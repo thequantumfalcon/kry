@@ -399,7 +399,7 @@ python3 scripts/kry_verify.py attestation.json
 python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export usage.json
 # F1 (operator/auditor): match each T1 mint to the provider's OWN usage record.
 # --mode per-request (OpenRouter/OpenAI per-call)
-# --mode aggregate (Google billing totals) requires --since/--until; external packets require <=2% tolerance.
+# --mode aggregate (Google billing totals) requires --since/--until; external packets default to <=2% tolerance (opt-in cap 5%).
 
 python3 scripts/kry_verified_artifact.py --mint-log kry_data/kry_mint_log.jsonl \
  --write-t1-manifest t1_manifest.json

@@ -338,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
                         "only aggregate billing, e.g. Google)")
     p.add_argument("--tolerance", type=int, default=0,
                    help="per-request: allowed per-side token difference (default 0 = exact)")
-    p.add_argument("--tolerance-pct", type=float, default=5.0,
+    p.add_argument("--tolerance-pct", type=float, default=2.0,
                    help="aggregate: allowed %% our-sum may exceed provider total "
                         "(rounding/tokenizer drift; max 5.0)")
     p.add_argument("--since", type=float, default=None,
