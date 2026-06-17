@@ -15,9 +15,11 @@ Mirrors test_tee_verify.py (Nitro). Two layers, mirroring scripts/kry_snp_verify
   to a pinned test ARK, and proves it fails closed on a bad signature, the wrong root, a
   report_data/measurement mismatch, a bad sig_algo, and a missing lib.
 
-  ⚠ The synthetic chain here is ECDSA (fast); real AMD ARK/ASK are RSA-4096/RSA-PSS,
-  handled by verify_directly_issued_by but UNPROVEN until an EPYC-node fixture exists
-  (the Nitro tier has a genuine-hardware regression fixture; SNP does not yet).
+  ⚠ The DEFAULT chain here is ECDSA (fast); test_rsa_pss_cert_chain_verifies_like_real_amd
+  builds the real-AMD shape (RSA-4096/RSA-PSS ARK/ASK, ECDSA-P384 VCEK) and proves the
+  verify_directly_issued_by RSA-PSS path. That closes the code-path gap; the AMD root KEYS
+  themselves stay UNPROVEN until a genuine EPYC-node fixture exists (the Nitro tier has a
+  real-hardware regression fixture; SNP does not yet).
 """
 from __future__ import annotations
 
@@ -225,16 +227,21 @@ crypto = pytest.importorskip("cryptography")
 
 def _build_snp_report(measurement_json: dict, *, chip_id=b"\x5a" * 64,
                       measurement_field=b"\x33" * 48, version=2, sig_algo=1,
-                      tamper_sig=False, bad_report_data=False, expired=False):
+                      tamper_sig=False, bad_report_data=False, expired=False,
+                      rsa_roots=False):
     """Build a signed 1184-byte SEV-SNP report + return
     (report_bytes, vcek_der, ask_der, ark_der, measurement_json_bytes).
     Synthetic chain: ARK (self-signed) -> ASK -> VCEK (the leaf that signs the report).
+
+    rsa_roots=True makes ARK/ASK RSA-4096 with RSASSA-PSS-signed certs (the real AMD shape;
+    VCEK stays ECDSA-P384 as on real hardware) — exercises the verify_directly_issued_by
+    RSA-PSS path that the default (all-ECDSA, fast) chain does not.
     """
     import datetime
     from cryptography import x509
     from cryptography.x509.oid import NameOID
     from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
     from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
     mod = _load()
     utc = datetime.timezone.utc
@@ -248,17 +255,26 @@ def _build_snp_report(measurement_json: dict, *, chip_id=b"\x5a" * 64,
         return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
 
     def _cert(subj_name, subj_key, issuer_name, issuer_key, ca):
-        return (x509.CertificateBuilder().subject_name(subj_name).issuer_name(issuer_name)
-                .public_key(subj_key.public_key()).serial_number(x509.random_serial_number())
-                .not_valid_before(nb).not_valid_after(na)
-                .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
-                .sign(issuer_key, hashes.SHA384()))
+        builder = (x509.CertificateBuilder().subject_name(subj_name).issuer_name(issuer_name)
+                   .public_key(subj_key.public_key()).serial_number(x509.random_serial_number())
+                   .not_valid_before(nb).not_valid_after(na)
+                   .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True))
+        if isinstance(issuer_key, rsa.RSAPrivateKey):
+            # real AMD ARK/ASK sign with RSASSA-PSS — the path verify_directly_issued_by must handle
+            return builder.sign(issuer_key, hashes.SHA384(),
+                                rsa_padding=padding.PSS(mgf=padding.MGF1(hashes.SHA384()),
+                                                        salt_length=padding.PSS.MAX_LENGTH))
+        return builder.sign(issuer_key, hashes.SHA384())
 
-    ark_key = ec.generate_private_key(ec.SECP384R1())
+    if rsa_roots:
+        ark_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+        ask_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+    else:
+        ark_key = ec.generate_private_key(ec.SECP384R1())
+        ask_key = ec.generate_private_key(ec.SECP384R1())
     ark = _cert(_name("ARK-test"), ark_key, _name("ARK-test"), ark_key, ca=True)
-    ask_key = ec.generate_private_key(ec.SECP384R1())
     ask = _cert(_name("ASK-test"), ask_key, _name("ARK-test"), ark_key, ca=True)
-    vcek_key = ec.generate_private_key(ec.SECP384R1())
+    vcek_key = ec.generate_private_key(ec.SECP384R1())   # VCEK is ECDSA-P384 on real hardware too
     vcek = _cert(_name("VCEK-test"), vcek_key, _name("ASK-test"), ask_key, ca=False)
 
     def der(c):
@@ -304,6 +320,23 @@ def test_real_report_verifies_and_round_trips():
     res = mod.run(att, **_KW)
     assert res["minted"]["evidence_tier"] == "tee_attested"
     assert km.verify_chain()[0]
+
+
+def test_rsa_pss_cert_chain_verifies_like_real_amd():
+    """Real AMD ARK/ASK are RSA-4096 with RSASSA-PSS signatures (the fast default chain is
+    all-ECDSA). Build a real-AMD-shaped chain — RSA-PSS ARK/ASK, ECDSA-P384 VCEK signing the
+    report — and prove the verify_directly_issued_by RSA-PSS path verifies (and fails closed on
+    a foreign RSA root). Closes the 'RSA-PSS handled but UNPROVEN' fixture gap without hardware."""
+    mod = _load()
+    report, vcek, ask, ark, meas = _build_snp_report(_MEAS, rsa_roots=True)
+    att = mod.verify_report(report, vcek_der=vcek, ask_der=ask, ark_der=ark, measurement_json=meas)
+    assert att["verified"] is True, att["errors"]
+    assert att["parsed_measurement"]["measurement_id"] == "meas-snp"
+    # a different, untrusted RSA root must not satisfy the pinned-ARK chain
+    _r2, _v2, _a2, other_ark, _m2 = _build_snp_report(_MEAS, rsa_roots=True)
+    bad = mod.verify_report(report, vcek_der=vcek, ask_der=ask, ark_der=other_ark, measurement_json=meas)
+    assert bad["verified"] is False
+    assert any("chain broken" in e or "ARK" in e for e in bad["errors"])
 
 
 def test_bad_signature_fails_closed():
