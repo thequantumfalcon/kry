@@ -29,7 +29,7 @@ is the grader refusing to let *more code* buy a grade only *real data* can earn
 
 ```
 audit_clean: True # all 13 'implemented' capabilities resolve to real code + tests
-status counts: 13 implemented · 1 scaffolded · 4 not_guaranteed (disclosed limits)
+status counts: 14 implemented · 1 scaffolded · 4 not_guaranteed (disclosed limits)
 readiness label TODAY: research_grade
 ```
 

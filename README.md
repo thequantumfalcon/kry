@@ -391,7 +391,7 @@ All under `src/kry/` — ~4,300 LOC, stdlib only.
 | `kry_token.py` | earn / spend / cycle, edge-weighted; `retained_dollars()`, `supply()`, dated price provenance, flow-balance, CSD solvency early-warning |
 | `kry_mint.py` | SHA-256 hash-chain receipts, per-evidence supply decay, evidence tiers, dated-basis valuation |
 | `kry_attest.py` | content-sealed public proof-of-balance + the verifiable `veracity` surface |
-| `kry_settlement.py` | federated conservation transfer + double-spend guard (tamper-evident registry, rollback/HOLE-F checkpoint, negative-offer guard) |
+| `kry_settlement.py` | federated conservation transfer + double-spend guard (single-host multi-process: commit-time ceiling re-check under a cross-process lock; tamper-evident registry, rollback/HOLE-F checkpoint + published registry anchor, negative-offer guard) |
 | `kry_referee.py` | adversarial-stability gate + ascension (ratify / revoke / escalate, challenge budget, probation) |
 | `kry_carbon.py` | second denomination — avoided inference → kWh → CO₂ (clearly-labeled **estimate**) |
 | `kry_baseline.py` | counterfactual holdout — randomized holdout + Wilson CI → the `holdout_validated` tier |
@@ -464,9 +464,11 @@ capability matrix, not defects:
  `kry_chain_anchor` makes a retroactive re-mint detectable, but neither prevents it.
 - **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
  not solve identity.
-- **Cross-node settlement (HOLE D)** — the double-spend guard is atomic per-process; two
- nodes settling the same balance against unmerged registries aren't caught until merge.
- Named now, ranked fix documented (lease/nonce/TTL first).
+- **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
+ HOST (multi-process: the ceiling is re-checked at _commit_ under a cross-process lock), and a
+ _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe is
+ cross-NODE: two nodes settling the same balance against unmerged registries aren't caught until
+ merge. Named now, ranked fix documented (lease/nonce/TTL first).
 - **Real-world validation** — every result here is on synthetic or internal data until a
  real provider export is reconciled. "Tested on synthetic data" ≠ "validated on real
  traffic," and this README will not blur the two.
@@ -477,7 +479,7 @@ capability matrix, not defects:
 
 ```text
 src/kry/ the package (stdlib only) — see Modules
-scripts/ kry_verify · kry_reconcile (F1) · kry_or_fetch · kry_savings_report · kry_verified_artifact · kry_finops_report · kry_doctor
+scripts/ kry_verify · kry_chain_anchor (re-mint/rollback evidence) · kry_reconcile (F1) · kry_or_fetch · kry_savings_report · kry_verified_artifact · kry_finops_report · kry_doctor
 examples/ try_kry.py (30s demo) · gen_dataset.py (synthetic logs) · sample_usage_log.jsonl
 tests/ unit, adversarial regressions (test_hardening), at-scale + fuzz (test_stress)
 docs/ SPEC · VERACITY_BINDING · COUNTERFACTUAL_HOLDOUT · BIOMIMICRY · SANCTIONS · READINESS · ...
