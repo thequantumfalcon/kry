@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/thequantumfalcon/kry/actions/workflows/ci.yml/badge.svg)](https://github.com/thequantumfalcon/kry/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/thequantumfalcon/kry/actions/workflows/codeql.yml/badge.svg)](https://github.com/thequantumfalcon/kry/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/thequantumfalcon/kry/badge)](https://scorecard.dev/viewer/?uri=github.com/thequantumfalcon/kry)
 [![License](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue.svg)](LICENSE.md)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.11-blue.svg)](https://www.python.org/)
 
