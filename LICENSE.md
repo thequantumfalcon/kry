@@ -1,5 +1,6 @@
 Licensor: Thomas Albrecht <thequantumfalcon@gmail.com>
 Software: KRY — Proof-of-Efficiency Compute Credit
+Required Notice: Copyright 2026 Thomas Albrecht
 
 # PolyForm Noncommercial License 1.0.0
 

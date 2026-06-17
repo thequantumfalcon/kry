@@ -103,10 +103,15 @@ def cost(model, it, ot):
 def run_tests(code, test):
     src = code + "\n\n" + test + "\nprint('KRYOK')\n"
     try:
-        # SECURITY: run model-GENERATED code with secrets stripped from the env so a malicious or
-        # prompt-injected completion cannot read API keys. NOT a full sandbox (no fs/network isolation).
-        safe_env = {k: v for k, v in os.environ.items()
-                    if not any(s in k.upper() for s in ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL"))}
+        # SECURITY: run model-GENERATED code with a minimal ALLOWLISTED env — only non-secret
+        # operational vars pass through, so a malicious or prompt-injected completion sees no API
+        # keys (an allowlist can't miss an oddly-named secret the way a substring denylist can).
+        # Still NOT a full sandbox: no fs/network isolation, absolute-path reads remain possible —
+        # do not run untrusted models at scale without one (container/nsjail/unshare).
+        _safe = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TERM",
+                 "TMPDIR", "TEMP", "TMP", "SYSTEMROOT", "WINDIR", "PATHEXT", "COMSPEC",
+                 "PROCESSOR_ARCHITECTURE", "APPDATA", "LOCALAPPDATA", "PROGRAMFILES")
+        safe_env = {k: os.environ[k] for k in _safe if k in os.environ}
         r = subprocess.run([sys.executable, "-c", src], capture_output=True, text=True, timeout=10, env=safe_env)
         return r.returncode == 0 and "KRYOK" in r.stdout
     except Exception:
