@@ -16,14 +16,20 @@ boundary until real external evidence changes it.
  tradeable-token claims.
 - The release verifier can run install, compileall, ruff, pytest, attribution,
  packet, doctor, diff-check, dry-run untracked-file, and reproducibility gates.
+- `research_grade` readiness, reached 2026-06-10: a fresh real-traffic run reconciled
+ 52/52 against the provider's own per-request records at agreement 1.00 (≥ the 0.80 bar).
+ Evidence: `docs/evidence/research_grade/` (offline-verifiable) and `docs/KRY_READINESS.md`.
+ Honest scope: graded the fresh-run window; the all-time ledger is lower only because some
+ legacy generation-ids are provider-purged (un-fetchable, **not** refuted).
+- Provider-reconciled savings **for that window** (same bundle): the operator cannot inflate
+ the reconciled token counts without the check against the provider export breaking. This is
+ reconciliation veracity, **not** an external verified-savings claim (that stays blocked below).
 
 ## Blocked Until External Evidence Exists
 
 - External verified-savings claim.
-- `research_grade` readiness.
 - `production_ready` / A+ readiness.
-- Provider-reconciled savings.
-- Real-corpus validation.
+- Real-corpus validation (independent real-world corpus + counterparty, for the savings claim).
 - Outside-review-complete claim.
 - Buyer reliance or materiality claim.
 - Legal approval of external retained-savings language.
