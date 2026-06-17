@@ -1,0 +1,17 @@
+# Normalise line endings — LF in the repository regardless of contributor OS.
+* text=auto eol=lf
+
+# Scripts and the demo runner must stay LF (they are executed).
+*.sh text eol=lf
+*.py text eol=lf
+
+# Binary assets — never normalise or diff as text.
+*.gif binary
+*.png binary
+
+# Language stats: the token and its tooling are pure Python. The TLSNotary
+# reference material (Rust notary source + patches) is vendored evidence, not
+# part of the codebase — keep it out of the language breakdown so the repo
+# reads as what it is. Docs are documentation, not code.
+tlsnotary/** linguist-vendored
+docs/** linguist-documentation
