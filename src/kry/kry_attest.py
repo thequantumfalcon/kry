@@ -206,8 +206,10 @@ def _magnitude_errors(link: dict) -> list[str]:
     except Exception as exc:
         return [f"seq {seq}: magnitude reference unavailable: {exc}"]
     event_type = link.get("event_type", "")
-    published_rate = _EARN_RATES.get(event_type)
-    if published_rate is not None and abs(earn_rate - published_rate) > 1e-6:
+    # F3: an UNKNOWN event_type must still use mint's 0.5 fallback rate — reject an arbitrary rate
+    # paired with an off-table event_type instead of silently skipping the check.
+    published_rate = _EARN_RATES.get(event_type, 0.5)
+    if abs(earn_rate - published_rate) > 1e-6:
         errors.append(
             f"seq {seq}: earn_rate {earn_rate} != published {published_rate} "
             f"for '{event_type}' — non-standard rate")

@@ -460,3 +460,14 @@ def test_chain_head_anchor_detects_remint(isolated):
     ok, errs = km.verify_chain_against_anchor(anchor)    # vs the PUBLISHED anchor
     assert ok is False
     assert any("re-mint detected" in e for e in errs), errs
+
+
+def test_veracity_note_does_not_overclaim_trustless(isolated):
+    """Audit F2: the veracity note must not claim the operator 'cannot fabricate' tiers; it must
+    disclose the chain binds the LABEL, not the proof — operator-asserted absent the verifier+anchor."""
+    import kry.kry_mint as km
+    km.mint(event_type="cache_hit", tokens_saved=100, evidence="e", evidence_tier="self_reported")
+    note = km.veracity_breakdown()["note"]
+    assert "cannot fabricate" not in note
+    assert "operator-asserted" in note
+    assert "the chain binds the tier LABEL" in note

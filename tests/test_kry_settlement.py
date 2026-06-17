@@ -291,3 +291,18 @@ def test_lease_lock_steals_orphaned_stale_lock(tmp_path):
     ks._lease_lock(tmp_path)                                             # steals the stale lock, does not hang
     assert lock.exists()                                                # we now hold it
     ks._lease_unlock(tmp_path)
+
+
+def test_commit_time_ceiling_blocks_multiprocess_double_spend():
+    """Audit F1: two processes (separate in-memory reservations) both accept against one attested
+    balance; the second SETTLE fails closed at the commit-time ceiling re-check (not 1600 settled)."""
+    import kry.kry_settlement as ks
+    oB = make_offer("A", "B", 800.0, 800, now=1.0)
+    gB, _ = verify_and_accept(oB, _attestation(1000.0), now=2.0)
+    ks._PENDING_RESERVATIONS.clear()                        # simulate a separate process's fresh memory
+    oC = make_offer("A", "C", 800.0, 800, now=3.0)
+    gC, _ = verify_and_accept(oC, _attestation(1000.0), now=4.0)
+    settle(oB, gB, debit_a_fn=lambda k: k, receiver=ReceiverLedger(party="B"), a_balance_before=1000.0)
+    with pytest.raises(SettlementPersistenceError):
+        settle(oC, gC, debit_a_fn=lambda k: k, receiver=ReceiverLedger(party="C"), a_balance_before=1000.0)
+    assert ks._load_registry().get("A") == 800.0           # not 1600

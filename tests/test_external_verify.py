@@ -456,3 +456,12 @@ def test_magnitude_rejects_zero_rate_and_skim():
     assert not v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1000.0,
                                     "tokens_saved": 1000.0, "earn_rate": 1.0})     # legit mult 1.0
     assert not v._magnitude_errors({"seq": 1, "event_type": "cache_hit", "kry_minted": 1000.0})  # legacy (no inputs)
+
+
+def test_magnitude_rejects_unknown_event_type_arbitrary_rate():
+    """Audit F3: an unknown event_type must use mint's 0.5 fallback rate, not an arbitrary one."""
+    v = _load_verifier()
+    assert v._magnitude_errors({"seq": 1, "event_type": "weird", "kry_minted": 900.0,
+                                "tokens_saved": 1000.0, "earn_rate": 0.9})        # arbitrary -> rejected
+    assert not v._magnitude_errors({"seq": 1, "event_type": "weird", "kry_minted": 500.0,
+                                    "tokens_saved": 1000.0, "earn_rate": 0.5})    # 0.5 fallback -> ok

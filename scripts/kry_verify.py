@@ -185,8 +185,10 @@ def _magnitude_errors(link: dict) -> list[str]:
                     f"/ earn_rate={rate} — magnitude not derivable from declared inputs"]
         return []
     et = link.get("event_type", "")
-    pub_rate = _EARN_RATES.get(et)
-    if pub_rate is not None and abs(rate - pub_rate) > 1e-6:
+    # F3: an UNKNOWN event_type must still use mint's 0.5 fallback rate — reject an arbitrary rate
+    # paired with an off-table event_type instead of silently skipping the check.
+    pub_rate = _EARN_RATES.get(et, 0.5)
+    if abs(rate - pub_rate) > 1e-6:
         errors.append(
             f"seq {link.get('seq')}: earn_rate {rate} != published {pub_rate} "
             f"for '{et}' — non-standard rate")

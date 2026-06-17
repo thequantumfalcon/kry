@@ -105,6 +105,7 @@ class RoutingGrant:
     routing_tokens: int
     accepted_kry: float
     ts: float
+    attested_balance: float = -1.0   # A's attested ceiling at accept time; -1 = unchecked (directly-built grant)
 
 
 @dataclass
@@ -159,10 +160,12 @@ def make_offer(from_party: str, to_party: str, kry_amount: float,
 # settlement among adversarial strangers needs global consensus (out of scope,
 # and legally undesirable).
 #
-# Locking scope (state it plainly): registry verify+record is held under BOTH the
-# in-process _REGISTRY_LOCK (thread-safety for the reservation map) AND a
-# cross_process_lock on the registry file (atomicity across processes on one host) —
-# so single-HOST, multi-process settlement is correct, matching kry_mint/kry_sanctions.
+# Locking scope (state it plainly): registry verify+record is held under BOTH the in-process
+# _REGISTRY_LOCK (thread-safety for the in-memory reservation map) AND a cross_process_lock on the
+# registry file. The accept-time reservation is a PER-PROCESS optimization only (it does not cross
+# processes); the AUTHORITATIVE double-spend bound is re-checked at COMMIT in settle() against the
+# persisted registry total under the cross-process lock, so single-HOST, multi-process settlement is
+# correct (the second committer fails closed), matching kry_mint/kry_sanctions.
 # What is NOT covered is cross-NODE: the double-spend guard and the stranger re-check
 # in scripts/kry_verify.py (verify_settlement) are post-facto and SNAPSHOT-based, sound
 # only against the COMPLETE, MERGED federation registry. Two NODES settling the same
@@ -702,7 +705,8 @@ def verify_and_accept(
     gid = hashlib.sha256(f"{offer.offer_id}:{offer.to_party}:{now}".encode()).hexdigest()[:12]
     grant = RoutingGrant(
         grant_id=gid, offer_id=offer.offer_id, granted_by=offer.to_party,
-        routing_tokens=offer.routing_tokens, accepted_kry=offer_amount, ts=now)
+        routing_tokens=offer.routing_tokens, accepted_kry=offer_amount, ts=now,
+        attested_balance=attested_balance)
     logger.info("settlement: %s accepted offer %s (%.0f KRY for %d tokens)",
                 offer.to_party, offer.offer_id, offer_amount, offer.routing_tokens)
     return grant, "accepted"
@@ -773,6 +777,19 @@ def settle(
     from kry._locks import cross_process_lock
     _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
+        # F1: accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass
+        # the accept guard for one attested balance. The AUTHORITATIVE double-spend check is here, at
+        # commit, against the COMMITTED registry total under the cross-process lock — the second
+        # committer fails closed. (A directly-built grant carries attested_balance=-1 and is skipped.)
+        if grant.attested_balance >= 0:
+            committed = _load_registry()
+            if committed.get("__tampered__"):
+                raise SettlementPersistenceError("settlement registry tampered — failing closed")
+            already = committed.get(offer.from_party, 0.0)
+            if already + debited > grant.attested_balance + 1e-9:
+                raise SettlementPersistenceError(
+                    f"double-spend at commit: {offer.from_party} settled {already:.0f}+{debited:.0f} "
+                    f"> attested {grant.attested_balance:.0f} — failing closed")
         _record_settled(offer.from_party, debited, grant.grant_id)
         _PENDING_RESERVATIONS[offer.from_party] = [
             r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])

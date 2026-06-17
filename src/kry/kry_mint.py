@@ -1047,10 +1047,12 @@ def veracity_breakdown() -> dict:
         "note": ("veracity_floor = fraction backed by an external anchor "
                  "(provider metering / TEE / TLS-notary), not operator self-report alone. "
                  "tlsn_attested_fraction (notarized provider bytes) and tee_attested_fraction "
-                 "(measurement run in attested hardware) are the stronger sub-tiers whose "
-                 "anchoring is trustless — the operator cannot fabricate them — surfaced "
-                 "separately because the binary floor cannot distinguish them from "
-                 "provider_metered — see docs/KRY_VERACITY_BINDING.md"),
+                 "(measurement run in attested hardware) are surfaced separately because the binary "
+                 "floor cannot distinguish them from provider_metered. IMPORTANT: the chain binds the "
+                 "tier LABEL, not the underlying proof — a label is trustless ONLY when its external "
+                 "verifier (kry_tee_verify / kry_tlsn_verify / F1 reconcile) was run on the evidence "
+                 "AND the chain head is externally anchored; absent that, treat the label as "
+                 "operator-asserted — see docs/KRY_VERACITY_BINDING.md"),
     }
 
 
