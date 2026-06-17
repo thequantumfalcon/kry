@@ -7,6 +7,11 @@ backend-path = ["."]
 name = "kry"
 version = "0.1.0"
 description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
+keywords = [
+    "llm", "llmops", "llm-cost-optimization", "inference-cost", "model-routing",
+    "finops", "cost-optimization", "proof-of-efficiency", "verifiable-compute",
+    "attestation", "tee", "tlsnotary", "zero-dependency",
+]
 license = {text = "PolyForm-Noncommercial-1.0.0"}
 requires-python = ">=3.11"
 dependencies = []   # zero-dependency, pure stdlib

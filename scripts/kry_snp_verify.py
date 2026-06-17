@@ -46,10 +46,12 @@ stdlib only, EXCEPT `cryptography` (optional extra: `pip install kry[tee]`) used
 solely inside verify_report for the signature + X.509 chain. Imports kry only to mint.
 
 ⚠ NOT YET PROVEN ON REAL HARDWARE. The Nitro tier shipped with a genuine-enclave
-regression fixture; SEV-SNP needs an EPYC node to capture one (the synthetic tests below
-exercise the verifier logic but emit an ECDSA test chain, where real AMD ARK/ASK are
-RSA-4096/RSA-PSS — handled by verify_directly_issued_by but unproven here). Treat the
-`tee.fail` DDR5 physical-attack class (research doc, unverified) as a gating unknown.
+regression fixture; SEV-SNP needs an EPYC node to capture one. The synthetic tests below
+default to a fast ECDSA chain, but one fixture builds the real-AMD shape (RSA-4096/RSA-PSS
+ARK/ASK, ECDSA-P384 VCEK) so the verify_directly_issued_by RSA-PSS path IS exercised — that
+closes the code-path gap; only the genuine AMD root keys remain unproven until an EPYC node
+captures one. Treat the `tee.fail` DDR5 physical-attack class (research doc, unverified) as
+a gating unknown.
 
 Usage:
     # verify only (no mint): pin AMD's ARK; pass the KDS-fetched VCEK + ASK and the
