@@ -5,6 +5,9 @@ on:
     branches: ["**"]
   pull_request:
 
+permissions:
+  contents: read   # least-privilege: this guard only reads the tree
+
 jobs:
   attribution-guard:
     runs-on: ubuntu-latest
