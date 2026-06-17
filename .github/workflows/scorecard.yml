@@ -3,6 +3,7 @@ name: Scorecard
 # OpenSSF Scorecard — measures the repo's security posture (branch protection, pinned deps,
 # token permissions, etc.) and publishes a public score. A strong due-diligence signal.
 on:
+  workflow_dispatch:
   branch_protection_rule:
   schedule:
     - cron: "41 9 * * 2"  # weekly, Tuesday
