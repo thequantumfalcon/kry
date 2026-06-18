@@ -602,6 +602,16 @@ def main(argv: list[str] | None = None) -> int:
           f"(magnitude recomputed from the public price table)")
     if anchor_line:
         print(f"  anchor check:    {anchor_line}")
+    elif float(v.get("veracity_floor", 0.0) or 0.0) > 0.0:
+        # F1 (independent audit): a chain claiming ANY non-self_reported (anchored) value can be a
+        # genesis RE-MINT — internally consistent but with forged tiers. A keyless SHA-256 chain
+        # cannot tell an honest anchored chain from a re-minted one; only a pre-published anchor can.
+        # Say so LOUDLY in the slot a reader checks, so a stranger never reads "VALID + veracity_floor"
+        # as proof the anchored fraction is real.
+        print("  anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED")
+        print("                   here: a genesis re-mint with upgraded tiers passes this check.")
+        print("                   Re-run with --anchor <operator's pre-published chain head> to make")
+        print("                   a retroactive re-mint detectable.")
     if ok:
         print("  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; "
               "trust surface honest (read veracity_floor for what is operator-asserted).")

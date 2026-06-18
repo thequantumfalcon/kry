@@ -6,7 +6,7 @@
 > `docs/KRY_VERIFIED_SAVINGS_ARTIFACT.md`, and `docs/RELEASE_CHECKLIST.md` for
 > current commands.
 
-**Date:** 2026-06-04 · **Status:** T2 proven LIVE end-to-end — authed 200 notarized + minted (`tlsn_attested`)
+**Date:** 2026-06-04 · **Status:** T2 **mechanism** proven LIVE end-to-end — authed 200 notarized + minted (`tlsn_attested`). **NOT yet trustless:** the notary is self-hosted (≠ a neutral third party) — see §5 (Trust ceiling) below.
 **Scope:** closing the highest rung of KRY's veracity ladder (`tee_attested` / TLS-notary)
 
 ---

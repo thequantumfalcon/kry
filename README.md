@@ -119,7 +119,8 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
 
 ━━━━━━ T2  —  the same trust model, anchored to a REAL provider's TLS response ━━━━━━
 TLSNotary proves what openrouter.ai returned, verifiable by a stranger with real CA roots.
-Proven end-to-end (2026-06-04):  docs/KRY_T2_FINDINGS_REPORT.md  ·  tlsnotary/
+Mechanism proven (2026-06-04) — NOT yet trustless: self-hosted notary != neutral party (§5).
+  docs/KRY_T2_FINDINGS_REPORT.md  ·  tlsnotary/
 
   earn → mint → attest → verify → (T1 reconcile / T2 notarize).  That is proof-of-efficiency.
 ```
@@ -210,6 +211,10 @@ python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
 # reports SAVED vs SPEND and the veracity_floor (holdout-validated vs self-reported)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
 python3 scripts/kry_verify.py "$tmp/att.json" # the stranger's check — stdlib only
+# ↑ WITHOUT --anchor, the externally-anchored fraction is operator-asserted (a genesis re-mint
+#   passes). The operator PUBLISHES this anchor out-of-band, then a stranger checks against it:
+python3 scripts/kry_chain_anchor.py export > "$tmp/anchor.json"
+python3 scripts/kry_verify.py "$tmp/att.json" --anchor "$tmp/anchor.json" # re-mint now detectable
 python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
  --attestation "$tmp/att.json" --mint-log "$KRY_DATA_DIR/kry_mint_log.jsonl" --bundle-dir "$tmp/packet"
 python3 scripts/kry_verified_artifact.py --verify-artifact "$tmp/packet/artifact.json"
@@ -342,6 +347,13 @@ every amount** and rejects any receipt whose implied multiplier isn't a publishe
 This catches inflation **even when conservation is kept internally consistent** — a class
 of forgery the chain alone misses (the **F2** check).
 
+> **Cross-language note (integrity recompute):** the chain hash binds CPython's `json.dumps`
+> number formatting (e.g. the high-precision `ts`), so a _non-Python_ re-implementation of the
+> verifier must reproduce CPython's float→JSON byte-for-byte to recompute the hash. Today's
+> verifier is therefore _Python_-portable; a canonical language-neutral encoding (integer
+> micro-units / fixed-precision strings) is future work. Magnitude is tolerance-guarded and
+> unaffected — this is an interop note for a non-Python verifier, not a forgery vector.
+
 ---
 
 ## Readiness: a computed grade, not a claim
@@ -356,7 +368,7 @@ prototype < prototype_plus < internally_consistent < research_grade < production
 | Level | Evidence required | KRY today |
 |---|---|---|
 | `internally_consistent` | the synthetic suite is fully green | ✅ cleared |
-| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — durable anchor: `confirm()` 50/50 within TTL, fresh corpus 52/52 @ agreement 1.00 (note ↓) |
+| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — `confirm()` 50/50 within TTL; fresh corpus 52/52 @ 1.00 (note ↓). _Scope: **token-count** reconciliation of **n=52 free-tier** (`:free`, $0) self-traffic against the provider's records — it grounds that the calls existed, **not** that dollars were saved._ |
 | `production_ready` (**A+**) | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
 
 **The top label structurally requires external evidence** — the grader refuses to let
