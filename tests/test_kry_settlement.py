@@ -129,17 +129,18 @@ def test_record_settled_fails_if_tip_checkpoint_fails(monkeypatch):
         ks._record_settled("A", 100.0, "g1")
 
 
-def test_partial_debit_still_conserves():
-    """If A can only partially pay, conservation still holds on the actual amount."""
+def test_partial_debit_fails_closed():
+    """S2: the grant commits A to the AGREED amount and the registry records it FIRST (F4). If A's debit
+    moves LESS than that (a partial / failing / lying debit), settlement fails closed — B is never
+    silently shortchanged, and the registry never holds an obligation that wasn't actually moved."""
     o = make_offer("A", "B", 500.0, 5000, now=1000.0)
     grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
     b = ReceiverLedger(party="B")
-    # A only has 200 actually available
     def debit(kry):
-        return min(kry, 200.0)
-    receipt = settle(o, grant, debit_a_fn=debit, receiver=b, a_balance_before=200.0)
-    assert receipt.conserved
-    assert b.received_kry == 200.0  # B credited exactly what A paid
+        return min(kry, 200.0)   # A can only move 200 of the committed 500
+    with pytest.raises(SettlementPersistenceError):
+        settle(o, grant, debit_a_fn=debit, receiver=b, a_balance_before=200.0)
+    assert b.received_kry == 0.0  # B credited nothing — no silent partial deal
 
 
 # ── Double-spend prevention (federated registry) ──────────────────────────────

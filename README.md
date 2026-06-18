@@ -10,7 +10,7 @@
 
 ### don't trust your LLM savings dashboard. verify it. 🧾
 
-**kry turns the usage logs you already have into a _stranger-verifiable_ proof of what your caching & routing actually saved — cryptographically anchored, no prompts exposed, zero dependencies.**
+**kry turns the usage logs you already have into a _stranger-verifiable_ proof that your caching & routing savings ledger is **intact and honestly priced** — cryptographically tamper-evident, recomputed against public pricing, with the trust you place in the operator made an explicit, machine-checked `veracity_floor`. It proves integrity, not that the savings happened (that's the floor's job). No prompts exposed, zero dependencies.**
 
 `zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade`
 
@@ -23,7 +23,7 @@
 </div>
 
 <details>
-<summary><b>📜 Full demo output — readable text</b> (same run as the GIF above; produced by <code>bash examples/demo.sh</code>)</summary>
+<summary><b>📜 Full demo output — readable text</b> (a representative run, ANSI-stripped; produced by <code>bash examples/demo.sh</code>)</summary>
 
 <br>
 
@@ -52,7 +52,7 @@ The whole loop, on real efficiency events, in one program:
 3. MINT — every earn is a SHA-256 hash-chain receipt (tamper-evident)
 ──────────────────────────────────────────────────────────────────────
   receipts:    3
-  chain_tip:   f40651f2c0757fd8...
+  chain_tip:   eae1b80e8baedc1e...
   chain_valid: True
   veracity_floor: 0.3924  (fraction externally anchored vs operator self-report)
 
@@ -67,11 +67,17 @@ The whole loop, on real efficiency events, in one program:
 5. VERIFY — a STRANGER checks it with stdlib only (the differentiator)
 ──────────────────────────────────────────────────────────────────────
 KRY external verification — attestation
-  receipts:        3
-  total_kry:       2436.0
+  receipts:        3 (recomputed from links)
+  total_kry:       2436.0 (recomputed from links, not the declared field)
   veracity_floor:  0.3924 (fraction externally anchored; rest rests on operator self-report)
+                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
+                     kry_tlsn_verify to independently check the underlying evidence doc
   price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
-  VERDICT: VALID — integrity + conservation + magnitude hold; trust surface honest.
+  anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED
+                   here: a genesis re-mint with upgraded tiers passes this check.
+                   Re-run with --anchor <operator's pre-published chain head> to make
+                   a retroactive re-mint detectable.
+  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
 
 ──────────────────────────────────────────────────────────────────────
 6. CARBON — second denomination: avoided inference -> CO2 (ESTIMATE)
@@ -110,11 +116,17 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
 
 ━━━━━━ STRANGER CHECK  —  verify that statement with stdlib only (imports nothing from KRY) ━━━━━━
   KRY external verification — attestation
-    receipts:        11
-    total_kry:       3080.4984
+    receipts:        11 (recomputed from links)
+    total_kry:       3080.4984 (recomputed from links, not the declared field)
     veracity_floor:  0.7078 (fraction externally anchored; rest rests on operator self-report)
+                     ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
+                       kry_tlsn_verify to independently check the underlying evidence doc
     price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
-    VERDICT: VALID — integrity + conservation + magnitude hold; trust surface honest.
+    anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED
+                     here: a genesis re-mint with upgraded tiers passes this check.
+                     Re-run with --anchor <operator's pre-published chain head> to make
+                     a retroactive re-mint detectable.
+    VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
   ↑ confirmed by code that does NOT trust the producer — the whole point.
 
 ━━━━━━ T2  —  the same trust model, anchored to a REAL provider's TLS response ━━━━━━
@@ -280,7 +292,7 @@ classified by *how the event was witnessed*, weakest to strongest:
 |------|----------|--------------|---------------|--------|
 | **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — a **permanent** floor for them | shipped |
 | **T1** | `provider_metered` | the **provider**, for a call that *did* happen | a displacement's cheap leg, with a retained real `usage` payload | shipped + reconcilable (F1) |
-| **T2** | `tee_attested` / TLS-notary | hardware / a TLS-notary signature | the only honest external anchor for counterfactual savings | **mechanism proven on a TLSNotary prototype; provider-call + mint integration in progress** |
+| **T2** | `tlsn_attested` (TLS-notary) / `tee_attested` (TEE slot) | a TLS-notary signature / hardware enclave | the only honest external anchor for counterfactual savings | **`tlsn_attested` mechanism proven on a TLSNotary prototype (provider-call + mint integration in progress); `tee_attested` is the not-yet-built hardware slot** |
 
 - The tier is **bound into the receipt hash** (`hash_version >= 2`): editing one receipt's
  tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
@@ -327,7 +339,8 @@ key proves nothing (anyone can self-sign), so the verifier reports it UNVERIFIED
 **m-of-n council** mode distributes that trust **as long as the council's public keys are
 themselves published/pinned** (otherwise an operator who generates all N keys is the council). It is opt-in and
 **zero-impact on the core**: `src/kry/*` stays pure stdlib and imports neither `oqs` nor
-`kry_pqc` (`grep -r "oqs\|kry_pqc" src/kry` → nothing). Signatures are post-quantum, so a
+`kry_pqc` (`grep -rn "import oqs\|import kry_pqc" src/kry` → nothing; only a one-line comment
+mentions the optional tier). Signatures are post-quantum, so a
 credit meant to retain value cannot be retroactively forged. This adds *authenticity +
 trust-distribution + quantum-proofing — **not** veracity*: it proves who attested, never
 that the savings were real (that remains the job of the T1/T2 tiers above). See
@@ -397,7 +410,7 @@ have tooling: run real `provider_metered`/holdout traffic, then
 
 ## Modules
 
-All under `src/kry/` — ~4,300 LOC, stdlib only.
+All under `src/kry/` — ~5,000 LOC, stdlib only.
 
 | Module | Responsibility |
 |---|---|

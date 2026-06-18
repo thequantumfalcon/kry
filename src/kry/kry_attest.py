@@ -495,7 +495,7 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     # F5: apply the SAME promotion overlay build_attestation uses, so the declared (overlaid) by_tier is
     # reproducible by a verifier — a promotion re-tiers its superseded receipt's value onto the promoting
     # tier. No-op when there are no promotions, so non-promotion attestations are byte-unaffected.
-    from kry.kry_mint import _apply_promotion_overlay
+    from kry.kry_mint import _ANCHORED_TIERS, _apply_promotion_overlay
     _apply_promotion_overlay(tier_kry, promotions, kry_by_receipt)
 
     # Verify the veracity breakdown matches the links — the trust surface itself
@@ -504,7 +504,9 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     # a forged tier also breaks the chain above).
     v = data.get("veracity")
     if isinstance(v, dict) and v.get("by_tier") is not None:
-        anchored = sum(val for t, val in tier_kry.items() if t != "self_reported")
+        # S3: anchored = only KNOWN anchored tiers, not "anything that isn't self_reported". A forged
+        # or typo'd tier (e.g. magic_attested) must NOT inflate the veracity floor. Matches the builder.
+        anchored = sum(val for t, val in tier_kry.items() if t in _ANCHORED_TIERS)
         derived_floor = (anchored / running_kry) if running_kry > 0 else 0.0
         by_tier = {t: round(val, 4) for t, val in tier_kry.items()}
         claimed_by_tier = v.get("by_tier")

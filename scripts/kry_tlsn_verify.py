@@ -292,8 +292,14 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
     #  - avoided = the model the host's routing decision displaced, read back from the
     #    host's recorded routing receipt for this gen id; --avoided-model overrides.
     #    Absent both, it stays None → 0 displacement value (honest, never invented).
-    served = served_model or extras.get("model")
-    served_src = "cli" if served_model else ("attested-body" if extras.get("model") else None)
+    # A blank / whitespace served model is "no served model", not a value — normalize to None so the
+    # served-cost gate (below) and net_value_multiplier agree. An empty-string body model ("model": "")
+    # is non-None but falsy: left as-is it would SKIP the `served is None` gate yet ALSO net nothing
+    # (truthiness), minting the full avoided value while a real served cost goes uncredited.
+    _served_raw = served_model or extras.get("model")
+    served = _served_raw if (_served_raw is not None and str(_served_raw).strip()) else None
+    served_src = ("cli" if (served_model and str(served_model).strip())
+                  else ("attested-body" if served is not None else None))
     avoided = avoided_model or (_avoided_from_routing(gen_id) if gen_id else None)
     avoided_src = "cli" if avoided_model else ("routing-log" if avoided else None)
 
@@ -335,6 +341,28 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
                           "the call through the host so it stamps /openrouter:<id>+avoided_model, "
                           "or pass --avoided-model explicitly.")
         return result
+
+    # S6: a TLSN response with a served cost we cannot net to zero must not mint the FULL avoided value.
+    # Without a served model we can't net the cost, so full credit would over-credit. We mint full credit
+    # only when the served cost is provably zero: either there is no total_cost claim at all (a $0 / free /
+    # short-circuit served leg nets nothing) OR total_cost parses to a finite number <= 0. A positive,
+    # non-finite (NaN/Inf), or unparseable total_cost is un-nettable here — fail closed and refuse.
+    if served is None:
+        raw_cost = extras.get("total_cost")
+        cost_provably_zero = raw_cost is None
+        if not cost_provably_zero:
+            try:
+                _c = float(raw_cost)
+                cost_provably_zero = math.isfinite(_c) and _c <= 0.0
+            except (TypeError, ValueError):
+                cost_provably_zero = False
+        if not cost_provably_zero:
+            result["verdict"] = "NO_SERVED_MODEL"
+            result["note"] = ("the notarized response carries a served cost that cannot be netted to zero "
+                              "(positive, non-finite, or unparseable total_cost) but no served model and no "
+                              "--served-model — refusing to mint the full avoided value without netting the "
+                              "served cost (the displacement net is never over-credited)")
+            return result
 
     from kry import kry_mint
     before = kry_mint.veracity_breakdown()

@@ -271,27 +271,30 @@ def compact_registry(keep_recent: int = 1000) -> bool:
     double-spend guard is unaffected; only the per-event history older than the
     tail is summarized (the mint chain + receipts remain the full audit trail).
     """
-    try:
-        entries = _registry_entries()
-    except ValueError:
-        return False
-    if len(entries) <= 2 * keep_recent:
-        return False
-    valid, _ = verify_registry()
-    if not valid:
-        return False  # never compact a tampered chain — fail closed
-    # Sum everything except the recent tail into per-party checkpoints
-    old, tail = entries[:-keep_recent], entries[-keep_recent:]
-    totals: dict = {}
-    party_gids: dict = {}
-    for e in old:
-        totals[e["party"]] = totals.get(e["party"], 0.0) + e["amount"]
-        # Preserve consumed grant-ids so the no-double-settle guard survives compaction.
-        party_gids.setdefault(e["party"], set()).update(
-            e["grant_ids"] if "grant_ids" in e
-            else ([e["grant_id"]] if e.get("grant_id") else []))
     from kry._locks import cross_process_lock
+    # S8: read + verify + summarize + rewrite ALL under the same lock, so a settlement appended between
+    # a stale read and the locked rewrite cannot be lost by compaction's overwrite. (verify_registry and
+    # _registry_entries do NOT take _REGISTRY_LOCK/the flock, so holding both here can't deadlock.)
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
+        try:
+            entries = _registry_entries()
+        except ValueError:
+            return False
+        if len(entries) <= 2 * keep_recent:
+            return False
+        valid, _ = verify_registry()
+        if not valid:
+            return False  # never compact a tampered chain — fail closed
+        # Sum everything except the recent tail into per-party checkpoints
+        old, tail = entries[:-keep_recent], entries[-keep_recent:]
+        totals: dict = {}
+        party_gids: dict = {}
+        for e in old:
+            totals[e["party"]] = totals.get(e["party"], 0.0) + e["amount"]
+            # Preserve consumed grant-ids so the no-double-settle guard survives compaction.
+            party_gids.setdefault(e["party"], set()).update(
+                e["grant_ids"] if "grant_ids" in e
+                else ([e["grant_id"]] if e.get("grant_id") else []))
         prev = "0" * 64
         lines = []
         for party, amt in totals.items():
@@ -612,6 +615,7 @@ def verify_and_accept(
     attestation_json: str,
     *,
     now: float,
+    min_veracity_floor: float = 0.0,
 ) -> tuple[Optional[RoutingGrant], str]:
     """Party B's side: verify A's attestation, then accept or reject the offer.
 
@@ -619,6 +623,18 @@ def verify_and_accept(
       1. A's attestation chain is internally valid (no tampering)
       2. A's attested balance, MINUS what A has already settled (federated
          registry), covers this offer — closes double-spend across counterparties
+
+    S1: by DEFAULT B accepts A's KRY regardless of veracity (A is spending its own earned credit, and
+    the chain proves integrity, not that the savings happened). A counterparty that will itself rely on
+    the received KRY can set `min_veracity_floor` (default 0.0 = unchanged) to REQUIRE that an anchored
+    fraction backs the balance — pure self_reported / unanchored KRY (floor 0.0) is then rejected.
+    verify_attestation RE-DERIVES the floor from the per-link tiers and credits only the anchored tiers
+    (S3), so a party who cannot recompute A's chain cannot misstate the floor relative to the tiers shown.
+    It does NOT certify the tier labels themselves: A controls its own runtime and can author — or
+    genesis-re-mint — any tier, so the floor is operator-ASSERTED. This policy is therefore only as strong
+    as A's published chain anchor (kry_chain_anchor), which is what makes a retroactive re-mint detectable;
+    absent a pinned anchor, read min_veracity_floor as "A claims this much is anchored", per the standard
+    veracity_floor caveat.
 
     Returns (RoutingGrant, reason) — grant is None if rejected.
     """
@@ -647,6 +663,17 @@ def verify_and_accept(
                                           nonnegative=True)
     except ValueError as exc:
         return None, f"attestation invalid: {exc}"
+    # S1: optional anchored-veracity policy. Default 0.0 keeps the historical contract (accept any
+    # internally-valid attestation); a counterparty that requires anchored backing sets it > 0.
+    if min_veracity_floor > 0.0:
+        try:
+            floor = _finite_number(att.get("veracity", {}).get("veracity_floor", 0.0),
+                                   "veracity_floor", nonnegative=True)
+        except (ValueError, AttributeError):
+            floor = 0.0
+        if floor < min_veracity_floor:
+            return None, (f"veracity floor {floor:.2f} < required {min_veracity_floor:.2f} — "
+                          f"unanchored/self_reported KRY rejected by policy")
     # Overclaim check first (clearest rejection): offer exceeds attested balance.
     if attested_balance < offer_amount:
         return None, (f"insufficient attested balance: "
@@ -772,6 +799,14 @@ def settle(
 
     # Registry committed and the obligation recorded — NOW move real KRY: debit A, then credit B.
     debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
+    # S2: the registry already committed the AGREED `amount` (F4 ordering), so the debit MUST move
+    # exactly that. A debit_fn that moves less/zero (a failing or lying debit) would otherwise leave the
+    # registry recording `amount` while B is credited less — value destroyed, yet the receipt would read
+    # conserved=True. Fail closed: a debit that doesn't move the committed obligation is inconsistent.
+    if abs(debited - amount) > 1e-9:
+        raise SettlementPersistenceError(
+            f"debit moved {debited:.4f} but the committed obligation is {amount:.4f} — "
+            f"settlement inconsistent, failing closed")
     b_after = b_before + debited
 
     if a_balance_after_fn is not None:

@@ -55,6 +55,9 @@ _GENESIS = "0" * 64
 # so this copy can never silently diverge.
 _PRICE_AS_OF = "2026-06-03"
 _FRONTIER_USD_PER_M = 25.0
+# S3: the KNOWN anchored tiers (must match kry_mint._ANCHORED_TIERS). The anchored fraction counts
+# ONLY these — a forged or typo'd tier (e.g. magic_attested) is not anchored and can't inflate the floor.
+_ANCHORED_TIERS = frozenset({"holdout_validated", "provider_metered", "tlsn_attested", "tee_attested"})
 _EARN_RATES = {
     "cache_hit": 1.0, "l3_semantic_match": 0.8, "short_circuit": 1.0,
     "compression": 0.6, "feed_bag_deposit": 0.7, "continuity_capsule": 0.1,
@@ -407,7 +410,8 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     # Trust surface must be honest: declared floor must match the per-link tiers.
     v = attestation.get("veracity")
     if isinstance(v, dict) and v.get("by_tier") is not None:
-        anchored = sum(val for t, val in tier_kry.items() if t != "self_reported")
+        # S3: anchored = only KNOWN anchored tiers, not "anything that isn't self_reported".
+        anchored = sum(val for t, val in tier_kry.items() if t in _ANCHORED_TIERS)
         derived = (anchored / running_kry) if running_kry > 0 else 0.0
         by_tier = {t: round(val, 4) for t, val in tier_kry.items()}
         claimed_by_tier = v.get("by_tier")
@@ -513,6 +517,33 @@ def settled_by_party(entries: list[dict]) -> dict[str, float]:
     return totals
 
 
+def verify_registry_anchor(entries: list[dict], anchor: dict) -> tuple[bool, list[str]]:
+    """S7: detect a registry rollback / un-spend against a PUBLISHED registry anchor obtained
+    out-of-band. Settled totals are monotonic (only grow; compaction preserves them), so for every
+    anchored party the LIVE cumulative-settled must be >= the anchored amount. Standalone replica of
+    kry_settlement.verify_registry_against_anchor — only as strong as the anchor's external publication."""
+    if not isinstance(anchor, dict) or anchor.get("schema") != "kry_settlement_anchor/v1":
+        return False, ["registry anchor must be a kry_settlement_anchor/v1 object"]
+    anchored = anchor.get("settled")
+    if not isinstance(anchored, dict):
+        return False, ["anchor.settled must be an object of {party: cumulative_kry}"]
+    ok, errs = verify_registry(entries)
+    if not ok:
+        return False, ["live registry is not internally valid: " + "; ".join(str(e) for e in errs[:2])]
+    live = settled_by_party(entries)
+    errors: list[str] = []
+    for party, amt in anchored.items():
+        try:
+            anchored_amt = _finite_number(amt, f"anchor.settled[{party}]", nonnegative=True)
+        except ValueError as exc:
+            errors.append(str(exc))
+            continue
+        if live.get(party, 0.0) < anchored_amt - 1e-9:
+            errors.append(f"party {party}: live settled {live.get(party, 0.0)} < anchored "
+                          f"{anchored_amt} — rollback/un-spend detected")
+    return len(errors) == 0, errors
+
+
 def verify_settlement(
     attestation: dict,
     registry_entries: list[dict],
@@ -595,6 +626,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--offer", type=float, help="offered KRY amount to check")
     p.add_argument("--anchor", help="path to a PUBLISHED kry_chain_anchor JSON; checks the "
                                     "attestation's chain still carries the anchored prefix (re-mint check)")
+    p.add_argument("--registry-anchor", help="path to a PUBLISHED kry_settlement_anchor/v1 JSON; with "
+                                             "--registry, detects a settlement-registry rollback (live "
+                                             "per-party settled must not drop below the anchored totals)")
     args = p.parse_args(argv)
 
     try:
@@ -636,6 +670,25 @@ def main(argv: list[str] | None = None) -> int:
         anchor_line = ("PASS — chain still carries the published anchor prefix (no re-mint)"
                        if a_ok else "FAIL — re-mint/rollback vs the published anchor")
 
+    # S7: registry rollback check against a published settlement anchor (out-of-band).
+    registry_anchor_line = None
+    if args.registry_anchor:
+        if not args.registry:
+            ok = False
+            errors = errors + ["registry-anchor: --registry-anchor requires --registry"]
+            registry_anchor_line = "FAIL — needs --registry"
+        else:
+            try:
+                with open(args.registry_anchor, encoding="utf-8") as f:
+                    reg_anchor = _json_load(f)
+                ra_ok, ra_errs = verify_registry_anchor(_read_registry(args.registry), reg_anchor)
+            except Exception as exc:
+                ra_ok, ra_errs = False, [f"registry anchor unreadable: {exc}"]
+            ok = ok and ra_ok
+            errors = errors + [f"registry-anchor: {e}" for e in ra_errs]
+            registry_anchor_line = ("PASS — live settled >= published per-party totals (no rollback)"
+                                    if ra_ok else "FAIL — registry rollback/un-spend vs the anchor")
+
     v = att.get("veracity", {})
     # Display the verifier's OWN recomputed figures, not the operator-declared `receipts`/
     # `total_kry` fields — so a reader never mistakes an echoed claim for a verified number.
@@ -649,6 +702,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  total_kry:       {round(_recomputed_total, 4)} (recomputed from links, not the declared field)")
     print(f"  veracity_floor:  {v.get('veracity_floor', 0.0)} "
           f"(fraction externally anchored; rest rests on operator self-report)")
+    if float(v.get("veracity_floor", 0.0) or 0.0) > 0.0:
+        # H2: this verifier confirms anchored tiers are CHAIN-BOUND and internally consistent, but it does
+        # NOT re-run the underlying TEE/TLSN evidence verification (that happened at mint time).
+        print("                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /")
+        print("                     kry_tlsn_verify to independently check the underlying evidence doc")
     print(f"  price basis:     ${_FRONTIER_USD_PER_M}/M frontier, as of {_PRICE_AS_OF} "
           f"(magnitude recomputed from the public price table)")
     if anchor_line:
@@ -663,6 +721,8 @@ def main(argv: list[str] | None = None) -> int:
         print("                   here: a genesis re-mint with upgraded tiers passes this check.")
         print("                   Re-run with --anchor <operator's pre-published chain head> to make")
         print("                   a retroactive re-mint detectable.")
+    if registry_anchor_line:
+        print(f"  registry anchor: {registry_anchor_line}")
     if ok:
         print("  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; "
               "trust surface honest (read veracity_floor for what is operator-asserted).")

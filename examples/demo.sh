@@ -45,7 +45,8 @@ sleep "$P"
 
 step "T2  —  the same trust model, anchored to a REAL provider's TLS response"
 dim "TLSNotary proves what openrouter.ai returned, verifiable by a stranger with real CA roots."
-dim "Proven end-to-end (2026-06-04):  docs/KRY_T2_FINDINGS_REPORT.md  ·  tlsnotary/"
+dim "Mechanism proven (2026-06-04) — NOT yet trustless: self-hosted notary != neutral party (§5)."
+dim "  docs/KRY_T2_FINDINGS_REPORT.md  ·  tlsnotary/"
 echo
 g "  earn → mint → attest → verify → (T1 reconcile / T2 notarize).  That is proof-of-efficiency."
 echo

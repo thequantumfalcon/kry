@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import struct
@@ -40,6 +41,8 @@ import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger("kry.mint")
 
 
 def _kry_data_dir() -> Path:
@@ -370,8 +373,11 @@ def _decayed_tokens(evidence_hash: str, tokens: float) -> float:
             with os.fdopen(fd, "w") as f:
                 f.write(_json_dumps(state))
             os.replace(tmp, _DECAY_STATE_PATH)
-        except Exception:
-            pass
+        except Exception as exc:
+            # L1: best-effort persist (replay decay falls back to the on-disk state next mint), but a
+            # real persistence fault must NOT be silent — warn so it's diagnosable.
+            logger.warning("KRY decay-state write failed (%s) — replay decay will use the on-disk "
+                           "state on the next mint", exc)
     return tokens * factor
 
 
@@ -589,7 +595,11 @@ def _already_promoted(t1_receipt_id: str,
                 if not line or t1_receipt_id not in line:
                     continue
                 rec = _json_loads(line)
-                if (rec.get("evidence_tier") == to_tier
+                # S5: a source receipt may be promoted to AT MOST ONE anchored tier. Keying on the
+                # SAME `to_tier` let one receipt be promoted to BOTH tlsn AND tee — the veracity overlay
+                # then subtracts its value twice (self_reported went negative, floor > 1.0). Reject if it
+                # was already promoted to ANY anchored tier.
+                if (rec.get("evidence_tier") in (TIER_TLSN_ATTESTED, TIER_TEE_ATTESTED)
                         and rec.get("supersedes") == t1_receipt_id):
                     return True
     except Exception:
@@ -1148,7 +1158,18 @@ def reconcile_ledger_from_chain() -> dict:
         led = _kt.get_ledger()
         led.balance = total
         led.total_earned = total
-        led._baseline = {k: getattr(led, k) for k in _kt._MERGE_FIELDS}
+        # S4: make save() (delta-merge: disk + (current - baseline)) land on the ABSOLUTE chain total,
+        # regardless of the in-memory baseline or the disk state. Read the CURRENT on-disk values and use
+        # them as the baseline, so the delta == (chain_total - on_disk) and the write == chain_total —
+        # restoring a deleted or polluted ledger. (Was: _baseline reset to the just-assigned fields -> zero
+        # delta -> save persisted NOTHING while returning reconciled=True.) save() resets _baseline after.
+        on_disk = {}
+        try:
+            if _kt._LEDGER_PATH.exists():
+                on_disk = _json_loads(_kt._LEDGER_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            on_disk = {}
+        led._baseline = {k: float(on_disk.get(k, 0.0)) for k in _kt._MERGE_FIELDS}
         led.save()
     except Exception as exc:
         return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
