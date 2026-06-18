@@ -739,6 +739,38 @@ def settle(
                                       nonnegative=True)
     b_before = _finite_number(receiver.received_kry, "b_received_before",
                               nonnegative=True)
+    # F4 (transactional ordering): COMMIT TO THE REGISTRY FIRST — ceiling check + persist the
+    # obligation + clear the in-process reservation, under the lock, BEFORE any real KRY moves. The
+    # previous order debited A (debit_a_fn) and only THEN wrote the registry, so a ceiling rejection
+    # OR a registry-write failure left A debited with B never credited — value destroyed. Reserving
+    # the agreed `amount` first makes settlement transactional: if this block raises, NOTHING was
+    # debited. (Recording the agreed amount, not the post-hoc reported `debited`, is also strictly
+    # safer against a lying debit_fn that under-reports to dodge its ceiling.)
+    from kry._locks import cross_process_lock
+    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
+        # accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass the
+        # accept guard for one attested balance. The AUTHORITATIVE double-spend check is HERE, at
+        # commit, against the COMMITTED registry total under the cross-process lock — the second
+        # committer fails closed BEFORE debiting. (A directly-built grant carries attested_balance=-1
+        # and is skipped.) Registries are per-node and don't merge in real time, so a cross-node
+        # lease (not released here) holds A's spent amount until its TTL — conservative by design.
+        if grant.attested_balance >= 0:
+            committed = _load_registry()
+            if committed.get("__tampered__"):
+                raise SettlementPersistenceError("settlement registry tampered — failing closed")
+            already = committed.get(offer.from_party, 0.0)
+            if already + amount > grant.attested_balance + 1e-9:
+                raise SettlementPersistenceError(
+                    f"double-spend at commit: {offer.from_party} settled {already:.0f}+{amount:.0f} "
+                    f"> attested {grant.attested_balance:.0f} — failing closed")
+        _record_settled(offer.from_party, amount, grant.grant_id)
+        _PENDING_RESERVATIONS[offer.from_party] = [
+            r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
+            if r["offer_id"] != offer.offer_id
+        ]
+
+    # Registry committed and the obligation recorded — NOW move real KRY: debit A, then credit B.
     debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
     b_after = b_before + debited
 
@@ -767,34 +799,6 @@ def settle(
     receipt.receipt_hash = hashlib.sha256(
         _json_dumps(asdict(receipt), sort_keys=True).encode()
     ).hexdigest()
-    # Record against the federated registry (under the lock, atomically with clearing
-    # this offer's in-process reservation) so the double-spend guard on the NEXT accept
-    # sees A's committed amount instead of a now-stale reservation. NOTE: we do NOT release
-    # any cross-node FILE lease here — registries are per-node and don't merge in real time,
-    # so the lease must hold A's spent amount until its TTL (releasing it would let another
-    # node double-spend the same balance). The lease/registry consume the same amount, so
-    # this is conservative, not a true double-count.
-    from kry._locks import cross_process_lock
-    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
-        # F1: accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass
-        # the accept guard for one attested balance. The AUTHORITATIVE double-spend check is here, at
-        # commit, against the COMMITTED registry total under the cross-process lock — the second
-        # committer fails closed. (A directly-built grant carries attested_balance=-1 and is skipped.)
-        if grant.attested_balance >= 0:
-            committed = _load_registry()
-            if committed.get("__tampered__"):
-                raise SettlementPersistenceError("settlement registry tampered — failing closed")
-            already = committed.get(offer.from_party, 0.0)
-            if already + debited > grant.attested_balance + 1e-9:
-                raise SettlementPersistenceError(
-                    f"double-spend at commit: {offer.from_party} settled {already:.0f}+{debited:.0f} "
-                    f"> attested {grant.attested_balance:.0f} — failing closed")
-        _record_settled(offer.from_party, debited, grant.grant_id)
-        _PENDING_RESERVATIONS[offer.from_party] = [
-            r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
-            if r["offer_id"] != offer.offer_id
-        ]
     receiver.received_kry = b_after                 # B gains exactly `debited`
     receiver.routing_sold += grant.routing_tokens
     receiver.settlements.append(receipt.receipt_id)

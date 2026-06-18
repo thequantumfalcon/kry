@@ -588,6 +588,11 @@ def spend_cost(model: str, output_tokens: int = 1000) -> float:
     Longest-prefix-wins makes each distinct SPEND_RATES key reachable, matching
     KRY_TOKEN_SPEC.md (opus-fast = 2000/k, ghm = 5/k).
     """
+    # Validate the cost input at the boundary, exactly as earn() validates its tokens.
+    # Without this a negative output_tokens yields a NEGATIVE cost — and spend() then does
+    # `balance -= min(cost, balance)` = balance - (negative) = balance INFLATED; a NaN poisons
+    # the balance. spend()/can_afford() both route through here, so this one guard covers them.
+    output_tokens = _finite_number(output_tokens, "output_tokens", nonnegative=True)
     for prefix in sorted(SPEND_RATES, key=len, reverse=True):
         if model.startswith(prefix) or model == prefix:
             rate = SPEND_RATES[prefix]

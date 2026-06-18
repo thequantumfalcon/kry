@@ -89,7 +89,7 @@ def _v4_public_block(link: dict) -> str:
     v4 binds the public economic block into chain_hash so a forged tier / kry_minted / earn_rate /
     token count breaks the chain on the public surface here too, not just in the un-recomputable
     private receipt_hash."""
-    return json.dumps({
+    block = {
         "hash_version": link.get("hash_version", 1),
         "tokens_saved": link.get("tokens_saved", 0.0),
         "ts": link.get("ts"),
@@ -97,7 +97,13 @@ def _v4_public_block(link: dict) -> str:
         "metered_tokens": link.get("metered_tokens"),
         "kry_minted": link.get("kry_minted"),
         "earn_rate": link.get("earn_rate", 0.0),
-    }, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    }
+    # F2: bind a promotion's re-tiering target ONLY when present, byte-identical to the minter, so a
+    # forged/altered/removed supersedes breaks the chain here (the public surface) too.
+    sup = link.get("supersedes")
+    if sup is not None:
+        block["supersedes"] = sup
+    return json.dumps(block, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 def _reject_json_constant(value: str):

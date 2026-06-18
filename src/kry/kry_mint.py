@@ -177,6 +177,7 @@ class MintReceipt:
         evidence_tier: str = TIER_SELF_REPORTED,
         metered_tokens: list | None = None,
         served_model: str | None = None,
+        supersedes: str | None = None,
     ) -> "MintReceipt":
         tokens_saved = _finite_number(tokens_saved, "tokens_saved", nonnegative=True)
         rate = _finite_number(_EARN_RATES.get(event_type, 0.5), "earn_rate",
@@ -214,7 +215,8 @@ class MintReceipt:
         # is unchanged (still privately binds tier via evidence_hash) — defence in depth.
         public_block = _v4_public_block(
             hash_version=4, tokens_saved=tokens_saved, ts=ts,
-            evidence_tier=tier, metered_tokens=metered_tokens, kry_minted=kry, earn_rate=rate)
+            evidence_tier=tier, metered_tokens=metered_tokens, kry_minted=kry, earn_rate=rate,
+            supersedes=supersedes)
         chain_hash   = hashlib.sha256(
             f"{previous_chain_hash}:{receipt_hash}:{public_block}".encode()
         ).hexdigest()
@@ -235,6 +237,7 @@ class MintReceipt:
             evidence_tier=tier,
             hash_version=4,
             metered_tokens=metered_tokens,
+            supersedes=supersedes,
         )
 
 
@@ -296,6 +299,11 @@ except Exception:
 try:
     _DECAY = _finite_number(float(os.environ.get("KRY_MINT_DECAY", "0.5")),
                             "KRY_MINT_DECAY", nonnegative=True)
+    # Replay decay MUST be in [0, 1): factor = _DECAY**count. At 1 it never decays (replay
+    # protection disabled); above 1 it AMPLIFIES repeated evidence (phantom-minting). Reject
+    # out-of-range config and fall back to the safe default rather than honour a hostile env.
+    if not (0.0 <= _DECAY < 1.0):
+        raise ValueError("KRY_MINT_DECAY must be in [0, 1)")
 except ValueError:
     _DECAY = 0.5
 try:
@@ -550,8 +558,8 @@ def promote_to_tlsn(
                     evidence_hash=evidence_hash,
                     previous_chain_hash=prev_chain,
                     evidence_tier=TIER_TLSN_ATTESTED,
+                    supersedes=t1_id,        # F2: bound into the chain hash at creation (was set after)
                 )
-                receipt.supersedes = t1_id
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
                     f.write(_json_dumps(asdict(receipt)) + "\n")
                     f.flush()
@@ -677,8 +685,8 @@ def promote_to_tee(
                     evidence_hash=evidence_hash,
                     previous_chain_hash=prev_chain,
                     evidence_tier=TIER_TEE_ATTESTED,
+                    supersedes=prior_id,     # F2: bound into the chain hash at creation (was set after)
                 )
-                receipt.supersedes = prior_id
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
                     f.write(_json_dumps(asdict(receipt)) + "\n")
                     f.flush()
@@ -693,7 +701,8 @@ def promote_to_tee(
 
 
 def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
-                     evidence_tier: str, metered_tokens, kry_minted: float, earn_rate: float) -> str:
+                     evidence_tier: str, metered_tokens, kry_minted: float, earn_rate: float,
+                     supersedes: str | None = None) -> str:
     """v4: canonical serialization of the PUBLIC economic block bound into chain_hash, so a forged
     tier / kry_minted / earn_rate / tokens_saved / metered count breaks the chain on the PUBLIC
     attestation surface (where the receipt-hash preimage is un-recomputable — evidence_hash is sealed).
@@ -702,8 +711,14 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     stored receipt JSON, so json.dumps is deterministic across minter and verifier. `hash_version` is
     bound too, so an attacker can't change just the version without breaking the chain. (`event_type`
     is deliberately NOT bound here — it carries no economic value and is already bound to the savings
-    report by the artifact's `attestation_matches_report_event_counts` product gate.)"""
-    return _json_dumps({
+    report by the artifact's `attestation_matches_report_event_counts` product gate.)
+
+    F2: `supersedes` (a T2 promotion's re-tiering target) is bound too, but ONLY when present — so
+    non-promotion receipts serialize byte-identically to before (no format change for existing v4
+    receipts), while a promotion's target becomes tamper-evident: any add/remove/change of supersedes
+    breaks the chain. Previously it was unbound, so an operator could re-point a promotion at a larger
+    receipt and inflate veracity_floor while verify_chain still passed."""
+    block = {
         "hash_version": hash_version,
         "tokens_saved": tokens_saved,
         "ts": ts,
@@ -711,7 +726,10 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
         "metered_tokens": metered_tokens,
         "kry_minted": kry_minted,
         "earn_rate": earn_rate,
-    }, sort_keys=True, separators=(",", ":"))
+    }
+    if supersedes is not None:
+        block["supersedes"] = supersedes
+    return _json_dumps(block, sort_keys=True, separators=(",", ":"))
 
 
 def _mint_tip_path() -> Path:
@@ -848,7 +866,8 @@ def verify_chain() -> tuple[bool, list[str]]:
                         tokens_saved=rec["tokens_saved"], ts=rec["ts"],
                         evidence_tier=rec.get("evidence_tier", TIER_SELF_REPORTED),
                         metered_tokens=rec.get("metered_tokens"),
-                        kry_minted=rec["kry_minted"], earn_rate=rec["earn_rate"])
+                        kry_minted=rec["kry_minted"], earn_rate=rec["earn_rate"],
+                        supersedes=rec.get("supersedes"))   # F2: bind the promotion target
                     expected_chain = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:
@@ -981,6 +1000,24 @@ def retained_dollars_dated() -> dict:
     }
 
 
+def _apply_promotion_overlay(by_tier: dict, promotions: list, kry_by_receipt: dict) -> None:
+    """Re-tier promoted value IN PLACE: a zero-value tlsn/tee promotion moves the value of the
+    receipt it supersedes OFF its original tier and ONTO the promoting tier (total unchanged — the
+    value was minted exactly once). SHARED by veracity_breakdown (internal) and
+    kry_attest.build_attestation (public) so both veracity surfaces compute the SAME floor from the
+    SAME overlay (F5: they diverged — the public attestation ignored promotions and under-reported
+    the anchored fraction)."""
+    for src_id, to_tier in promotions:
+        src = kry_by_receipt.get(src_id)
+        if not src:
+            continue
+        src_tier, src_kry = src
+        if src_kry <= 0:
+            continue
+        by_tier[src_tier] = by_tier.get(src_tier, 0.0) - src_kry
+        by_tier[to_tier] = by_tier.get(to_tier, 0.0) + src_kry
+
+
 def veracity_breakdown() -> dict:
     """Itemize minted KRY by veracity tier — the honest trust surface.
 
@@ -1016,21 +1053,8 @@ def veracity_breakdown() -> dict:
                         promotions.append((sup, tier))
         except Exception:
             pass
-    # T2 tier-promotion overlay (the (iii) net-out): a zero-value tlsn_attested or
-    # tee_attested promotion re-tiers the value of the receipt it supersedes — move
-    # that kry OFF its original tier and ONTO the promoting tier. total is unchanged
-    # (the value was minted exactly once); the binary veracity_floor is unchanged when
-    # the source was already anchored (provider_metered / holdout_validated), and rises
-    # honestly when it was self_reported.
-    for src_id, to_tier in promotions:
-        src = kry_by_receipt.get(src_id)
-        if not src:
-            continue
-        src_tier, src_kry = src
-        if src_kry <= 0:
-            continue
-        by_tier[src_tier] = by_tier.get(src_tier, 0.0) - src_kry
-        by_tier[to_tier] = by_tier.get(to_tier, 0.0) + src_kry
+    # T2 tier-promotion overlay (shared with the public attestation so both surfaces agree).
+    _apply_promotion_overlay(by_tier, promotions, kry_by_receipt)
     anchored = sum(v for t, v in by_tier.items() if t in _ANCHORED_TIERS)
     tlsn = by_tier.get(TIER_TLSN_ATTESTED, 0.0)
     tee = by_tier.get(TIER_TEE_ATTESTED, 0.0)

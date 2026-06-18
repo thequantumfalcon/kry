@@ -214,12 +214,23 @@ def validate_presentation(pres: dict, *, expect_server: str | None = None,
 
 
 def _evidence_binding(pres: dict) -> str:
-    """Bind the receipt to THIS notarized session: server + notary key + a hash of
-    the revealed response. Replaying the same presentation yields the same evidence
-    → the mint decay collapses the repeat to dust (no double-minting one attestation)."""
+    """Bind the receipt to THIS notarized session: server + notary key + a hash of the revealed
+    response AND a hash of the FULL verifier presentation, so the tlsn_attested receipt commits to
+    the *complete* output the Rust verifier produced — not just the recv transcript. That makes the
+    receipt independently re-verifiable (re-run attestation_verify on the committed presentation)
+    and tamper-evident across every field the mint relied on. Replaying the same presentation yields
+    the same evidence → the mint decay collapses the repeat to dust (no double-minting one attestation).
+
+    Trust boundary (disclosed): this stdlib tool TRUSTS the presentation's `verified` flag — the
+    cryptographic root of trust is the EXTERNAL Rust `tlsn` verifier (attestation_verify), which must
+    have produced this JSON. Binding the full presentation makes that delegation auditable; it does
+    NOT itself verify TLSN crypto, so `--notary-key` is a field-match, not a signature check."""
     recv = pres.get("recv") or ""
     recv_h = hashlib.sha256(recv.encode()).hexdigest()
-    return f"tlsn:{pres.get('server_name')}:{pres.get('notary_key', '')}:{recv_h}"
+    pres_h = hashlib.sha256(
+        json.dumps(pres, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return f"tlsn:{pres.get('server_name')}:{pres.get('notary_key', '')}:{recv_h}:{pres_h}"
 
 
 def _avoided_from_routing(gen_id: str) -> str | None:

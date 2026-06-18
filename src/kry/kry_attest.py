@@ -130,6 +130,7 @@ class AttestationLink:
     metered_tokens: list | None = None  # F1: provider-metered token counts, no content
     hash_version: int = 1       # v4 binds the public economic block into chain_hash; the verifier
                                 # needs the version to recompute the chain. Default 1 = legacy.
+    supersedes: str | None = None  # F2: a T2 promotion's re-tiering target, bound into the v4 block
 
 
 @dataclass
@@ -240,6 +241,8 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
     type_counts: Counter = Counter()
     tier_kry: dict[str, float] = {}
     total_kry = 0.0
+    promotions: list = []      # (superseded_receipt_id, promoting_tier) — F5 overlay, shared w/ veracity_breakdown
+    kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), for the overlay
     chain_head = "0" * 64
     valid = True
 
@@ -267,7 +270,8 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                         tokens_saved=rec.get("tokens_saved", 0.0), ts=rec.get("ts"),
                         evidence_tier=rec.get("evidence_tier", "self_reported"),
                         metered_tokens=rec.get("metered_tokens"),
-                        kry_minted=rec.get("kry_minted"), earn_rate=rec.get("earn_rate", 0.0))
+                        kry_minted=rec.get("kry_minted"), earn_rate=rec.get("earn_rate", 0.0),
+                        supersedes=rec.get("supersedes"))   # F2: bind the promotion target
                     expected = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:
@@ -290,16 +294,27 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                     earn_rate=rec.get("earn_rate", 0.0),
                     metered_tokens=rec.get("metered_tokens"),
                     hash_version=rec.get("hash_version", 1),
+                    supersedes=rec.get("supersedes"),   # F2: expose the bound promotion target
                 ))
                 type_counts[rec["event_type"]] += 1
                 tier_kry[tier] = tier_kry.get(tier, 0.0) + rec["kry_minted"]
                 total_kry += rec["kry_minted"]
+                rid = rec.get("receipt_id")
+                if rid:
+                    kry_by_receipt[rid] = (tier, rec["kry_minted"])
+                sup = rec.get("supersedes")
+                if tier in ("tlsn_attested", "tee_attested") and sup:
+                    promotions.append((sup, tier))
                 prev_chain = rec["chain_hash"]
                 chain_head = rec["chain_hash"]
 
-    # Veracity trust surface — what fraction rests on an external anchor vs the
-    # operator's word. Anchored = anything that is NOT self_reported.
-    anchored = sum(v for t, v in tier_kry.items() if t != "self_reported")
+    # Veracity trust surface — what fraction rests on an external anchor vs the operator's word.
+    # F5: apply the SAME promotion overlay the internal veracity_breakdown uses, so this PUBLIC
+    # attestation's veracity_floor MATCHES the internal one (it previously ignored promotions and
+    # under-reported the anchored fraction). Anchored = the non-self_reported tiers (_ANCHORED_TIERS).
+    from kry.kry_mint import _ANCHORED_TIERS, _apply_promotion_overlay
+    _apply_promotion_overlay(tier_kry, promotions, kry_by_receipt)
+    anchored = sum(v for t, v in tier_kry.items() if t in _ANCHORED_TIERS)
     veracity = {
         "by_tier": {t: round(v, 4) for t, v in tier_kry.items()},
         "externally_anchored_kry": round(anchored, 4),
@@ -393,7 +408,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                 metered_tokens=link.get("metered_tokens"),
                 # RAW kry_minted (not the _finite_number-normalized one) so this matches the standalone
                 # kry_verify replica byte-for-byte (GPT v4-review MEDIUM: the two diverged on int vs float).
-                kry_minted=link.get("kry_minted"), earn_rate=link.get("earn_rate", 0.0))
+                kry_minted=link.get("kry_minted"), earn_rate=link.get("earn_rate", 0.0),
+                supersedes=link.get("supersedes"))   # F2: bind the promotion target on the public surface
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}:{block}".encode()).hexdigest()
         else:
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}".encode()).hexdigest()
@@ -406,6 +422,14 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         tier = link.get("evidence_tier", "self_reported")
         if not isinstance(tier, str):
             errors.append(f"seq {seq}: evidence_tier must be a string")
+            tier = "self_reported"
+        # The tier is only bound on the PUBLIC surface at v4 (the v4 block above). A pre-v4 link
+        # claiming a non-self_reported tier is operator-asserted, not chain-bound, so it must not
+        # inflate the anchored fraction of the veracity floor. The standalone kry_verify enforces
+        # this; the package verifier (used by kry_settlement) MUST too — reject and coerce.
+        if hv < 4 and tier != "self_reported":
+            errors.append(f"seq {seq}: hash_version {hv} cannot carry a non-self_reported "
+                          f"tier ({tier}) — unbound on the public surface (only v4+ binds it)")
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
         errors.extend(_magnitude_errors(link))
