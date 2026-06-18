@@ -97,7 +97,7 @@ def test_snp_receipt_is_tamper_evident():
 
     lines = km._MINT_LOG_PATH.read_text(encoding="utf-8").splitlines()
     rec = json.loads(lines[-1])
-    assert rec["hash_version"] == 4   # current mint format (v4: +public-block chain bind)
+    assert rec["hash_version"] == 5   # current mint format (v5: +language-neutral integer block)
     rec["evidence_tier"] = "self_reported"          # forge a tier downgrade in place
     lines[-1] = json.dumps(rec)
     km._MINT_LOG_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")

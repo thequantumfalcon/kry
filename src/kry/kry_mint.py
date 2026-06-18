@@ -33,6 +33,7 @@ import hashlib
 import json
 import math
 import os
+import struct
 import tempfile
 import threading
 import time
@@ -214,7 +215,7 @@ class MintReceipt:
         # receipt_hash preimage can't be re-derived — evidence_hash is sealed). receipt_hash itself
         # is unchanged (still privately binds tier via evidence_hash) — defence in depth.
         public_block = _v4_public_block(
-            hash_version=4, tokens_saved=tokens_saved, ts=ts,
+            hash_version=5, tokens_saved=tokens_saved, ts=ts,
             evidence_tier=tier, metered_tokens=metered_tokens, kry_minted=kry, earn_rate=rate,
             supersedes=supersedes)
         chain_hash   = hashlib.sha256(
@@ -235,7 +236,7 @@ class MintReceipt:
             usd_equivalent=usd_equivalent,
             avoided_model=avoided_model,
             evidence_tier=tier,
-            hash_version=4,
+            hash_version=5,
             metered_tokens=metered_tokens,
             supersedes=supersedes,
         )
@@ -700,6 +701,26 @@ def promote_to_tee(
         return None
 
 
+_V5_BAD = "nonfinite"      # sentinel for non-numeric/NaN/inf input (never collides with a 16-hex double)
+
+
+def _canon_f64(x) -> str:
+    """v5 canonical hash-preimage number: the IEEE-754 big-endian double (8 bytes), hex-encoded. Binds
+    the EXACT stored value (no precision loss vs v4's float) AND is language-neutral — any verifier parses
+    the JSON number to a 64-bit double and emits its 8 big-endian bytes: Python struct.pack('>d'); JS
+    DataView.setFloat64(0, x, false); Rust f64::to_be_bytes; Go math.Float64bits + BigEndian. No rounding,
+    no scale, no 2^53 limit, no float→string formatting. TOTAL: a non-numeric / NaN / inf field (only from
+    a TAMPERED link — the minter validates its inputs) maps to a fixed sentinel so the verifier yields a
+    hash MISMATCH (clean INVALID), never a crash. Must be byte-identical to the stdlib kry_verify replica."""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return _V5_BAD
+    if f != f or f in (float("inf"), float("-inf")):   # NaN / ±inf
+        return _V5_BAD
+    return struct.pack(">d", f).hex()
+
+
 def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
                      evidence_tier: str, metered_tokens, kry_minted: float, earn_rate: float,
                      supersedes: str | None = None) -> str:
@@ -707,9 +728,11 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     tier / kry_minted / earn_rate / tokens_saved / metered count breaks the chain on the PUBLIC
     attestation surface (where the receipt-hash preimage is un-recomputable — evidence_hash is sealed).
     The minter and EVERY verifier must emit this byte-for-byte: kry_attest imports it; the standalone
-    stdlib kry_verify replicates it (pinned by test_external_verify). Numbers round-trip through the
-    stored receipt JSON, so json.dumps is deterministic across minter and verifier. `hash_version` is
-    bound too, so an attacker can't change just the version without breaking the chain. (`event_type`
+    stdlib kry_verify replicates it (pinned by test_external_verify). For v4 the numbers serialize as
+    CPython floats (Python-portable); **v5** binds them as the EXACT IEEE-754 double in big-endian hex
+    (`_canon_f64`) so a NON-Python verifier reproduces the hash byte-for-byte — version-dispatched and
+    additive, so v4 receipts are byte-unchanged. `hash_version` is bound too, so an attacker can't change just the
+    version without breaking the chain. (`event_type`
     is deliberately NOT bound here — it carries no economic value and is already bound to the savings
     report by the artifact's `attestation_matches_report_event_counts` product gate.)
 
@@ -718,15 +741,31 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     receipts), while a promotion's target becomes tamper-evident: any add/remove/change of supersedes
     breaks the chain. Previously it was unbound, so an operator could re-point a promotion at a larger
     receipt and inflate veracity_floor while verify_chain still passed."""
-    block = {
-        "hash_version": hash_version,
-        "tokens_saved": tokens_saved,
-        "ts": ts,
-        "evidence_tier": evidence_tier,
-        "metered_tokens": metered_tokens,
-        "kry_minted": kry_minted,
-        "earn_rate": earn_rate,
-    }
+    # v5+ binds economic numbers + ts as the EXACT IEEE-754 double in big-endian hex (language-neutral,
+    # no precision loss) so a non-Python stranger can recompute the hash; v4 and earlier keep CPython
+    # float encoding — byte-UNCHANGED for every existing receipt (backward compatible). Only the hash
+    # preimage changes; the stored receipt keeps its float fields, so consumers (carbon, savings,
+    # magnitude recompute) are unaffected.
+    if hash_version >= 5:
+        block = {
+            "hash_version": hash_version,
+            "tokens_saved": _canon_f64(tokens_saved),
+            "ts": _canon_f64(ts),
+            "evidence_tier": evidence_tier,
+            "metered_tokens": metered_tokens,
+            "kry_minted": _canon_f64(kry_minted),
+            "earn_rate": _canon_f64(earn_rate),
+        }
+    else:
+        block = {
+            "hash_version": hash_version,
+            "tokens_saved": tokens_saved,
+            "ts": ts,
+            "evidence_tier": evidence_tier,
+            "metered_tokens": metered_tokens,
+            "kry_minted": kry_minted,
+            "earn_rate": earn_rate,
+        }
     if supersedes is not None:
         block["supersedes"] = supersedes
     return _json_dumps(block, sort_keys=True, separators=(",", ":"))

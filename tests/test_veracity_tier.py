@@ -109,7 +109,7 @@ def test_mixed_v1_then_v3_chain_verifies(isolated):
                 avoided_model="gh/claude-opus-4.8",
                 evidence_tier=km.TIER_PROVIDER_METERED,
                 metered_tokens=[120, 340])
-    assert r is not None and r.hash_version == 4   # current mint format (v4: +public-block chain bind)
+    assert r is not None and r.hash_version == 5   # current mint format (v5: +language-neutral integer block)
     ok, errs = km.verify_chain()
     assert ok, errs
 
@@ -123,7 +123,7 @@ def test_v3_tier_is_tamper_evident(isolated):
 
     lines = log.read_text(encoding="utf-8").splitlines()
     rec = json.loads(lines[0])
-    assert rec["evidence_tier"] == "self_reported" and rec["hash_version"] == 4
+    assert rec["evidence_tier"] == "self_reported" and rec["hash_version"] == 5
     rec["evidence_tier"] = "provider_metered"   # forge an upgrade, leave hashes as-is
     log.write_text(json.dumps(rec) + "\n", encoding="utf-8")
 
@@ -142,7 +142,7 @@ def test_v3_metered_tokens_are_tamper_evident(isolated):
     assert km.verify_chain()[0]
 
     rec = json.loads(log.read_text(encoding="utf-8"))
-    assert rec["hash_version"] == 4
+    assert rec["hash_version"] == 5
     rec["metered_tokens"] = [1, 1]
     log.write_text(json.dumps(rec) + "\n", encoding="utf-8")
 

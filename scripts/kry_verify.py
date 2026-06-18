@@ -41,6 +41,7 @@ from collections import Counter
 import hashlib
 import json
 import math
+import struct
 import sys
 
 _GENESIS = "0" * 64
@@ -83,21 +84,50 @@ def _sha(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest()
 
 
+_V5_BAD = "nonfinite"      # MUST match kry_mint._V5_BAD
+
+
+def _canon_f64(x) -> str:
+    """REPLICA of kry_mint._canon_f64 — v5 canonical hash-preimage number: the EXACT IEEE-754 double in
+    big-endian hex (struct.pack('>d')); total (non-numeric/NaN/inf → sentinel). Byte-identical to the
+    minter so this stdlib verifier reproduces the v5 block; a NON-Python verifier reproduces it the same
+    way (parse the JSON number to a double, emit its 8 big-endian bytes as hex)."""
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return _V5_BAD
+    if f != f or f in (float("inf"), float("-inf")):
+        return _V5_BAD
+    return struct.pack(">d", f).hex()
+
+
 def _v4_public_block(link: dict) -> str:
     """Standalone REPLICA of kry_mint._v4_public_block — it MUST serialize byte-for-byte identically
     (pinned by test_external_verify, which verifies a real attestation through THIS stdlib verifier).
-    v4 binds the public economic block into chain_hash so a forged tier / kry_minted / earn_rate /
-    token count breaks the chain on the public surface here too, not just in the un-recomputable
-    private receipt_hash."""
-    block = {
-        "hash_version": link.get("hash_version", 1),
-        "tokens_saved": link.get("tokens_saved", 0.0),
-        "ts": link.get("ts"),
-        "evidence_tier": link.get("evidence_tier", "self_reported"),
-        "metered_tokens": link.get("metered_tokens"),
-        "kry_minted": link.get("kry_minted"),
-        "earn_rate": link.get("earn_rate", 0.0),
-    }
+    Binds the public economic block into chain_hash so a forged tier / kry_minted / earn_rate / token
+    count breaks the chain on the public surface here too. v5 binds economic numbers + ts as the EXACT
+    IEEE-754 double in big-endian hex (language-neutral); v4 and earlier keep CPython float encoding."""
+    hv = link.get("hash_version", 1)
+    if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 5:
+        block = {
+            "hash_version": hv,
+            "tokens_saved": _canon_f64(link.get("tokens_saved", 0.0)),
+            "ts": _canon_f64(link.get("ts")),
+            "evidence_tier": link.get("evidence_tier", "self_reported"),
+            "metered_tokens": link.get("metered_tokens"),
+            "kry_minted": _canon_f64(link.get("kry_minted")),
+            "earn_rate": _canon_f64(link.get("earn_rate", 0.0)),
+        }
+    else:
+        block = {
+            "hash_version": hv,
+            "tokens_saved": link.get("tokens_saved", 0.0),
+            "ts": link.get("ts"),
+            "evidence_tier": link.get("evidence_tier", "self_reported"),
+            "metered_tokens": link.get("metered_tokens"),
+            "kry_minted": link.get("kry_minted"),
+            "earn_rate": link.get("earn_rate", 0.0),
+        }
     # F2: bind a promotion's re-tiering target ONLY when present, byte-identical to the minter, so a
     # forged/altered/removed supersedes breaks the chain here (the public surface) too.
     sup = link.get("supersedes")
@@ -252,6 +282,8 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     running_kry = 0.0
     tier_kry: dict[str, float] = {}
     type_counts: Counter = Counter()
+    promotions: list = []      # F5: (superseded_receipt_id, promoting_tier)
+    kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), to reproduce the promotion overlay
     for link in links:
         if not isinstance(link, dict):
             errors.append("link must be a JSON object")
@@ -305,6 +337,12 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                           f"tier ({tier}) — unbound on the public surface (only v4+ binds it)")
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
+        rid = link.get("receipt_id")              # F5: reproduce the promotion overlay (see below)
+        if rid:
+            kry_by_receipt[rid] = (tier, kry_minted)
+        sup = link.get("supersedes")
+        if tier in ("tlsn_attested", "tee_attested") and sup:
+            promotions.append((sup, tier))
         errors.extend(_magnitude_errors(link))   # F2: magnitude is public arithmetic
         errors.extend(_tier_schema_errors(link))
         prev = chain_hash
@@ -352,6 +390,19 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         else:
             if claimed_hash != expected_hash:
                 errors.append("attestation_hash mismatch — public metadata may have been altered")
+
+    # F5: reproduce the promotion overlay the minter applies — a zero-value tlsn/tee promotion re-tiers
+    # its superseded receipt's value onto the promoting tier, so the declared (overlaid) by_tier is
+    # verifiable here. Replica of kry_mint._apply_promotion_overlay; no-op without promotions.
+    for src_id, to_tier in promotions:
+        src = kry_by_receipt.get(src_id)
+        if not src:
+            continue
+        src_tier, src_kry = src
+        if src_kry <= 0:
+            continue
+        tier_kry[src_tier] = tier_kry.get(src_tier, 0.0) - src_kry
+        tier_kry[to_tier] = tier_kry.get(to_tier, 0.0) + src_kry
 
     # Trust surface must be honest: declared floor must match the per-link tiers.
     v = attestation.get("veracity")

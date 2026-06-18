@@ -131,6 +131,8 @@ class AttestationLink:
     hash_version: int = 1       # v4 binds the public economic block into chain_hash; the verifier
                                 # needs the version to recompute the chain. Default 1 = legacy.
     supersedes: str | None = None  # F2: a T2 promotion's re-tiering target, bound into the v4 block
+    receipt_id: str = ""           # F5: content-free seq id so a stranger can resolve `supersedes` and
+                                   # reproduce the promotion overlay (else the declared by_tier is unverifiable)
 
 
 @dataclass
@@ -295,6 +297,7 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                     metered_tokens=rec.get("metered_tokens"),
                     hash_version=rec.get("hash_version", 1),
                     supersedes=rec.get("supersedes"),   # F2: expose the bound promotion target
+                    receipt_id=rec.get("receipt_id", ""),   # F5: lets a stranger reproduce the overlay
                 ))
                 type_counts[rec["event_type"]] += 1
                 tier_kry[tier] = tier_kry.get(tier, 0.0) + rec["kry_minted"]
@@ -355,6 +358,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     running_kry = 0.0
     type_counts: Counter = Counter()
     tier_kry: dict[str, float] = {}
+    promotions: list = []      # F5: (superseded_receipt_id, promoting_tier) — reproduce the overlay
+    kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), so the declared overlaid by_tier is verifiable
     links = data.get("links", [])
     if not isinstance(links, list):
         errors.append("links must be a JSON list")
@@ -432,6 +437,12 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                           f"tier ({tier}) — unbound on the public surface (only v4+ binds it)")
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
+        rid = link.get("receipt_id")
+        if rid:
+            kry_by_receipt[rid] = (tier, kry_minted)
+        sup = link.get("supersedes")
+        if tier in ("tlsn_attested", "tee_attested") and sup:
+            promotions.append((sup, tier))
         errors.extend(_magnitude_errors(link))
         errors.extend(_tier_schema_errors(link))
         prev_chain = chain_hash
@@ -480,6 +491,12 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         else:
             if claimed_hash != expected_hash:
                 errors.append("attestation_hash mismatch — public metadata may have been altered")
+
+    # F5: apply the SAME promotion overlay build_attestation uses, so the declared (overlaid) by_tier is
+    # reproducible by a verifier — a promotion re-tiers its superseded receipt's value onto the promoting
+    # tier. No-op when there are no promotions, so non-promotion attestations are byte-unaffected.
+    from kry.kry_mint import _apply_promotion_overlay
+    _apply_promotion_overlay(tier_kry, promotions, kry_by_receipt)
 
     # Verify the veracity breakdown matches the links — the trust surface itself
     # must be honest. An operator can't claim a high external-anchor floor unless

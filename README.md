@@ -347,12 +347,12 @@ every amount** and rejects any receipt whose implied multiplier isn't a publishe
 This catches inflation **even when conservation is kept internally consistent** — a class
 of forgery the chain alone misses (the **F2** check).
 
-> **Cross-language note (integrity recompute):** the chain hash binds CPython's `json.dumps`
-> number formatting (e.g. the high-precision `ts`), so a _non-Python_ re-implementation of the
-> verifier must reproduce CPython's float→JSON byte-for-byte to recompute the hash. Today's
-> verifier is therefore _Python_-portable; a canonical language-neutral encoding (integer
-> micro-units / fixed-precision strings) is future work. Magnitude is tolerance-guarded and
-> unaffected — this is an interop note for a non-Python verifier, not a forgery vector.
+> **Cross-language verification (`hash_version` 5):** new chains bind the economic numbers and `ts`
+> into the chain hash as the **exact IEEE-754 double in big-endian hex** (`struct.pack('>d')`), so a
+> _non-Python_ verifier (Rust / JS / Go) reproduces every hash byte-for-byte — no dependence on
+> CPython's float→JSON formatting, no precision loss, no rounding or integer-size choice. Legacy **v4**
+> receipts keep CPython float encoding and remain _Python_-portable and fully verifiable (the change is
+> additive and version-dispatched — existing receipts, anchors, and the evidence bundle are byte-unchanged).
 
 ---
 
