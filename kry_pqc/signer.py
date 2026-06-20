@@ -92,6 +92,7 @@ def _cmd_keygen(args) -> int:
     sk_path = out / "kry_pqc_secret.key"
     pk_path.write_text(_b64(public_key))
     sk_path.write_text(_b64(secret_key))
+    sk_path.chmod(0o600)  # private key: owner read/write only, never group/world-readable
     print(f"alg:         {args.alg}")
     print(f"public key:  {pk_path}  (share this)")
     print(f"secret key:  {sk_path}  (KEEP SECRET -- never share or commit)")

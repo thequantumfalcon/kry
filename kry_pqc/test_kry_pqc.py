@@ -104,6 +104,17 @@ def test_single_wrong_key_fails(attestation, tmp_path):
     assert verify.main(["--attestation", str(attestation), "--signature", str(sig)]) == 1
 
 
+def test_keygen_writes_secret_key_owner_only(tmp_path):
+    """The keygen CLI must write the private key owner-only (0o600), never group/world-readable."""
+    import stat
+    from argparse import Namespace
+    assert signer._cmd_keygen(Namespace(alg=signer.DEFAULT_ALG, out_dir=str(tmp_path))) == 0
+    sk = tmp_path / "kry_pqc_secret.key"
+    assert sk.exists()
+    if os.name == "posix":  # mode bits are POSIX-only
+        assert stat.S_IMODE(sk.stat().st_mode) == 0o600
+
+
 # ------------------------------------------------------------------- m-of-n council
 
 
