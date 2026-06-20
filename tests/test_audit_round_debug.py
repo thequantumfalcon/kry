@@ -101,9 +101,9 @@ def test_attestation_rejects_relabeled_receipt_id():
     assert km.promote_to_tlsn("gen-1", "tlsn-binding", "promote") is not None
     att = json.loads(ka.build_attestation().to_public_json())
     assert ka.verify_attestation(json.dumps(att))[0]
-    prom = next(l for l in att["links"] if l.get("supersedes"))
-    big = max((l for l in att["links"] if l["evidence_tier"] == "self_reported"),
-              key=lambda l: l["kry_minted"])
+    prom = next(lk for lk in att["links"] if lk.get("supersedes"))
+    big = max((lk for lk in att["links"] if lk["evidence_tier"] == "self_reported"),
+              key=lambda lk: lk["kry_minted"])
     big["receipt_id"] = prom["supersedes"]          # the relabel attack
     att["attestation_hash"] = ""
     att["attestation_hash"] = ka._attestation_hash(att)
@@ -138,12 +138,14 @@ def test_save_clamps_balance_nonnegative_and_keeps_invariant():
 def test_events_merge_across_writers():
     """#2: two ledger instances sharing the disk path don't clobber each other's events."""
     import kry.kry_token as kt
-    a = kt.KRYLedger(); b = kt.KRYLedger()
+    a = kt.KRYLedger()
+    b = kt.KRYLedger()
     a.balance = a.total_earned = 100.0
     a.events.append(kt.KRYEvent(ts=1.0, kind="earn", source="cacheA", amount=100.0, tx_id="A1"))
     b.balance = b.total_earned = 50.0
     b.events.append(kt.KRYEvent(ts=2.0, kind="earn", source="cacheB", amount=50.0, tx_id="B1"))
-    a.save(); b.save()
+    a.save()
+    b.save()
     disk = json.loads(kt._LEDGER_PATH.read_text())
     assert sorted(e["source"] for e in disk["events"]) == ["cacheA", "cacheB"]
     assert disk["total_earned"] == pytest.approx(150.0)
