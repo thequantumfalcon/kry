@@ -459,12 +459,15 @@ def main(argv: list[str] | None = None) -> int:
     if result["verdict"] == "ALREADY_UPGRADED":
         print(f"  -> {result['note']}")
         return 0
-    if result.get("minted") is None:      # dry-run
-        print(f"  -> {result.get('note', 'no receipt minted')}")
-        return 0
+    # HOLE #24: check NOT_MINTED FIRST (identical defect to the Nitro script). run() leaves
+    # result["minted"] unset on NOT_MINTED, so the dry-run branch used to fire and exit 0 (success)
+    # for a SEV-SNP mint that did NOT happen. A genuine dry-run keeps verdict "OK" and exits 0 below.
     if result["verdict"] == "NOT_MINTED":
         print(f"  -> {result['note']}")
         return 1
+    if result.get("minted") is None:      # dry-run (verdict == "OK")
+        print(f"  -> {result.get('note', 'no receipt minted')}")
+        return 0
 
     mres = result["minted"]
     vf = result["veracity_floor"]

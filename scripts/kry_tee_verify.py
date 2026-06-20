@@ -378,13 +378,15 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
         if not (cert.not_valid_before_utc.timestamp() <= now <= cert.not_valid_after_utc.timestamp()):
             errs.append(f"certificate '{cert.subject.rfc4514_string()}' is outside its validity window")
     for child, issuer in zip(chain, chain[1:]):
+        # HOLE #25: use verify_directly_issued_by (as the SNP verifier does) instead of a
+        # signature-only check. It additionally binds child.issuer == issuer.subject (name binding),
+        # so a cert whose issuer-name does not match the issuing cert — or a non-issuer cert slipped
+        # into the path — is rejected, matching the docstring's "walks the X.509 chain" claim.
         try:
-            issuer.public_key().verify(
-                child.signature, child.tbs_certificate_bytes,
-                ec.ECDSA(child.signature_hash_algorithm))
+            child.verify_directly_issued_by(issuer)
         except Exception:
-            errs.append(f"chain broken: '{child.subject.rfc4514_string()}' is not signed by "
-                        f"'{issuer.subject.rfc4514_string()}'")
+            errs.append(f"chain broken: '{child.subject.rfc4514_string()}' is not directly "
+                        f"issued by '{issuer.subject.rfc4514_string()}'")
     # the chain MUST terminate at exactly the pinned root (the trust anchor)
     chain_root_der = chain[-1].public_bytes(serialization.Encoding.DER)
     if chain_root_der != bytes(root_cert_der):
@@ -610,12 +612,15 @@ def main(argv: list[str] | None = None) -> int:
     if result["verdict"] == "ALREADY_UPGRADED":
         print(f"  -> {result['note']}")
         return 0
-    if result.get("minted") is None:      # dry-run
-        print(f"  -> {result.get('note', 'no receipt minted')}")
-        return 0
+    # HOLE #23: check NOT_MINTED FIRST. On a NOT_MINTED verdict run() never sets result["minted"], so
+    # result.get("minted") is None too — the old order let the dry-run branch fire and exit 0 (success)
+    # for a mint that did NOT happen. A genuine dry-run keeps verdict "OK", so it still exits 0 below.
     if result["verdict"] == "NOT_MINTED":
         print(f"  -> {result['note']}")
         return 1
+    if result.get("minted") is None:      # dry-run (verdict == "OK")
+        print(f"  -> {result.get('note', 'no receipt minted')}")
+        return 0
 
     mres = result["minted"]
     vf = result["veracity_floor"]

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import json
 import sys
@@ -71,16 +72,24 @@ def main(argv=None) -> int:
 
     att_path = Path(args.attestation)
     attestation_bytes = att_path.read_bytes()
-    artifact = json.loads(Path(args.signature).read_text())
-
-    alg = artifact["alg"]
-    signature = _unb64(artifact["signature"])
-    if args.public_key:
-        public_key = _unb64(Path(args.public_key).read_text().strip())
-        key_source = "out-of-band (--public-key)"
-    else:
-        public_key = _unb64(artifact["public_key"])
-        key_source = "SELF-PROVIDED (embedded in the artifact)"
+    # The .sig.json artifact is attacker-supplied. Parse it and read its required fields behind a
+    # guard so a malformed artifact (not JSON / not an object / missing alg|signature|public_key /
+    # non-base64) yields the documented "RESULT: FAILED" + exit 1, not an uncaught traceback.
+    try:
+        artifact = json.loads(Path(args.signature).read_text())
+        if not isinstance(artifact, dict):
+            raise ValueError("signature artifact is not a JSON object")
+        alg = artifact["alg"]
+        signature = _unb64(artifact["signature"])
+        if args.public_key:
+            public_key = _unb64(Path(args.public_key).read_text().strip())
+            key_source = "out-of-band (--public-key)"
+        else:
+            public_key = _unb64(artifact["public_key"])
+            key_source = "SELF-PROVIDED (embedded in the artifact)"
+    except (ValueError, KeyError, TypeError, binascii.Error, json.JSONDecodeError) as e:
+        print(f"RESULT: FAILED — malformed signature artifact: {e}")
+        return 1
     full_fp = hashlib.sha256(public_key).hexdigest()
     pk_fp = full_fp[:16]
     # Authenticity is ESTABLISHED only if the key is pinned — supplied out-of-band, or

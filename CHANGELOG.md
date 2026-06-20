@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Mint-chain magnitude gate in `verify_chain`** — the in-package chain verifier now recomputes
+  each receipt's implied price multiplier (matching the standalone `scripts/kry_verify.py`) and
+  rejects a fabricated `kry_minted`, a non-standard `earn_rate`, a `provider_metered` receipt
+  missing its `metered_tokens`, or an edited `usd_equivalent`. Closes a path where
+  `reconcile_ledger_from_chain` could rebuild a balance from a forged pre-v4 chain.
+- **`hash_version = 6` binds `receipt_id` into the chain hash** (additive, version-dispatched —
+  v4/v5 receipts and the evidence bundle are byte-unchanged). A T2 tier-promotion's `supersedes`
+  target can no longer be relabeled onto a different, larger receipt to inflate `veracity_floor`.
+  The cross-language hash spec in the README is updated accordingly.
+- **PQC verifier hardening** — `kry_pqc.threshold.verify_threshold` now independently enforces a
+  valid `1..council_size` threshold and recomputes each signer's fingerprint from its public key
+  (rejecting a council that lists one key under two fingerprints); the single-signer and threshold
+  verifiers fail closed (not crash) on malformed artifacts.
+
+### Fixed
+
+- **Accounting** — `reconcile_ledger_from_chain` now subtracts `total_spent` instead of resurrecting
+  already-spent KRY; cross-process `spend()` can no longer drive the on-disk balance negative; the
+  delta-merge `save()` no longer clobbers a concurrent writer's event records; `efficiency_ratio` is
+  correct for sub-1-KRY ledgers.
+- **Settlement** — a failed/under-reporting debit rolls the registry obligation back (no phantom
+  obligation, grant stays retriable) while still never debiting on a commit failure; a rejected
+  settle no longer leaks its in-process reservation.
+- **Persistence fail-closed** — `kry_sanctions.record_reconciliation` raises instead of returning a
+  sanction it never persisted; `kry_referee` ratify/sanction/revoke take the cross-process lock;
+  `revoke_ascension` no longer reports failure after a successful revoke.
+- **Pending displacements** — `confirm()` persists `confirmed` write-ahead (no double-mint on a
+  crash between mint and persist); a non-finite `ttl` is rejected so a pending can't become
+  un-expirable.
+- **TLSNotary T2** — refuses a second fresh credit for a provider generation already minted, and
+  matches gen ids exactly (not as a substring) so a short id can't mis-bind to another session.
+- **Verifier CLIs** — `kry_verify` no longer crashes on a non-dict `veracity`; the TEE / SEV-SNP /
+  TLSNotary mint scripts exit non-zero (not `0`) when a mint did not happen; the Nitro X.509 walk
+  binds issuer names (`verify_directly_issued_by`).
+- **Robustness** — `wilson_interval` clamps out-of-range inputs instead of crashing on a corrupted
+  store; `kry_pending` rejects `NaN`/`Infinity` JSON constants on load.
+
 ## [0.1.0] - 2026-06-17
 
 Initial public release. `kry` turns the usage logs you already have into a

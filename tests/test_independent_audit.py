@@ -51,9 +51,10 @@ def test_f3_v5_block_is_exact_f64_and_cross_language_reproducible():
     import kry.kry_mint as m
     m.mint("cache_hit", 1234.5, evidence="x", avoided_model="gh/claude-opus-4.8")
     link = json.loads(a.build_attestation().to_public_json())["links"][0]
-    assert link["hash_version"] == 5
+    assert link["hash_version"] == 6
     # Reproduce the block following ONLY the documented spec — the IEEE-754 big-endian double as hex —
     # with no kry code, exactly as a non-Python (Rust/JS/Go) verifier would. It regenerates the chain_hash.
+    # v6 additionally binds receipt_id (a plain string, language-neutral).
     def canon(v):
         return struct.pack(">d", float(v)).hex()
     block = json.dumps({
@@ -61,6 +62,7 @@ def test_f3_v5_block_is_exact_f64_and_cross_language_reproducible():
         "tokens_saved": canon(link["tokens_saved"]), "ts": canon(link["ts"]),
         "evidence_tier": link["evidence_tier"], "metered_tokens": link.get("metered_tokens"),
         "kry_minted": canon(link["kry_minted"]), "earn_rate": canon(link["earn_rate"]),
+        "receipt_id": link.get("receipt_id") or "",
     }, sort_keys=True, separators=(",", ":"))
     expected = hashlib.sha256(("0" * 64 + ":" + link["receipt_hash"] + ":" + block).encode()).hexdigest()
     assert expected == link["chain_hash"]            # cross-language verifier reproduces the hash

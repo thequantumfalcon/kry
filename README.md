@@ -298,7 +298,10 @@ classified by *how the event was witnessed*, weakest to strongest:
  tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
  only be `self_reported` — a v1 receipt claiming a higher tier is rejected. New T1 receipts
  also hash-bind their `metered_tokens` (`hash_version = 3`), so provider reconciliation
- cannot swap token counts under the same receipt hash.
+ cannot swap token counts under the same receipt hash. The current format (`hash_version = 6`)
+ additionally binds each receipt's `receipt_id` into the chain hash, so a T2 tier-promotion's
+ `supersedes` target cannot be relabeled onto a different (larger) receipt to inflate the
+ externally-anchored fraction.
 - **`verify_chain` proves integrity, not veracity.** It cannot distinguish an honest chain
  from one an operator re-derived from genesis (keyless SHA-256 + a local checkpoint): a full
  re-mint with upgraded tiers and inflated value passes it clean. The external root of trust
@@ -360,12 +363,16 @@ every amount** and rejects any receipt whose implied multiplier isn't a publishe
 This catches inflation **even when conservation is kept internally consistent** — a class
 of forgery the chain alone misses (the **F2** check).
 
-> **Cross-language verification (`hash_version` 5):** new chains bind the economic numbers and `ts`
-> into the chain hash as the **exact IEEE-754 double in big-endian hex** (`struct.pack('>d')`), so a
-> _non-Python_ verifier (Rust / JS / Go) reproduces every hash byte-for-byte — no dependence on
-> CPython's float→JSON formatting, no precision loss, no rounding or integer-size choice. Legacy **v4**
-> receipts keep CPython float encoding and remain _Python_-portable and fully verifiable (the change is
-> additive and version-dispatched — existing receipts, anchors, and the evidence bundle are byte-unchanged).
+> **Cross-language verification (`hash_version` 6):** new chains bind the economic numbers and `ts`
+> into the chain hash as the **exact IEEE-754 double in big-endian hex** (`struct.pack('>d')`, the v5
+> encoding), so a _non-Python_ verifier (Rust / JS / Go) reproduces every hash byte-for-byte — no
+> dependence on CPython's float→JSON formatting, no precision loss, no rounding or integer-size choice.
+> **v6 also binds the receipt's `receipt_id`** (a plain string — emit it verbatim into the block) so a
+> promotion's re-tiering target (`supersedes`) cannot be relabeled to move a _different_ receipt's value
+> onto an anchored tier. A cross-language verifier must therefore add the `receipt_id` field to the v6
+> block it reconstructs. Legacy **v4** (CPython float encoding) and **v5** (f64-hex, no `receipt_id`)
+> receipts keep their original encoding and remain fully verifiable — the change is additive and
+> version-dispatched, so existing receipts, anchors, and the evidence bundle are byte-unchanged.
 
 ---
 

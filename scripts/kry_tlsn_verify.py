@@ -242,7 +242,6 @@ def _avoided_from_routing(gen_id: str) -> str | None:
     an --avoided-model is passed explicitly — the counterfactual is never invented)."""
     from kry import kry_mint
     p = kry_mint._MINT_LOG_PATH
-    marker = f"/openrouter:{gen_id}"
     found = None
     try:
         if not p.exists():
@@ -250,10 +249,12 @@ def _avoided_from_routing(gen_id: str) -> str | None:
         with open(p, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or marker not in line:
+                if not line or gen_id not in line:   # cheap pre-filter only
                     continue
                 rec = _json_loads(line)
-                if marker in str(rec.get("detail") or "") and rec.get("avoided_model"):
+                # HOLE #27: exact, delimiter-bounded gen-id match (not a substring), so 'gen-1' does
+                # not resolve a longer session's routing receipt ('/openrouter:gen-1234…').
+                if gen_id in kry_mint._OR_REF.findall(str(rec.get("detail") or "")) and rec.get("avoided_model"):
                     found = rec["avoided_model"]   # last (most recent) wins
     except Exception:
         return None
@@ -405,6 +406,16 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
                                             "after": after["tlsn_attested_fraction"]}
         return result
 
+    # HOLE #26: no prior T1 host receipt exists (else the promotion path above ran), but a prior
+    # FRESH T2 mint for this gen id means the saving was already credited once via a different
+    # (transient-byte-differing) presentation of the SAME idempotent provider generation. The replay
+    # decay only collapses BYTE-IDENTICAL presentations, so refuse the second fresh mint here.
+    if gen_id and kry_mint._find_fresh_t2_receipt_for_gen(gen_id) is not None:
+        result["verdict"] = "ALREADY_MINTED"
+        result["note"] = (f"gen id {gen_id} was already credited a fresh T2 mint — refusing to "
+                          f"double-credit the same provider generation")
+        return result
+
     receipt = kry_mint.mint(
         event_type=event_type,
         tokens_saved=basis,
@@ -490,18 +501,21 @@ def main(argv: list[str] | None = None) -> int:
         pinned = "  (pinned ✓ — verified against --notary-key)" if result.get("notary_pinned") else ""
         print(f"  notary key:          {result['notary_key_fp']}{pinned}")
 
-    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT"):
+    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_SERVED_MODEL"):
         print(f"  -> {result['note']}")
-        return 1
-    if result["verdict"] == "ALREADY_UPGRADED":
+        return 1   # NO_SERVED_MODEL is a REFUSAL (no mint) — must exit non-zero, like its siblings
+    if result["verdict"] in ("ALREADY_UPGRADED", "ALREADY_MINTED"):
         print(f"  -> {result['note']}")
-        return 0   # idempotent no-op, not an error
-    if result.get("minted") is None:      # dry-run or not-minted
-        print(f"  -> {result.get('note', 'no receipt minted')}")
-        return 0
+        return 0   # idempotent no-op (HOLE #26: refused double-credit), not an error
+    # Same exit-code ordering bug as the Nitro/SNP scripts (HOLE #23-class): NOT_MINTED leaves
+    # result["minted"] unset, so it must be checked BEFORE the minted-is-None dry-run branch — else a
+    # mint that did NOT happen would exit 0 (success). A genuine dry-run keeps verdict "OK".
     if result["verdict"] == "NOT_MINTED":
         print(f"  -> {result['note']}")
         return 1
+    if result.get("minted") is None:      # genuine dry-run (verdict == "OK")
+        print(f"  -> {result.get('note', 'no receipt minted')}")
+        return 0
 
     m = result["minted"]
     vf = result["veracity_floor"]

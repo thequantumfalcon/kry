@@ -130,9 +130,10 @@ def test_record_settled_fails_if_tip_checkpoint_fails(monkeypatch):
 
 
 def test_partial_debit_fails_closed():
-    """S2: the grant commits A to the AGREED amount and the registry records it FIRST (F4). If A's debit
-    moves LESS than that (a partial / failing / lying debit), settlement fails closed — B is never
-    silently shortchanged, and the registry never holds an obligation that wasn't actually moved."""
+    """S2/HOLE#7: A is debited and the move is verified to equal the AGREED amount BEFORE the registry
+    records the obligation. If A's debit moves LESS than that (a partial / failing / lying debit),
+    settlement fails closed — B is never silently shortchanged, and the registry never holds a phantom
+    obligation that wasn't actually moved (nor is the grant burned — it stays retriable)."""
     o = make_offer("A", "B", 500.0, 5000, now=1000.0)
     grant, _ = verify_and_accept(o, _attestation(1000.0), now=1001.0)
     b = ReceiverLedger(party="B")

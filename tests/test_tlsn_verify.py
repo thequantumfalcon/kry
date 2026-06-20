@@ -106,7 +106,7 @@ def test_t2_receipt_is_tamper_evident(isolated):
     # forge a tier downgrade in place → the receipt hash (which binds the tier) breaks
     lines = log.read_text(encoding="utf-8").splitlines()
     rec = json.loads(lines[-1])
-    assert rec["hash_version"] == 5   # current mint format (v5: +language-neutral integer block)
+    assert rec["hash_version"] == 6   # current mint format (v6: +receipt_id binding)
     rec["evidence_tier"] = "self_reported"
     lines[-1] = json.dumps(rec)
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -211,10 +211,11 @@ def test_replay_does_not_double_mint(isolated):
     assert first["minted"]["kry_minted"] > 0
     floor_after_first = km.veracity_breakdown()["veracity_floor"]
 
-    second = mod.run(pres, **kw)   # identical presentation → same evidence binding
-    # decay collapses the repeat: either no receipt, or a dust receipt that does not
-    # raise the floor above the first mint's level
-    assert second["verdict"] in ("NOT_MINTED", "OK")
+    second = mod.run(pres, **kw)   # identical presentation → same gen id / evidence binding
+    # The repeat is collapsed: HOLE #26 refuses a second FRESH T2 credit for the same gen id
+    # (ALREADY_MINTED); absent a gen id the byte-identical replay still decays to dust (NOT_MINTED /
+    # OK). Either way the floor never rises above the first mint's level — one generation, one credit.
+    assert second["verdict"] in ("NOT_MINTED", "OK", "ALREADY_MINTED")
     assert km.veracity_breakdown()["veracity_floor"] <= floor_after_first + 1e-9
 
 

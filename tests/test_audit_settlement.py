@@ -59,10 +59,14 @@ def test_s3_forged_unknown_tier_does_not_inflate_floor():
     d = json.loads(a.build_attestation().to_public_json())
     link = d["links"][0]
     link["evidence_tier"] = "magic_attested"
-    block = m._v4_public_block(hash_version=5, tokens_saved=link["tokens_saved"], ts=link["ts"],
-                               evidence_tier="magic_attested", metered_tokens=link.get("metered_tokens"),
+    # Reconstruct the chain_hash at the link's OWN version (v6, incl. receipt_id) so the chain stays
+    # internally consistent and the rejection comes purely from the S3 unknown-tier check — not an
+    # incidental chain mismatch from reconstructing at the wrong version.
+    block = m._v4_public_block(hash_version=link["hash_version"], tokens_saved=link["tokens_saved"],
+                               ts=link["ts"], evidence_tier="magic_attested",
+                               metered_tokens=link.get("metered_tokens"),
                                kry_minted=link["kry_minted"], earn_rate=link["earn_rate"],
-                               supersedes=link.get("supersedes"))
+                               supersedes=link.get("supersedes"), receipt_id=link.get("receipt_id"))
     link["chain_hash"] = hashlib.sha256(
         ("0" * 64 + ":" + link["receipt_hash"] + ":" + block).encode()).hexdigest()
     d["chain_head"] = link["chain_hash"]

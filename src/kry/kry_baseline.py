@@ -113,6 +113,11 @@ def wilson_interval(successes: int, n: int, z: float = _Z_95) -> tuple[float, fl
     credit is granted without measurement (fail-closed)."""
     if n <= 0:
         return 0.0, 1.0
+    # HOLE #16: clamp successes into [0, n] so a corrupted/externally-written store with
+    # successes > n (phat > 1) can't make phat*(1-phat) negative and crash math.sqrt with a
+    # ValueError that propagates uncaught through avoidance_estimate/holdout_report. Conservative,
+    # fail-closed degradation (successes==n → hi=1; ==0 → lo=0) instead of a hard crash.
+    successes = min(max(int(successes), 0), n)
     phat = successes / n
     z2 = z * z
     denom = 1.0 + z2 / n

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tempfile
 import threading
@@ -28,6 +29,10 @@ from pathlib import Path
 from typing import Optional
 
 from kry.kry_mint import MintReceipt, mint
+
+
+def _reject_json_constant(value: str):
+    raise ValueError(f"non-standard JSON constant rejected: {value}")
 
 
 def _kry_data_dir() -> Path:
@@ -81,8 +86,11 @@ def _load() -> dict:
         return {}
     try:
         with open(_PENDING_PATH, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
+            # HOLE #15: reject NaN/Infinity (mirrors kry_mint). A NaN `ttl` makes the expiry check
+            # `now > created_ts + NaN` always False, so the pending never expires and stays mintable
+            # forever. A poisoned/externally-written store now reads as empty (fail-closed: no mint).
+            return json.loads(f.read(), parse_constant=_reject_json_constant)
+    except (json.JSONDecodeError, OSError, ValueError):
         return {}
 
 
@@ -91,7 +99,12 @@ def _store(data: dict) -> None:
     fd, tmp = tempfile.mkstemp(dir=str(_PENDING_PATH.parent), suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as f:
-            json.dump(data, f)
+            # HOLE #15 (store/load symmetry): the reader rejects NaN/Infinity, so the writer must too —
+            # else a single non-finite value (e.g. an inf tokens_saved in mint_kwargs) serializes as
+            # "Infinity" and the NEXT _load() rejects the WHOLE file, destroying every co-resident
+            # pending. allow_nan=False raises HERE instead, BEFORE os.replace, so the atomic write
+            # leaves the prior valid store intact and the bad value surfaces to the caller.
+            json.dump(data, f, allow_nan=False)
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, _PENDING_PATH)
@@ -118,12 +131,17 @@ def record_pending(mint_kwargs: dict, ttl: float | None = None) -> str:
     required)."""
     if "event_type" not in mint_kwargs or "tokens_saved" not in mint_kwargs:
         raise ValueError("mint_kwargs needs at least event_type and tokens_saved")
+    # HOLE #15: reject a non-finite/negative ttl at the boundary — a NaN ttl would make the pending
+    # never expire (now > created_ts + NaN is always False) and stay mintable indefinitely.
+    t = float(ttl if ttl is not None else _DEFAULT_TTL)
+    if not math.isfinite(t) or t < 0:
+        raise ValueError("ttl must be a finite, non-negative number")
     pid = _new_id(mint_kwargs)
     with _locked():
         data = _load()
         data[pid] = {
             "created_ts": time.time(),
-            "ttl": float(ttl if ttl is not None else _DEFAULT_TTL),
+            "ttl": t,
             "status": "pending",
             "mint_kwargs": dict(mint_kwargs),
         }
@@ -150,7 +168,13 @@ def confirm(pending_id: str) -> Optional[MintReceipt]:
             rec["status"] = "expired"
             _store(data)
             return None
+        # HOLE #14: WRITE-AHEAD the flip — persist "confirmed" to disk BEFORE minting. The old order
+        # (flip in memory → mint → _store) meant a crash between a landed mint and the persist left the
+        # on-disk status "pending", so a retry after restart minted the SAME displacement a second time
+        # (double-count). Persisting first makes a post-mint crash drop at most one saving (the honest
+        # undercount direction for a veracity floor), never a double.
         rec["status"] = "confirmed"
+        _store(data)
         receipt = mint(**rec["mint_kwargs"])
         rec["receipt_id"] = receipt.receipt_id if receipt else None
         _store(data)

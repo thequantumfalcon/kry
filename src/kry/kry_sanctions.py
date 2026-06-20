@@ -40,6 +40,7 @@ this formula — see docs/KRY_BIOMIMICRY.md.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import tempfile
@@ -47,6 +48,8 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger("kry.sanctions")
 
 
 def _kry_data_dir() -> Path:
@@ -185,15 +188,23 @@ def _load() -> dict:
 
 
 def _save(state: dict) -> None:
+    # HOLE #13: do NOT swallow persistence failures. The old `except Exception: pass` let a write
+    # error (ENOSPC / EACCES / read-only mount) silently drop a sanction while the caller returned the
+    # freshly-computed (un-persisted) reputation — a cheater kept its higher reputation with no signal.
+    # Propagate the failure so record_reconciliation can fail closed, and clean up the temp file.
+    state = _normalise_rep_state(state)
+    _REP_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=_REP_PATH.parent, prefix=".rep_")
     try:
-        state = _normalise_rep_state(state)
-        _REP_PATH.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=_REP_PATH.parent, prefix=".rep_")
         with os.fdopen(fd, "w") as f:
             f.write(_json_dumps(state, indent=2))
         os.replace(tmp, _REP_PATH)
     except Exception:
-        pass
+        try:
+            os.unlink(tmp)   # don't leak the .rep_* temp file on a write failure
+        except OSError:
+            pass
+        raise
 
 
 def reputation(party: str) -> float:
@@ -232,7 +243,14 @@ def record_reconciliation(party: str, confirmed: bool) -> float:
         e["reputation"] = max(0.0, min(1.0, r))
         e["updated"] = time.time()
         state[party] = e
-        _save(state)
+        # HOLE #13: surface a persist failure instead of returning a sanction/confirmation that was
+        # never written — the return value must never claim a durable change that did not happen.
+        try:
+            _save(state)
+        except Exception as exc:
+            logger.warning("record_reconciliation: persist failed for %s — outcome NOT recorded "
+                           "(durable reputation unchanged): %s", party, exc)
+            raise
         return e["reputation"]
 
 

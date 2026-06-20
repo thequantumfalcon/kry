@@ -36,6 +36,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
+from kry._locks import cross_process_lock
+
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
@@ -379,8 +381,10 @@ def ratify_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
         logger.warning("ratify_ascension denied: no escalation evidence for %s:%s "
                        "(evidence chain broken)", gate_class, rule)
         return False
-    # R16: lock the read-modify-write so concurrent ratifications don't clobber.
-    with _LOCK:
+    # R16 + HOLE #11: lock the read-modify-write across THREADS (_LOCK) AND PROCESSES
+    # (cross_process_lock) so concurrent ratifications/sanctions/revokes on a shared file don't
+    # clobber each other — the thread lock alone left the file racy in multi-process deployments.
+    with _LOCK, cross_process_lock(_SANCTIONED_PATH):
         try:
             sanctioned = _load_sanctioned()
         except ValueError as exc:
@@ -409,7 +413,7 @@ def is_sanctioned(gate_class: str, rule: str) -> bool:
     re-confirmation, bounding revoke-race damage. Use-count persists atomically.
     """
     key = f"{gate_class}:{rule}"
-    with _LOCK:
+    with _LOCK, cross_process_lock(_SANCTIONED_PATH):   # HOLE #11: process-safe RMW, not thread-only
         try:
             sanctioned = _load_sanctioned()
         except ValueError as exc:
@@ -451,10 +455,11 @@ def revoke_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
         logger.warning("revoke_ascension denied: operator token mismatch")
         return False
     key = f"{gate_class}:{rule}"
-    # R16: hold _LOCK across the whole read-modify-write (matching ratify_ascension /
-    # is_sanctioned). Without it, a concurrent is_sanctioned() full-file rewrite racing this
-    # revoke could win the last os.replace and resurrect a just-revoked attack-vector rule.
-    with _LOCK:
+    # R16 + HOLE #11: hold _LOCK AND cross_process_lock across the whole read-modify-write (matching
+    # ratify_ascension / is_sanctioned). Without the cross-process lock, a concurrent is_sanctioned()
+    # full-file rewrite in another PROCESS racing this revoke could win the last os.replace and
+    # resurrect a just-revoked attack-vector rule.
+    with _LOCK, cross_process_lock(_SANCTIONED_PATH):
         try:
             sanctioned = _load_sanctioned()
         except ValueError as exc:
@@ -468,7 +473,13 @@ def revoke_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
             with os.fdopen(fd, "w") as f:
                 f.write(_json_dumps(sanctioned))
             os.replace(tmp, _SANCTIONED_PATH)
-            # Preserve evidence of the revocation (no erasure, only de-sanction)
+        except Exception as exc:
+            logger.warning("revoke_ascension write failed: %s", exc)
+            return False
+        # HOLE #12: the de-sanction is now durable — the security-critical action SUCCEEDED. Record
+        # the revocation evidence best-effort; an append failure must NOT flip the result to False, or
+        # the operator would wrongly believe a revoked attack-vector rule is still live and act on it.
+        try:
             with open(_ESCALATION_PATH, "a", encoding="utf-8") as ef:
                 ef.write(_json_dumps({
                     "escalation_id": f"REVOKE-{key}",
@@ -477,11 +488,10 @@ def revoke_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
                     "ts": _finite_number(time.time(), "ts", nonnegative=True),
                     "status": "revoked",
                 }) + "\n")
-            logger.info("KRY ascension REVOKED by operator: %s:%s gated again", gate_class, rule)
-            return True
         except Exception as exc:
-            logger.warning("revoke_ascension write failed: %s", exc)
-            return False
+            logger.warning("revoke_ascension evidence append failed (rule already revoked): %s", exc)
+        logger.info("KRY ascension REVOKED by operator: %s:%s gated again", gate_class, rule)
+        return True
 
 
 def referee_status() -> dict:
