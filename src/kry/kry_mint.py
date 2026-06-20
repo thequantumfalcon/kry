@@ -34,6 +34,7 @@ import json
 import logging
 import math
 import os
+import re
 import struct
 import tempfile
 import threading
@@ -43,6 +44,12 @@ from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("kry.mint")
+
+# HOLE #27: exact, delimiter-bounded extraction of an OpenRouter gen id from a receipt's `detail`
+# (the host stamps " /openrouter:<id>"). Matching the marker as a SUBSTRING let a short id ('gen-1')
+# resolve a different session's receipt ('/openrouter:gen-1234…'), mis-binding a T2 proof / avoided
+# model. Membership in the extracted id list is an exact match.
+_OR_REF = re.compile(r"/openrouter:([^/\s]+)")
 
 
 def _kry_data_dir() -> Path:
@@ -160,7 +167,8 @@ class MintReceipt:
     usd_equivalent: float     # edge-weighted KRY × $0.000025 (honest avoided dollars)
     avoided_model:  str | None = None   # model the event avoided — edge-weights kry_minted
     evidence_tier:  str = TIER_SELF_REPORTED  # how the event was witnessed (veracity, not integrity)
-    hash_version:   int = 1   # receipt_hash format: 1=legacy, 2=+tier, 3=+metered_tokens
+    hash_version:   int = 1   # 1=legacy,2=+tier,3=+metered (receipt_hash); chain_hash adds 4=+public
+                              # block, 5=f64 (language-neutral), 6=+receipt_id. New mints are v6.
     metered_tokens: list | None = None  # F1: [prompt, completion] from a real provider usage payload
                                         # (T1 only) — what an auditor reconciles against the provider's own log
     supersedes:     str | None = None   # T2 tier-promotion: the receipt_id of the prior T1 receipt this
@@ -218,9 +226,9 @@ class MintReceipt:
         # receipt_hash preimage can't be re-derived — evidence_hash is sealed). receipt_hash itself
         # is unchanged (still privately binds tier via evidence_hash) — defence in depth.
         public_block = _v4_public_block(
-            hash_version=5, tokens_saved=tokens_saved, ts=ts,
+            hash_version=6, tokens_saved=tokens_saved, ts=ts,
             evidence_tier=tier, metered_tokens=metered_tokens, kry_minted=kry, earn_rate=rate,
-            supersedes=supersedes)
+            supersedes=supersedes, receipt_id=receipt_id)
         chain_hash   = hashlib.sha256(
             f"{previous_chain_hash}:{receipt_hash}:{public_block}".encode()
         ).hexdigest()
@@ -239,7 +247,7 @@ class MintReceipt:
             usd_equivalent=usd_equivalent,
             avoided_model=avoided_model,
             evidence_tier=tier,
-            hash_version=5,
+            hash_version=6,
             metered_tokens=metered_tokens,
             supersedes=supersedes,
         )
@@ -489,21 +497,57 @@ def _find_t1_receipt_for_gen(gen_id: str) -> Optional[dict]:
     displacement for this id (then T2 mints fresh value — no double to avoid)."""
     if not gen_id or not _MINT_LOG_PATH.exists():
         return None
-    marker = f"/openrouter:{gen_id}"
     found: Optional[dict] = None
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or marker not in line:
+                if not line or gen_id not in line:   # cheap pre-filter only
                     continue
                 rec = _json_loads(line)
-                if marker not in str(rec.get("detail") or ""):
+                if gen_id not in _OR_REF.findall(str(rec.get("detail") or "")):  # HOLE #27: exact
                     continue
                 if rec.get("evidence_tier") == TIER_TLSN_ATTESTED:
                     continue
                 if _finite_number(rec.get("kry_minted", 0.0), "kry_minted",
                                   positive=True) <= 0:
+                    continue
+                found = rec
+    except Exception:
+        return None
+    return found
+
+
+def _find_fresh_t2_receipt_for_gen(gen_id: str) -> Optional[dict]:
+    """A prior FRESH (non-zero-value) tlsn_attested mint for this gen id, if any.
+
+    HOLE #26: the verifier's fresh-mint path credits T2 value when no prior T1 host receipt exists.
+    Two valid presentations of the SAME idempotent provider generation (the GET /generation body is
+    identical, but transient bytes — Date header, attestation time, notary — differ) produce different
+    evidence hashes, so the replay-decay cap (which only collapses byte-identical replays) does NOT
+    stop both from minting full value. This finds an existing fresh T2 credit so the verifier can
+    refuse the second. Skips zero-value tier_promotion rows (promotions, not fresh credits). Exact
+    gen-id match. Returns the raw receipt dict, or None when none exists."""
+    if not gen_id or not _MINT_LOG_PATH.exists():
+        return None
+    found: Optional[dict] = None
+    try:
+        with open(_MINT_LOG_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or gen_id not in line:
+                    continue
+                rec = _json_loads(line)
+                if gen_id not in _OR_REF.findall(str(rec.get("detail") or "")):
+                    continue
+                if rec.get("evidence_tier") != TIER_TLSN_ATTESTED:
+                    continue
+                if rec.get("event_type") == "tier_promotion":   # zero-value promotion, not a credit
+                    continue
+                try:
+                    if _finite_number(rec.get("kry_minted", 0.0), "kry_minted", positive=True) <= 0:
+                        continue
+                except ValueError:
                     continue
                 found = rec
     except Exception:
@@ -733,7 +777,7 @@ def _canon_f64(x) -> str:
 
 def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
                      evidence_tier: str, metered_tokens, kry_minted: float, earn_rate: float,
-                     supersedes: str | None = None) -> str:
+                     supersedes: str | None = None, receipt_id: str | None = None) -> str:
     """v4: canonical serialization of the PUBLIC economic block bound into chain_hash, so a forged
     tier / kry_minted / earn_rate / tokens_saved / metered count breaks the chain on the PUBLIC
     attestation surface (where the receipt-hash preimage is un-recomputable — evidence_hash is sealed).
@@ -750,7 +794,13 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     non-promotion receipts serialize byte-identically to before (no format change for existing v4
     receipts), while a promotion's target becomes tamper-evident: any add/remove/change of supersedes
     breaks the chain. Previously it was unbound, so an operator could re-point a promotion at a larger
-    receipt and inflate veracity_floor while verify_chain still passed."""
+    receipt and inflate veracity_floor while verify_chain still passed.
+
+    **v6** additionally binds `receipt_id` (a plain string) for hash_version >= 6 — the OTHER half of
+    the promotion-overlay match (a promotion's `supersedes` resolves against a link's `receipt_id`).
+    Binding only `supersedes` (F2) left the receipt_id relabel-able, so an attacker could move a
+    DIFFERENT, larger receipt's value onto an anchored tier; binding receipt_id closes that. Additive
+    and version-dispatched — v4/v5 receipts are byte-unchanged."""
     # v5+ binds economic numbers + ts as the EXACT IEEE-754 double in big-endian hex (language-neutral,
     # no precision loss) so a non-Python stranger can recompute the hash; v4 and earlier keep CPython
     # float encoding — byte-UNCHANGED for every existing receipt (backward compatible). Only the hash
@@ -778,6 +828,14 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
         }
     if supersedes is not None:
         block["supersedes"] = supersedes
+    # v6 binds receipt_id ALWAYS (not only when present): the promotion overlay matches a
+    # promotion's `supersedes` against a link's `receipt_id`, and supersedes was already bound
+    # (F2) — but binding only one side of the match left a hole. With receipt_id unbound, an
+    # attacker could RELABEL a large self_reported link's receipt_id to equal a legit
+    # promotion's supersedes, moving that large value onto an anchored tier and inflating
+    # veracity_floor while the chain still verified. Binding it closes the relabel.
+    if hash_version >= 6:
+        block["receipt_id"] = receipt_id or ""
     return _json_dumps(block, sort_keys=True, separators=(",", ":"))
 
 
@@ -861,6 +919,64 @@ def verify_chain() -> tuple[bool, list[str]]:
                     errors.append(f"Line {lineno} ({rec.get('receipt_id', '?')}): {e}")
                     continue
 
+                rid = rec.get("receipt_id", "?")
+                ev = rec.get("event_type", "")
+                ts_v = float(rec["tokens_saved"])
+                rate_v = float(rec["earn_rate"])
+                kry_v = float(rec["kry_minted"])
+                # Magnitude-derivability gate (mirrors the external verifier
+                # scripts/kry_verify.py and kry_attest._magnitude_errors). Pre-v4
+                # receipts bind NEITHER kry_minted NOR earn_rate into any hash, so a
+                # forged/rebuilt chain could declare an arbitrary kry_minted and
+                # verify_chain would call it valid — and reconcile_ledger_from_chain
+                # would then rebuild the balance from that fabricated sum. Independently
+                # confirm the value is public arithmetic: kry = tokens × published_rate
+                # × published_multiplier.
+                if ts_v <= 0 or rate_v <= 0:
+                    if kry_v > 0:
+                        errors.append(
+                            f"Line {lineno} ({rid}): kry_minted {kry_v} with "
+                            f"tokens_saved={ts_v}/earn_rate={rate_v} — magnitude not "
+                            f"derivable from declared inputs")
+                else:
+                    pub_rate = _EARN_RATES.get(ev, 0.5)
+                    if abs(rate_v - pub_rate) > 1e-6:
+                        errors.append(
+                            f"Line {lineno} ({rid}): earn_rate {rate_v} != published "
+                            f"{pub_rate} for '{ev}' — non-standard rate")
+                    implied = kry_v / (ts_v * rate_v)
+                    try:
+                        from kry.kry_token import published_multipliers
+                        legal = set(published_multipliers().values())
+                    except Exception:
+                        legal = None
+                    if legal is not None and not any(abs(implied - m) <= 1e-3 for m in legal):
+                        errors.append(
+                            f"Line {lineno} ({rid}): implied price multiplier "
+                            f"{implied:.4f} is not a published value — magnitude used a "
+                            f"non-public price")
+                # provider_metered must carry a real [prompt, completion] payload — the
+                # thing an auditor reconciles against. Without this in-module check a
+                # provider_metered receipt with metered_tokens=null is accepted and
+                # veracity_breakdown reports veracity_floor=1.0 (fully anchored) on no
+                # evidence. Mirrors scripts/kry_verify.py:_tier_schema_errors.
+                if rec.get("evidence_tier", TIER_SELF_REPORTED) == TIER_PROVIDER_METERED:
+                    try:
+                        _metered_pair(rec.get("metered_tokens"))
+                    except ValueError as e:
+                        errors.append(
+                            f"Line {lineno} ({rid}): provider_metered receipt has "
+                            f"invalid metered_tokens — {e}")
+                # usd_equivalent is in NO hash preimage; retained_dollars_dated /
+                # chain_summary advertise it as a tamper-evident, revaluation-immune
+                # figure, so re-derive it from the bound kry_minted (0.000025 is the
+                # single mint-time USD constant) and reject an edited value.
+                usd_v = float(rec["usd_equivalent"])
+                if abs(usd_v - kry_v * 0.000025) > 1e-6:
+                    errors.append(
+                        f"Line {lineno} ({rid}): usd_equivalent {usd_v} != "
+                        f"kry_minted×$0.000025 — dated retained-dollars value tampered")
+
                 # Re-derive receipt_hash from content fields. v2 binds the
                 # veracity tier; v3 also binds provider metered token counts.
                 # Legacy receipts verify bit-for-bit under their original format.
@@ -916,7 +1032,8 @@ def verify_chain() -> tuple[bool, list[str]]:
                         evidence_tier=rec.get("evidence_tier", TIER_SELF_REPORTED),
                         metered_tokens=rec.get("metered_tokens"),
                         kry_minted=rec["kry_minted"], earn_rate=rec["earn_rate"],
-                        supersedes=rec.get("supersedes"))   # F2: bind the promotion target
+                        supersedes=rec.get("supersedes"),   # F2: bind the promotion target
+                        receipt_id=rec.get("receipt_id"))   # v6: bind receipt_id (overlay anchor)
                     expected_chain = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:
@@ -1156,8 +1273,13 @@ def reconcile_ledger_from_chain() -> dict:
     try:
         from kry import kry_token as _kt
         led = _kt.get_ledger()
-        led.balance = total
+        # The mint chain records only EARNS (every kry_minted >= 0); spend() never
+        # writes to it. So the spendable balance is lifetime-minted MINUS what was
+        # already spent — not the raw mint total. Setting balance = total would
+        # resurrect every spent KRY and break earn - spent == balance. total_spent is
+        # loaded from disk by get_ledger() and is left untouched.
         led.total_earned = total
+        led.balance = total - led.total_spent
         # S4: make save() (delta-merge: disk + (current - baseline)) land on the ABSOLUTE chain total,
         # regardless of the in-memory baseline or the disk state. Read the CURRENT on-disk values and use
         # them as the baseline, so the delta == (chain_total - on_disk) and the write == chain_total —
@@ -1173,7 +1295,10 @@ def reconcile_ledger_from_chain() -> dict:
         led.save()
     except Exception as exc:
         return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
-    return {"reconciled": True, "receipts": n, "balance_kry": round(total, 4),
+    # Report the balance that was actually PERSISTED, not the raw chain total: save() re-adopts the
+    # merged/clamped values into the in-memory ledger, so if total_spent exceeded the chain total the
+    # "never go negative" clamp pinned balance to 0 — and the return value must not claim otherwise.
+    return {"reconciled": True, "receipts": n, "balance_kry": round(led.balance, 4),
             "note": "balance rebuilt from tamper-evident mint chain (truth)"}
 
 

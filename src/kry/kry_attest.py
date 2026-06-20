@@ -273,7 +273,8 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                         evidence_tier=rec.get("evidence_tier", "self_reported"),
                         metered_tokens=rec.get("metered_tokens"),
                         kry_minted=rec.get("kry_minted"), earn_rate=rec.get("earn_rate", 0.0),
-                        supersedes=rec.get("supersedes"))   # F2: bind the promotion target
+                        supersedes=rec.get("supersedes"),   # F2: bind the promotion target
+                        receipt_id=rec.get("receipt_id"))   # v6: bind receipt_id (overlay anchor)
                     expected = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:
@@ -414,7 +415,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                 # RAW kry_minted (not the _finite_number-normalized one) so this matches the standalone
                 # kry_verify replica byte-for-byte (GPT v4-review MEDIUM: the two diverged on int vs float).
                 kry_minted=link.get("kry_minted"), earn_rate=link.get("earn_rate", 0.0),
-                supersedes=link.get("supersedes"))   # F2: bind the promotion target on the public surface
+                supersedes=link.get("supersedes"),   # F2: bind the promotion target on the public surface
+                receipt_id=link.get("receipt_id"))   # v6: bind receipt_id so a relabel breaks the chain
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}:{block}".encode()).hexdigest()
         else:
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}".encode()).hexdigest()

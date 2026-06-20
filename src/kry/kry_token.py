@@ -95,6 +95,7 @@ import os
 import tempfile
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
@@ -321,7 +322,7 @@ class KRYLedger:
     @property
     def efficiency_ratio(self) -> float:
         total = self.total_earned + self.total_spent
-        return self.total_earned / max(1.0, total)
+        return self.total_earned / total if total > 0 else 0.0
 
     @property
     def usd_equivalent_saved(self) -> float:
@@ -368,10 +369,39 @@ class KRYLedger:
                 disk_v = _finite_number(on_disk.get(k, 0.0), k)
                 delta = _finite_number(getattr(self, k), k) - self._baseline.get(k, 0.0)
                 merged[k] = _finite_number(disk_v + delta, k)
+            # Authoritative "never go negative" enforcement under the cross-process lock.
+            # spend()'s cap (actual = min(cost, in-memory balance)) is taken against a
+            # possibly-stale per-process snapshot, so two processes can each pass it and
+            # the independent delta-merge above would otherwise drive the on-disk balance
+            # negative (a real cross-process overspend). A balance can never be spent
+            # below 0, so the most that can have been spent is everything earned: pin
+            # balance at 0 and set total_spent == total_earned, keeping the falsifier
+            # invariant earned - spent == balance exact instead of going negative.
+            if merged["balance"] < 0:
+                merged["balance"] = 0.0
+                merged["total_spent"] = merged["total_earned"]
             # adopt merged values as the new in-memory truth + reset baseline
             for k in _MERGE_FIELDS:
                 setattr(self, k, merged[k])
             self._baseline = {k: merged[k] for k in _MERGE_FIELDS}
+            # Events accumulate across writers too. The scalars already do (delta-merge), but the
+            # events list was written last-writer-wins, silently dropping a concurrent process's audit
+            # records. Keep ALL of this process's in-memory events, and ADD only on-disk events that
+            # carry a tx_id we don't already hold (another writer's new events). Legacy/empty-tx_id
+            # disk events are skipped — they were already loaded into self.events at startup — so
+            # distinct legacy records that happen to share a (ts,kind,source,amount,detail) payload are
+            # NEVER collapsed by a tuple key, and our own events are never duplicated on a round-trip.
+            _mine = {e.tx_id for e in self.events if e.tx_id}
+            _combined = list(self.events)
+            for _raw in on_disk.get("events", []):
+                try:
+                    _de = _event_from_raw(_raw)
+                except Exception:
+                    continue
+                if _de.tx_id and _de.tx_id not in _mine:
+                    _combined.append(_de)
+            _combined.sort(key=lambda x: x.ts)
+            self.events = _combined[-500:]
             data = {
                 "balance": round(self.balance, 4),
                 "total_earned": round(self.total_earned, 4),
@@ -560,7 +590,7 @@ def earn(tokens: float, event_type: str, detail: str = "",
         ledger.events.append(KRYEvent(
             ts=time.time(), kind="earn", source=event_type,
             amount=kry, detail=f"{detail} [avoided={avoided_model},x{vmult:.2f}]"
-                   if avoided_model else detail))
+                   if avoided_model else detail, tx_id=uuid.uuid4().hex))
         # R22 durability fix: save EVERY earn. Periodic batching (% 20) silently
         # lost up to 19 earns — real retained dollars — on any reload/restart.
         # Delta-merge makes per-earn save concurrent-safe; batch only if perf is
@@ -625,7 +655,8 @@ def spend(model: str, output_tokens: int, detail: str = "") -> float:
         ledger.total_spent += actual
         ledger.events.append(KRYEvent(
             ts=time.time(), kind="spend", source=model,
-            amount=-actual, detail=detail or f"{output_tokens} output tokens"))
+            amount=-actual, detail=detail or f"{output_tokens} output tokens",
+            tx_id=uuid.uuid4().hex))
         try:
             ledger.save()  # R22: save every spend (was % 10 — same loss window)
         except Exception as exc:

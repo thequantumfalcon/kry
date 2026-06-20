@@ -19,6 +19,7 @@ upgrade if compact signatures ever matter.
 from __future__ import annotations
 
 import argparse
+import binascii
 import hashlib
 import json
 import sys
@@ -69,10 +70,12 @@ def combine(attestation_path: Path, policy: dict, contributions: list[dict]) -> 
     """Bundle contributions (deduped, council-only) into a threshold artifact."""
     message = Path(attestation_path).read_bytes()
     known = {e["fingerprint"] for e in policy["signers"]}
-    seen: dict[str, dict] = {}
-    for c in contributions:
-        if c.get("fingerprint") in known:
-            seen[c["fingerprint"]] = c
+    # HOLE #21: keep EVERY council-registered contribution (no last-wins dedup by fingerprint). The
+    # old `seen[fp] = c` let a later same-fingerprint contribution carrying a garbage signature
+    # overwrite a legitimate one, silently dropping that signer below quorum. verify_threshold already
+    # counts a fingerprint at most once and only on a VALID signature, so keeping all is safe and
+    # lets it select the valid one per signer.
+    sigs = [c for c in contributions if c.get("fingerprint") in known]
     return {
         "scheme": ARTIFACT_SCHEME,
         "alg": policy["alg"],
@@ -81,7 +84,7 @@ def combine(attestation_path: Path, policy: dict, contributions: list[dict]) -> 
         "policy_sha256": policy_digest(policy),
         "threshold": policy["threshold"],
         "council_size": len(policy["signers"]),
-        "signatures": list(seen.values()),
+        "signatures": sigs,
     }
 
 
@@ -111,6 +114,24 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     check("artifact threshold matches policy",
           artifact.get("threshold") == policy["threshold"])
 
+    # HOLE #19: independently enforce the invariant make_policy guarantees. A degenerate threshold
+    # (<= 0, > council size, or a non-int true/false/float) otherwise makes the quorum gate
+    # `len(counted) >= threshold` vacuously True — a false VERIFIED on ZERO signatures.
+    thr = policy.get("threshold")
+    check("policy threshold is an integer in 1..council_size",
+          isinstance(thr, int) and not isinstance(thr, bool)
+          and 1 <= thr <= len(policy["signers"]))
+    # HOLE #20: recompute each signer's fingerprint from its public key and reject a council that
+    # mislabels a key or lists the SAME key under two fingerprints — otherwise ONE secret-key holder
+    # could meet an m-of-n quorum by relabeling its single key, defeating "no single party could
+    # have produced this". The constructor (make_policy) enforces this; the stranger verifier must too.
+    _pks = [_unb64(e["public_key"]) for e in policy["signers"]]
+    check("policy fingerprints match public keys",
+          all(fingerprint(pk) == e.get("fingerprint")
+              for pk, e in zip(_pks, policy["signers"])))
+    check("policy has no duplicate public keys",
+          len({bytes(pk) for pk in _pks}) == len(_pks))
+
     by_fp = {e["fingerprint"]: _unb64(e["public_key"]) for e in policy["signers"]}
     alg = policy["alg"]
     counted: set[str] = set()
@@ -118,8 +139,18 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
         fp = s.get("fingerprint")
         if fp not in by_fp or fp in counted:
             continue
+        # HOLE #28: the artifact is attacker-supplied; a malformed signature entry (missing/non-string
+        # "signature", or non-base64) must SKIP (not count, and not crash the stranger verifier with an
+        # uncaught KeyError/binascii.Error). A skipped entry simply doesn't contribute to the quorum.
+        raw = s.get("signature")
+        if not isinstance(raw, str):
+            continue
+        try:
+            sig = _unb64(raw)
+        except (binascii.Error, ValueError):
+            continue
         with oqs.Signature(alg) as v:
-            if v.verify(attestation_bytes, _unb64(s["signature"]), by_fp[fp]):
+            if v.verify(attestation_bytes, sig, by_fp[fp]):
                 counted.add(fp)
     report["valid_signers"] = sorted(counted)
     report["valid_count"] = len(counted)

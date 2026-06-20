@@ -474,6 +474,34 @@ def _record_settled(party: str, amount: float, grant_id: str) -> None:
         ) from exc
 
 
+def _rollback_registry(reg_text: str, tip: Optional[dict]) -> None:
+    """HOLE #7: restore the registry file + tip to the pre-commit snapshot, used when a debit FAILS
+    after its obligation was committed (commit-first preserves F4 — a registry-write failure never
+    debits A; this rollback then removes the phantom obligation and keeps the grant retriable when the
+    debit, not the commit, is what failed). Runs under the caller's registry lock. A restore failure is
+    logged loudly rather than masking the original debit error / silently leaving a phantom obligation."""
+    try:
+        fd, tmp = tempfile.mkstemp(dir=_REGISTRY_PATH.parent, prefix=".regrb_")
+        with os.fdopen(fd, "w") as f:
+            f.write(reg_text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, _REGISTRY_PATH)
+        if tip is not None:
+            _write_tip(int(tip["count"]), tip["tip"])
+        else:
+            # No tip existed before the commit (first-ever settlement): drop the one _record_settled
+            # wrote, so the empty registry and the checkpoint agree (else verify_registry sees a
+            # truncation against a count-1 tip).
+            try:
+                _tip_path().unlink()
+            except FileNotFoundError:
+                pass
+    except Exception as exc:
+        logger.error("settlement registry rollback failed after a failed debit "
+                     "(manual reconciliation may be needed): %s", exc)
+
+
 # ── HOLE D fix: cross-node lease/nonce/TTL authority (real-time federation guard) ─
 #
 # The registry guard above is sound only against a MERGED federation registry; two
@@ -776,37 +804,74 @@ def settle(
     from kry._locks import cross_process_lock
     _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
-        # accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass the
-        # accept guard for one attested balance. The AUTHORITATIVE double-spend check is HERE, at
-        # commit, against the COMMITTED registry total under the cross-process lock — the second
-        # committer fails closed BEFORE debiting. (A directly-built grant carries attested_balance=-1
-        # and is skipped.) Registries are per-node and don't merge in real time, so a cross-node
-        # lease (not released here) holds A's spent amount until its TTL — conservative by design.
-        if grant.attested_balance >= 0:
-            committed = _load_registry()
-            if committed.get("__tampered__"):
-                raise SettlementPersistenceError("settlement registry tampered — failing closed")
-            already = committed.get(offer.from_party, 0.0)
-            if already + amount > grant.attested_balance + 1e-9:
+        try:
+            # accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass the
+            # accept guard for one attested balance. The AUTHORITATIVE double-spend check is HERE,
+            # against the COMMITTED registry total under the cross-process lock — the second committer
+            # fails closed BEFORE debiting. (A directly-built grant carries attested_balance=-1 and is
+            # skipped.) Registries are per-node and don't merge in real time, so a cross-node lease
+            # (not released here) holds A's spent amount until its TTL — conservative by design.
+            if grant.attested_balance >= 0:
+                committed = _load_registry()
+                if committed.get("__tampered__"):
+                    raise SettlementPersistenceError("settlement registry tampered — failing closed")
+                already = committed.get(offer.from_party, 0.0)
+                if already + amount > grant.attested_balance + 1e-9:
+                    raise SettlementPersistenceError(
+                        f"double-spend at commit: {offer.from_party} settled {already:.0f}+{amount:.0f} "
+                        f"> attested {grant.attested_balance:.0f} — failing closed")
+            # F4: COMMIT the obligation FIRST. A registry-write failure (or a double-settle of this
+            # grant) raises HERE, BEFORE the debit, so a commit failure never debits A — and we can roll
+            # the registry back, but we CANNOT un-debit A's opaque ledger, which is why the reversible
+            # side must come first. Snapshot the registry + tip so the debit step can undo this commit.
+            reg_before = _REGISTRY_PATH.read_text(encoding="utf-8") if _REGISTRY_PATH.exists() else ""
+            try:
+                tip_before = _read_tip()
+            except ValueError as exc:   # corrupt tip — surface as the settlement error type, not a raw ValueError
                 raise SettlementPersistenceError(
-                    f"double-spend at commit: {offer.from_party} settled {already:.0f}+{amount:.0f} "
-                    f"> attested {grant.attested_balance:.0f} — failing closed")
-        _record_settled(offer.from_party, amount, grant.grant_id)
-        _PENDING_RESERVATIONS[offer.from_party] = [
-            r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
-            if r["offer_id"] != offer.offer_id
-        ]
+                    f"settlement tip checkpoint unreadable: {exc}") from exc
+            _record_settled(offer.from_party, amount, grant.grant_id)
+            # HOLE #7: now move A's KRY and confirm it moved EXACTLY the agreed amount. If the debit
+            # fails / under-reports (e.g. A's balance dropped between accept and settle), ROLL BACK the
+            # just-committed obligation so no PHANTOM obligation remains and the grant stays retriable —
+            # the previous order left A's available balance permanently reduced with B credited nothing.
+            try:
+                debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
+            except Exception:
+                # The debit raised (moved nothing it could account for) — undo the obligation so no
+                # phantom remains and the grant stays retriable.
+                _rollback_registry(reg_before, tip_before)
+                raise
+            if abs(debited - amount) > 1e-9:
+                # Fail closed — B is never partially credited (the agreed routing did not happen). But
+                # a non-atomic debit on a balance that DROPPED between accept and settle moves
+                # min(amount, balance) and returns that partial amount; that value is gone from A's
+                # real ledger and we have no reverse callback to un-move it. So the registry must
+                # reflect what A ACTUALLY spent: roll back the agreed-`amount` obligation and, if any
+                # value moved, record THAT amount. Recording the real movement (not a clean 0) keeps A's
+                # cumulative-settled honest so it cannot over-spend across counterparties — the exact
+                # thing the registry prevents — and consumes the grant so the partial can't be retried
+                # into a second debit. A debit that truly moved nothing (debited == 0) rolls back clean
+                # and leaves the grant retriable. (debit_a_fn MUST report what it moved; a lying debit
+                # is out of scope — A is debiting its own ledger.)
+                _rollback_registry(reg_before, tip_before)
+                if debited > 0:
+                    _record_settled(offer.from_party, debited, grant.grant_id)
+                raise SettlementPersistenceError(
+                    f"debit moved {debited:.4f} but the committed obligation is {amount:.4f} — "
+                    f"settlement failed closed (B credited nothing; A's actual {debited:.4f} "
+                    f"movement recorded for double-spend accounting)")
+        finally:
+            # HOLE #9: always release this offer's in-process reservation when the locked block exits —
+            # even on a ceiling/duplicate rejection or a failed-and-rolled-back debit — so a correctly
+            # rejected settle does not hold the party's balance hostage until _LEASE_TTL. The
+            # authoritative double-spend bound is the committed registry. Mirrors the lease finally.
+            _PENDING_RESERVATIONS[offer.from_party] = [
+                r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
+                if r["offer_id"] != offer.offer_id
+            ]
 
-    # Registry committed and the obligation recorded — NOW move real KRY: debit A, then credit B.
-    debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
-    # S2: the registry already committed the AGREED `amount` (F4 ordering), so the debit MUST move
-    # exactly that. A debit_fn that moves less/zero (a failing or lying debit) would otherwise leave the
-    # registry recording `amount` while B is credited less — value destroyed, yet the receipt would read
-    # conserved=True. Fail closed: a debit that doesn't move the committed obligation is inconsistent.
-    if abs(debited - amount) > 1e-9:
-        raise SettlementPersistenceError(
-            f"debit moved {debited:.4f} but the committed obligation is {amount:.4f} — "
-            f"settlement inconsistent, failing closed")
+    # Obligation committed and A debited by exactly `amount` — NOW credit B.
     b_after = b_before + debited
 
     if a_balance_after_fn is not None:

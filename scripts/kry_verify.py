@@ -109,7 +109,9 @@ def _v4_public_block(link: dict) -> str:
     (pinned by test_external_verify, which verifies a real attestation through THIS stdlib verifier).
     Binds the public economic block into chain_hash so a forged tier / kry_minted / earn_rate / token
     count breaks the chain on the public surface here too. v5 binds economic numbers + ts as the EXACT
-    IEEE-754 double in big-endian hex (language-neutral); v4 and earlier keep CPython float encoding."""
+    IEEE-754 double in big-endian hex (language-neutral); v4 and earlier keep CPython float encoding.
+    v6 additionally binds `receipt_id` (a plain string) so a promotion's `supersedes` target cannot be
+    relabeled. Additive + version-dispatched — v4/v5 receipts hash byte-identically to before."""
     hv = link.get("hash_version", 1)
     if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 5:
         block = {
@@ -136,6 +138,10 @@ def _v4_public_block(link: dict) -> str:
     sup = link.get("supersedes")
     if sup is not None:
         block["supersedes"] = sup
+    # v6: bind receipt_id ALWAYS (byte-identical to the minter) so a relabel of a link's
+    # receipt_id — the overlay's match key for a promotion's `supersedes` — breaks the chain here.
+    if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
+        block["receipt_id"] = link.get("receipt_id") or ""
     return json.dumps(block, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
@@ -689,7 +695,11 @@ def main(argv: list[str] | None = None) -> int:
             registry_anchor_line = ("PASS — live settled >= published per-party totals (no rollback)"
                                     if ra_ok else "FAIL — registry rollback/un-spend vs the anchor")
 
-    v = att.get("veracity", {})
+    # HOLE #22: coerce a non-dict `veracity` (incl. JSON null, which verify_attestation considers
+    # VALID) to {} so the display below can't crash the stranger-facing CLI with an AttributeError
+    # on `v.get(...)`. The `{}` default only covers an ABSENT key, not a present non-dict value.
+    _v = att.get("veracity")
+    v = _v if isinstance(_v, dict) else {}
     # Display the verifier's OWN recomputed figures, not the operator-declared `receipts`/
     # `total_kry` fields — so a reader never mistakes an echoed claim for a verified number.
     _links = att.get("links") if isinstance(att.get("links"), list) else []
