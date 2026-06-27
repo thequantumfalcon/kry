@@ -52,8 +52,9 @@ one, and your assessment of impact.
 - The **disclosed honest limits** in `src/kry/kry_capabilities.py` (`per_event_counterfactual_proof`,
  `source_truth_of_self_report`, `sybil_resistant_identity`, `real_world_validated_savings`). These
  are *datasheet disclosures*, not defects — see `docs/KRY_READINESS.md`.
-- Resource exhaustion from a hostile input log (malformed/`NaN`/`inf` token counts already clamp to
- 0 — see `tests/test_stress.py`).
+- Resource exhaustion from a hostile input log — malformed/`NaN`/`inf` values are already rejected,
+ clamped to zero, or fail-closed depending on the code path (see `tests/test_stress.py` and
+ `tests/test_audit_round_debug.py`).
 - Social engineering of the maintainer.
 - Findings from automated scanners without a manually verified, KRY-specific impact.
 
