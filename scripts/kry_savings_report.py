@@ -115,9 +115,29 @@ def _load_records(path: str) -> list[dict]:
     return out
 
 
+def _json_bool(value, field: str) -> bool:
+    """Strict boolean parse. `bool("false")` is True in Python, so a JSON log carrying the STRING
+    "false"/"0"/"no" would otherwise be misclassified as a cache hit and OVER-count savings. Accept the
+    real boolean, the 0/1 ints, and the common string spellings; reject anything else (the caller skips
+    the record rather than guess)."""
+    if isinstance(value, bool):
+        return value
+    if value in (None, 0):
+        return False
+    if value == 1:
+        return True
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes"}:
+            return True
+        if lowered in {"false", "0", "no", ""}:
+            return False
+    raise ValueError(f"{field} must be a JSON boolean (got {value!r})")
+
+
 def normalize(rec: dict) -> dict | None:
     """Normalise a gateway record to the fields this tool needs. Returns None if it
-    carries no model (unusable)."""
+    carries no model (unusable) or carries a malformed boolean flag."""
     # A cache hit is served from cache, so it may carry no `model` (no call was
     # made) — only the `avoided_model` it stood in for. Accept either.
     model = rec.get("model") or rec.get("model_name") or rec.get("avoided_model")
@@ -128,8 +148,11 @@ def normalize(rec: dict) -> dict | None:
               or u.get("input_tokens") or u.get("native_tokens_prompt") or 0)
     completion = (u.get("completion_tokens") or u.get("tokens_completion")
                   or u.get("output_tokens") or u.get("native_tokens_completion") or 0)
-    cache_hit = bool(rec.get("cache_hit", rec.get("cached", False)))
-    holdout = bool(rec.get("holdout", False))
+    try:
+        cache_hit = _json_bool(rec.get("cache_hit", rec.get("cached", False)), "cache_hit")
+        holdout = _json_bool(rec.get("holdout", False), "holdout")
+    except ValueError:
+        return None   # malformed boolean flag → unusable record (skip rather than miscount)
     served_model = rec.get("served_model")
     avoided_model = rec.get("avoided_model") or (model if cache_hit else None)
     # Request class: prefer explicit; else the model being avoided (cache hit) or
@@ -150,8 +173,13 @@ def normalize(rec: dict) -> dict | None:
     }
 
 
-def analyze(records: list[dict]) -> dict:
+def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
     """Compute the savings report (read-only — no minting, no persisted state).
+
+    strict_baseline (external-facing mode): value cache-hit classes WITHOUT a measured holdout at 0
+    instead of full self-reported value, so an external report never presents un-validated savings as
+    dollars. Default False keeps the internal-analysis behaviour (full value, honest self_reported
+    label, veracity_floor still 0).
 
     Two passes: first tally per-class holdout outcomes (the counterfactual
     measurement), then value each cache hit at the holdout-conservative rate where a
@@ -211,7 +239,8 @@ def analyze(records: list[dict]) -> dict:
             # unmeasured OR too-thin a holdout to claim validation -> full value, honest
             # self_reported label (floor contribution 0). Stops a few fabricated holdout
             # records from buying the validated tier; thin samples must grow to count.
-            factor, tier = 1.0, "self_reported"
+            # --strict-baseline zeroes these for external reports (don't present un-validated savings).
+            factor, tier = (0.0 if strict_baseline else 1.0), "self_reported"
         kry = n["completion"] * rate * value_multiplier(n["avoided_model"]) * factor
         saved_kry += kry
         b["saved_kry"] += kry
@@ -233,6 +262,7 @@ def analyze(records: list[dict]) -> dict:
     total_flow = saved_kry + spend_kry
     return {
         "records": len(norm),
+        "strict_baseline": strict_baseline,
         "by_kind": by_kind,
         "saved_kry": round(saved_kry, 2),
         "saved_usd": round(saved_kry * USD_PER_KRY, 4),       # retained dollars
@@ -345,10 +375,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="write the savings into the KRY mint chain (operator's own ledger)")
     p.add_argument("--attest", default=None,
                    help="with --mint: write a public attestation JSON here (verify with kry_verify.py)")
+    p.add_argument("--strict-baseline", action="store_true",
+                   help="value cache-hit savings WITHOUT a measured holdout at 0 (external reports — "
+                        "never present un-validated savings as dollars)")
     args = p.parse_args(argv)
 
     records = _load_records(args.usage_log)
-    report = analyze(records)
+    report = analyze(records, strict_baseline=args.strict_baseline)
 
     if args.json:
         print(_json_dumps(report, indent=2))

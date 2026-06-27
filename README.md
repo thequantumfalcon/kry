@@ -195,6 +195,10 @@ witness a call that was never made. KRY makes that limit a first-class, labeled 
 | A stranger-verifiable proof-of-savings artifact | A claim that savings are externally guaranteed by default |
 | An honest accounting discipline (integrity vs veracity, separated) | A speculation, treasury, or exchange |
 
+> **Claims hierarchy.** [`docs/CLAIMS_BOUNDARY.md`](docs/CLAIMS_BOUNDARY.md) is the **authoritative** scope
+> for what KRY does and does not claim — it governs this README's prose, the demos, and every module
+> docstring. Where any of those read stronger than the boundary, the boundary wins.
+
 ---
 
 ## Quickstart
@@ -298,10 +302,10 @@ classified by *how the event was witnessed*, weakest to strongest:
  tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
  only be `self_reported` — a v1 receipt claiming a higher tier is rejected. New T1 receipts
  also hash-bind their `metered_tokens` (`hash_version = 3`), so provider reconciliation
- cannot swap token counts under the same receipt hash. The current format (`hash_version = 6`)
- additionally binds each receipt's `receipt_id` into the chain hash, so a T2 tier-promotion's
- `supersedes` target cannot be relabeled onto a different (larger) receipt to inflate the
- externally-anchored fraction.
+ cannot swap token counts under the same receipt hash. The current format (`hash_version = 7`)
+ also binds each receipt's `receipt_id` (so a T2 tier-promotion's `supersedes` target cannot be
+ relabeled onto a different, larger receipt to inflate the externally-anchored fraction) and its
+ `event_type` (so a link cannot be relabeled between two same-`earn_rate` event types).
 - **`verify_chain` proves integrity, not veracity.** It cannot distinguish an honest chain
  from one an operator re-derived from genesis (keyless SHA-256 + a local checkpoint): a full
  re-mint with upgraded tiers and inflated value passes it clean. The external root of trust
@@ -363,16 +367,17 @@ every amount** and rejects any receipt whose implied multiplier isn't a publishe
 This catches inflation **even when conservation is kept internally consistent** — a class
 of forgery the chain alone misses (the **F2** check).
 
-> **Cross-language verification (`hash_version` 6):** new chains bind the economic numbers and `ts`
+> **Cross-language verification (`hash_version` 7):** new chains bind the economic numbers and `ts`
 > into the chain hash as the **exact IEEE-754 double in big-endian hex** (`struct.pack('>d')`, the v5
 > encoding), so a _non-Python_ verifier (Rust / JS / Go) reproduces every hash byte-for-byte — no
 > dependence on CPython's float→JSON formatting, no precision loss, no rounding or integer-size choice.
-> **v6 also binds the receipt's `receipt_id`** (a plain string — emit it verbatim into the block) so a
-> promotion's re-tiering target (`supersedes`) cannot be relabeled to move a _different_ receipt's value
-> onto an anchored tier. A cross-language verifier must therefore add the `receipt_id` field to the v6
-> block it reconstructs. Legacy **v4** (CPython float encoding) and **v5** (f64-hex, no `receipt_id`)
-> receipts keep their original encoding and remain fully verifiable — the change is additive and
-> version-dispatched, so existing receipts, anchors, and the evidence bundle are byte-unchanged.
+> **v6 binds the receipt's `receipt_id`** and **v7 binds its `event_type`** (both plain strings — emit
+> them verbatim into the block) so a promotion's `supersedes` target cannot be re-pointed to a
+> _different_ receipt, and a link cannot be relabeled between two same-`earn_rate` event types. A
+> cross-language verifier adds the `receipt_id` (v6+) and `event_type` (v7+) fields to the block it
+> reconstructs. Legacy **v4/v5/v6** receipts keep their original encoding and remain fully verifiable —
+> the change is additive and version-dispatched, so existing receipts, anchors, and the evidence bundle
+> are byte-unchanged.
 
 ---
 

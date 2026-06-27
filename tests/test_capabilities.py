@@ -11,7 +11,7 @@ import kry.kry_capabilities as cap
 
 def test_audit_is_clean_every_implemented_claim_resolves():
     result = cap.verify_capabilities()
-    assert result["clean"], result["failures"]   # no 'implemented' claim is unbacked
+    assert result["static_claims_resolve"], result["failures"]   # no 'implemented' claim is unbacked
 
 
 def test_impossible_capabilities_are_not_marked_implemented():

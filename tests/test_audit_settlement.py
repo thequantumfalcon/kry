@@ -66,7 +66,8 @@ def test_s3_forged_unknown_tier_does_not_inflate_floor():
                                ts=link["ts"], evidence_tier="magic_attested",
                                metered_tokens=link.get("metered_tokens"),
                                kry_minted=link["kry_minted"], earn_rate=link["earn_rate"],
-                               supersedes=link.get("supersedes"), receipt_id=link.get("receipt_id"))
+                               supersedes=link.get("supersedes"), receipt_id=link.get("receipt_id"),
+                               event_type=link.get("event_type"))
     link["chain_hash"] = hashlib.sha256(
         ("0" * 64 + ":" + link["receipt_hash"] + ":" + block).encode()).hexdigest()
     d["chain_head"] = link["chain_hash"]

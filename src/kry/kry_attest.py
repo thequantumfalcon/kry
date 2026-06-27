@@ -5,9 +5,10 @@ events occurred, tied to the operator's real Copilot/Anthropic usage. That raw
 data must never leave the machine.
 
 But the PROOF that a KRY balance was honestly earned can be public — without
-revealing a single prompt, response, or cache key. This is the zero-knowledge
-seam: an external verifier confirms "this balance was minted from real
-efficiency events whose hash chain is intact" without seeing the content.
+revealing a single prompt, response, or cache key. This is the content-sealed
+attestation seam — a hash-chain integrity proof, NOT a zero-knowledge proof: an
+external verifier confirms "this balance was minted from real efficiency events
+whose hash chain is intact" without seeing the content.
 
 What an attestation EXPOSES (safe to share):
     - The number of mint receipts
@@ -29,9 +30,12 @@ Verification model (how a provider checks an attestation):
     2. Provider recomputes: chain_hash[i] == SHA256(chain_hash[i-1] + receipt_hash[i]).
        If every link holds, the chain is intact — no receipt was inserted,
        removed, or altered after minting.
-    3. The aggregate KRY is the sum of receipt amounts. The provider trusts the
-       balance because tampering with any amount breaks the chain.
-    4. The provider learns the balance is real WITHOUT learning what generated it.
+    3. The aggregate KRY is the sum of receipt amounts. Tampering with any amount
+       breaks the chain, so a verifier confirms INTEGRITY + conservation + magnitude
+       — event truth still rests on the evidence tier + any published anchor
+       (integrity != veracity; read veracity_floor).
+    4. The provider learns the balance is INTERNALLY consistent WITHOUT learning what
+       generated it (not proof the events happened).
 
 This mirrors:
     - Carbon registries: "X tonnes CO2e avoided, verified" — not the factory logs
@@ -58,9 +62,10 @@ def _kry_data_dir() -> Path:
 
 _MINT_LOG_PATH = _kry_data_dir() / "kry_mint_log.jsonl"
 
-# Public salt for re-hashing evidence so attestations can't be correlated back
-# to the private mint log. Rotating this salt makes old attestations
-# uncorrelatable — a privacy feature, not a security hole.
+# Public salt for re-hashing evidence so attestations do not directly expose the private mint log.
+# Rotating this salt makes old attestations harder to correlate. NOTE: the seal is DETERMINISTIC
+# under a fixed public salt, so a party who holds the private evidence_hash can still link it — this
+# HIDES the raw hash, it is not unlinkability.
 _ATTEST_SALT = "kry-attest-v1"
 
 
@@ -123,7 +128,7 @@ class AttestationLink:
     ts: float             # receipt timestamp; content-free and used for provider billing windows
     receipt_hash: str     # opaque SHA-256 (no content recoverable)
     chain_hash: str       # running chain hash
-    sealed_evidence: str  # re-hashed under salt — uncorrelatable to private log
+    sealed_evidence: str  # re-hashed under salt — hides the raw evidence hash (deterministic seal)
     evidence_tier: str = "self_reported"  # how the event was witnessed (veracity, not integrity)
     tokens_saved: float = 0.0   # F2: magnitude input (a count — no content) — lets a verifier
     earn_rate: float = 0.0      # F2: magnitude input — recompute kry = tokens × rate × multiplier
@@ -154,7 +159,8 @@ class Attestation:
 
 
 def _seal(evidence_hash: str) -> str:
-    """Re-hash an evidence hash under the public salt → uncorrelatable to the log."""
+    """Re-hash an evidence hash under the public salt → hides the raw hash. Deterministic, so a
+    holder of the private evidence_hash can still link it (this is not unlinkability)."""
     return hashlib.sha256(f"{_ATTEST_SALT}:{evidence_hash}".encode()).hexdigest()[:16]
 
 
@@ -274,7 +280,8 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                         metered_tokens=rec.get("metered_tokens"),
                         kry_minted=rec.get("kry_minted"), earn_rate=rec.get("earn_rate", 0.0),
                         supersedes=rec.get("supersedes"),   # F2: bind the promotion target
-                        receipt_id=rec.get("receipt_id"))   # v6: bind receipt_id (overlay anchor)
+                        receipt_id=rec.get("receipt_id"),   # v6: bind receipt_id (overlay anchor)
+                        event_type=rec.get("event_type"))   # v7: bind event_type
                     expected = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:
@@ -416,7 +423,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                 # kry_verify replica byte-for-byte (GPT v4-review MEDIUM: the two diverged on int vs float).
                 kry_minted=link.get("kry_minted"), earn_rate=link.get("earn_rate", 0.0),
                 supersedes=link.get("supersedes"),   # F2: bind the promotion target on the public surface
-                receipt_id=link.get("receipt_id"))   # v6: bind receipt_id so a relabel breaks the chain
+                receipt_id=link.get("receipt_id"),   # v6: bind receipt_id so a relabel breaks the chain
+                event_type=link.get("event_type"))   # v7: bind event_type (closes same-rate relabel)
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}:{block}".encode()).hexdigest()
         else:
             expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}".encode()).hexdigest()

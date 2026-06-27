@@ -109,7 +109,7 @@ def test_mixed_v1_then_v3_chain_verifies(isolated):
                 avoided_model="gh/claude-opus-4.8",
                 evidence_tier=km.TIER_PROVIDER_METERED,
                 metered_tokens=[120, 340])
-    assert r is not None and r.hash_version == 6   # current mint format (v6: +receipt_id binding)
+    assert r is not None and r.hash_version == 7   # current mint format (v7: +event_type binding)
     ok, errs = km.verify_chain()
     assert ok, errs
 
@@ -123,7 +123,7 @@ def test_v3_tier_is_tamper_evident(isolated):
 
     lines = log.read_text(encoding="utf-8").splitlines()
     rec = json.loads(lines[0])
-    assert rec["evidence_tier"] == "self_reported" and rec["hash_version"] == 6
+    assert rec["evidence_tier"] == "self_reported" and rec["hash_version"] == 7
     rec["evidence_tier"] = "provider_metered"   # forge an upgrade, leave hashes as-is
     log.write_text(json.dumps(rec) + "\n", encoding="utf-8")
 
@@ -142,7 +142,7 @@ def test_v3_metered_tokens_are_tamper_evident(isolated):
     assert km.verify_chain()[0]
 
     rec = json.loads(log.read_text(encoding="utf-8"))
-    assert rec["hash_version"] == 6
+    assert rec["hash_version"] == 7
     rec["metered_tokens"] = [1, 1]
     log.write_text(json.dumps(rec) + "\n", encoding="utf-8")
 
@@ -456,7 +456,7 @@ def test_chain_head_anchor_detects_remint(isolated):
         block = km._v4_public_block(hash_version=hv, tokens_saved=r["tokens_saved"], ts=r["ts"],
             evidence_tier=r["evidence_tier"], metered_tokens=r.get("metered_tokens"),
             kry_minted=r["kry_minted"], earn_rate=r["earn_rate"],
-            receipt_id=r.get("receipt_id"))
+            receipt_id=r.get("receipt_id"), event_type=r.get("event_type"))
         r["chain_hash"] = hashlib.sha256(f"{prev}:{r['receipt_hash']}:{block}".encode()).hexdigest()
         prev = r["chain_hash"]
     log.write_text("".join(json.dumps(r) + "\n" for r in rows))

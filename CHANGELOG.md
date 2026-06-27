@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (audit round 2)
+
+- **Durability fail-closed** — `KRYLedger.save()` re-raises on a write failure (and fsyncs), adopting
+  merged state only after a durable write so a failed save loses no delta; the replay-cap decay-state
+  write fails closed (no mint if the count isn't durable); a corrupt ledger is quarantined and rebuilt
+  from the chain rather than silently blanked.
+- **`hash_version 7` binds `event_type`** into the chain (closes a same-`earn_rate` link relabel under
+  a published anchor); additive, version-dispatched — v4/v5/v6 byte-unchanged. `evidence_hash` is now
+  full SHA-256 (was 64-bit truncated).
+
+### Fixed (audit round 2)
+
+- **`kry_savings_report`** strict boolean parsing (`"false"` no longer counts as a cache hit) + a
+  `--strict-baseline` mode valuing un-validated cache-hit savings at 0 for external reports.
+- **`kry_reconcile`** CLI no longer crashes (`None * 100`) with no T1 receipts; **`kry_or_fetch`/privacy**
+  — `provider_name` added to the export allowlist; **`kry_carbon`/`kry_baseline`** env constants reject
+  NaN/inf/out-of-range; settlement lease stale-lock stealing is opt-in (`KRY_SETTLE_LEASE_STEAL_STALE`).
+- **Honest wording** — "trustless settlement" → "federated, registry-backed"; "zero-knowledge seam" →
+  "content-sealed attestation (not a ZK proof)"; sealed-evidence "uncorrelatable" qualified;
+  `verify_capabilities` `clean` → `static_claims_resolve`.
+
 ### Security
 
 - **Mint-chain magnitude gate in `verify_chain`** — the in-package chain verifier now recomputes
