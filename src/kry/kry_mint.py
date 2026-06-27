@@ -168,7 +168,7 @@ class MintReceipt:
     avoided_model:  str | None = None   # model the event avoided — edge-weights kry_minted
     evidence_tier:  str = TIER_SELF_REPORTED  # how the event was witnessed (veracity, not integrity)
     hash_version:   int = 1   # 1=legacy,2=+tier,3=+metered (receipt_hash); chain_hash adds 4=+public
-                              # block, 5=f64 (language-neutral), 6=+receipt_id. New mints are v6.
+                              # block, 5=f64 (language-neutral), 6=+receipt_id, 7=+event_type. v7 now.
     metered_tokens: list | None = None  # F1: [prompt, completion] from a real provider usage payload
                                         # (T1 only) — what an auditor reconciles against the provider's own log
     supersedes:     str | None = None   # T2 tier-promotion: the receipt_id of the prior T1 receipt this
@@ -226,9 +226,9 @@ class MintReceipt:
         # receipt_hash preimage can't be re-derived — evidence_hash is sealed). receipt_hash itself
         # is unchanged (still privately binds tier via evidence_hash) — defence in depth.
         public_block = _v4_public_block(
-            hash_version=6, tokens_saved=tokens_saved, ts=ts,
+            hash_version=7, tokens_saved=tokens_saved, ts=ts,
             evidence_tier=tier, metered_tokens=metered_tokens, kry_minted=kry, earn_rate=rate,
-            supersedes=supersedes, receipt_id=receipt_id)
+            supersedes=supersedes, receipt_id=receipt_id, event_type=event_type)
         chain_hash   = hashlib.sha256(
             f"{previous_chain_hash}:{receipt_hash}:{public_block}".encode()
         ).hexdigest()
@@ -247,7 +247,7 @@ class MintReceipt:
             usd_equivalent=usd_equivalent,
             avoided_model=avoided_model,
             evidence_tier=tier,
-            hash_version=6,
+            hash_version=7,
             metered_tokens=metered_tokens,
             supersedes=supersedes,
         )
@@ -375,17 +375,25 @@ def _decayed_tokens(evidence_hash: str, tokens: float) -> float:
         factor = _DECAY ** count
         state[evidence_hash] = [count + 1, start]
         _evidence_mints = state
+        _DECAY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=_DECAY_STATE_PATH.parent, prefix=".decay_")
         try:
-            _DECAY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp = tempfile.mkstemp(dir=_DECAY_STATE_PATH.parent, prefix=".decay_")
             with os.fdopen(fd, "w") as f:
                 f.write(_json_dumps(state))
+                f.flush()
+                os.fsync(f.fileno())   # durability: the replay count must survive a crash
             os.replace(tmp, _DECAY_STATE_PATH)
         except Exception as exc:
-            # L1: best-effort persist (replay decay falls back to the on-disk state next mint), but a
-            # real persistence fault must NOT be silent — warn so it's diagnosable.
-            logger.warning("KRY decay-state write failed (%s) — replay decay will use the on-disk "
-                           "state on the next mint", exc)
+            # Fail CLOSED. The replay/supply cap is only sound if the incremented count is DURABLE: if
+            # this write fails the count isn't persisted, so the next mint of the SAME evidence reads
+            # the OLD count and applies the same (non-decaying) factor again — unbounded phantom
+            # minting. Refuse rather than mint without a durable replay record; mint() catches this and
+            # returns None (the saving is dropped — the honest undercount direction for a supply cap).
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise RuntimeError(
+                f"KRY decay-state write failed; refusing to mint because the replay cap is not "
+                f"durable: {exc}") from exc
     return tokens * factor
 
 
@@ -435,7 +443,7 @@ def mint(
         from kry._locks import cross_process_lock
         evidence_hash = hashlib.sha256(
             (evidence or detail or event_type).encode()
-        ).hexdigest()[:16]
+        ).hexdigest()   # full SHA-256 (was truncated to 64 bits) — evidence id / decay key
 
         with _MINT_LOCK:
             # Supply control: decay repeated mints of the same evidence
@@ -589,7 +597,7 @@ def promote_to_tlsn(
         from kry._locks import cross_process_lock
         evidence_hash = hashlib.sha256(
             (evidence_binding or f"tlsn_promote:{gen_id}").encode()
-        ).hexdigest()[:16]
+        ).hexdigest()   # full SHA-256 (was truncated to 64 bits) — evidence id / decay key
         with _MINT_LOCK:
             _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with cross_process_lock(_MINT_LOG_PATH):
@@ -723,7 +731,7 @@ def promote_to_tee(
         from kry._locks import cross_process_lock
         evidence_hash = hashlib.sha256(
             (evidence_binding or f"tee_promote:{measurement_id}").encode()
-        ).hexdigest()[:16]
+        ).hexdigest()   # full SHA-256 (was truncated to 64 bits) — evidence id / decay key
         with _MINT_LOCK:
             _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with cross_process_lock(_MINT_LOG_PATH):
@@ -777,7 +785,8 @@ def _canon_f64(x) -> str:
 
 def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
                      evidence_tier: str, metered_tokens, kry_minted: float, earn_rate: float,
-                     supersedes: str | None = None, receipt_id: str | None = None) -> str:
+                     supersedes: str | None = None, receipt_id: str | None = None,
+                     event_type: str | None = None) -> str:
     """v4: canonical serialization of the PUBLIC economic block bound into chain_hash, so a forged
     tier / kry_minted / earn_rate / tokens_saved / metered count breaks the chain on the PUBLIC
     attestation surface (where the receipt-hash preimage is un-recomputable — evidence_hash is sealed).
@@ -786,9 +795,7 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     CPython floats (Python-portable); **v5** binds them as the EXACT IEEE-754 double in big-endian hex
     (`_canon_f64`) so a NON-Python verifier reproduces the hash byte-for-byte — version-dispatched and
     additive, so v4 receipts are byte-unchanged. `hash_version` is bound too, so an attacker can't change just the
-    version without breaking the chain. (`event_type`
-    is deliberately NOT bound here — it carries no economic value and is already bound to the savings
-    report by the artifact's `attestation_matches_report_event_counts` product gate.)
+    version without breaking the chain. (`event_type` is unbound below v7 — bound at v7+, see below.)
 
     F2: `supersedes` (a T2 promotion's re-tiering target) is bound too, but ONLY when present — so
     non-promotion receipts serialize byte-identically to before (no format change for existing v4
@@ -800,7 +807,13 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     the promotion-overlay match (a promotion's `supersedes` resolves against a link's `receipt_id`).
     Binding only `supersedes` (F2) left the receipt_id relabel-able, so an attacker could move a
     DIFFERENT, larger receipt's value onto an anchored tier; binding receipt_id closes that. Additive
-    and version-dispatched — v4/v5 receipts are byte-unchanged."""
+    and version-dispatched — v4/v5 receipts are byte-unchanged.
+
+    **v7** additionally binds `event_type` for hash_version >= 7. It is exposed publicly (drives
+    `event_type_counts` and trust interpretation) but was unbound below v7, so an attacker could relabel
+    a link between two SAME-`earn_rate` event types — the magnitude check only pins earn_rate — without
+    breaking the chain, even under a published anchor. Binding it makes public event classification
+    tamper-evident too. Additive — v4/v5/v6 receipts are byte-unchanged."""
     # v5+ binds economic numbers + ts as the EXACT IEEE-754 double in big-endian hex (language-neutral,
     # no precision loss) so a non-Python stranger can recompute the hash; v4 and earlier keep CPython
     # float encoding — byte-UNCHANGED for every existing receipt (backward compatible). Only the hash
@@ -836,6 +849,9 @@ def _v4_public_block(*, hash_version: int, tokens_saved: float, ts: float,
     # veracity_floor while the chain still verified. Binding it closes the relabel.
     if hash_version >= 6:
         block["receipt_id"] = receipt_id or ""
+    # v7 binds event_type (see docstring): closes the same-earn_rate relabel on the public surface.
+    if hash_version >= 7:
+        block["event_type"] = event_type or ""
     return _json_dumps(block, sort_keys=True, separators=(",", ":"))
 
 
@@ -1033,7 +1049,8 @@ def verify_chain() -> tuple[bool, list[str]]:
                         metered_tokens=rec.get("metered_tokens"),
                         kry_minted=rec["kry_minted"], earn_rate=rec["earn_rate"],
                         supersedes=rec.get("supersedes"),   # F2: bind the promotion target
-                        receipt_id=rec.get("receipt_id"))   # v6: bind receipt_id (overlay anchor)
+                        receipt_id=rec.get("receipt_id"),   # v6: bind receipt_id (overlay anchor)
+                        event_type=rec.get("event_type"))   # v7: bind event_type
                     expected_chain = hashlib.sha256(
                         f"{prev_chain}:{rec['receipt_hash']}:{block}".encode()).hexdigest()
                 else:

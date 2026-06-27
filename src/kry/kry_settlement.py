@@ -1,4 +1,4 @@
-"""KRY Settlement — trustless two-party transfer protocol.
+"""KRY Settlement — federated, registry-backed settlement protocol (offline-verifiable proofs).
 
 The piece that makes KRY an EXTERNAL token rather than internal accounting:
 two parties who do not trust each other settle a routing transaction using only
@@ -544,6 +544,15 @@ def _lease_dir() -> Optional[Path]:
 
 
 _LEASE_LOCK_STALE_S = 30.0   # a .lock older than this is presumed orphaned (holder crashed)
+# Stealing a stale lock auto-recovers from a crashed holder (Audit G: an orphaned lock must not
+# deadlock every future settlement). The risk a prior review raised: a legitimate op SLOWER than the
+# threshold would have its lock stolen -> split-brain. But the lease critical section is a small JSON
+# read-modify-write (sub-second on healthy storage), so a 30s+ hold means a crash, not a slow op —
+# hence stealing stays ON by default (crash recovery > a theoretical 30s+ op). Safety-priority
+# deployments on pathologically slow storage can DISABLE it with KRY_SETTLE_LEASE_STEAL_STALE=0, which
+# then fails closed at the 60s contention deadline below instead of risking a steal.
+_LEASE_STEAL_STALE = os.environ.get(
+    "KRY_SETTLE_LEASE_STEAL_STALE", "1").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _lease_lock(authdir: Path) -> None:
@@ -564,7 +573,7 @@ def _lease_lock(authdir: Path) -> None:
                 age = time.time() - lock.stat().st_mtime
             except FileNotFoundError:
                 continue   # lock vanished — race the create again
-            if age > _LEASE_LOCK_STALE_S:
+            if _LEASE_STEAL_STALE and age > _LEASE_LOCK_STALE_S:
                 try:
                     lock.unlink()
                 except FileNotFoundError:

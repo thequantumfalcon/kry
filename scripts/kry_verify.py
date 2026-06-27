@@ -110,8 +110,9 @@ def _v4_public_block(link: dict) -> str:
     Binds the public economic block into chain_hash so a forged tier / kry_minted / earn_rate / token
     count breaks the chain on the public surface here too. v5 binds economic numbers + ts as the EXACT
     IEEE-754 double in big-endian hex (language-neutral); v4 and earlier keep CPython float encoding.
-    v6 additionally binds `receipt_id` (a plain string) so a promotion's `supersedes` target cannot be
-    relabeled. Additive + version-dispatched — v4/v5 receipts hash byte-identically to before."""
+    v6 binds `receipt_id` and v7 binds `event_type` (both plain strings) so a promotion's `supersedes`
+    target cannot be re-pointed and a same-rate event-type relabel is caught. Additive +
+    version-dispatched — v4/v5/v6 receipts hash byte-identically to before."""
     hv = link.get("hash_version", 1)
     if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 5:
         block = {
@@ -142,6 +143,9 @@ def _v4_public_block(link: dict) -> str:
     # receipt_id — the overlay's match key for a promotion's `supersedes` — breaks the chain here.
     if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
         block["receipt_id"] = link.get("receipt_id") or ""
+    # v7: bind event_type (byte-identical to the minter) — closes the same-earn_rate relabel.
+    if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 7:
+        block["event_type"] = link.get("event_type") or ""
     return json.dumps(block, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 

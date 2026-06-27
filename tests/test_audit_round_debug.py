@@ -45,7 +45,8 @@ def test_verify_chain_rejects_fabricated_kry_minted():
         f":{r['evidence_tier']}:{metered}".encode()).hexdigest()
     block = km._v4_public_block(hash_version=hv, tokens_saved=r["tokens_saved"], ts=r["ts"],
         evidence_tier=r["evidence_tier"], metered_tokens=r.get("metered_tokens"),
-        kry_minted=r["kry_minted"], earn_rate=r["earn_rate"], receipt_id=r.get("receipt_id"))
+        kry_minted=r["kry_minted"], earn_rate=r["earn_rate"], receipt_id=r.get("receipt_id"),
+        event_type=r.get("event_type"))
     r["chain_hash"] = hashlib.sha256(f"{'0'*64}:{r['receipt_hash']}:{block}".encode()).hexdigest()
     log.write_text(json.dumps(r) + "\n")
     km._write_mint_tip(1, r["chain_hash"])
@@ -111,11 +112,11 @@ def test_attestation_rejects_relabeled_receipt_id():
     assert not ok
 
 
-def test_minted_receipts_are_hash_version_6():
-    """#10: new mints bind receipt_id at v6 (v4/v5 stay byte-compatible via dispatch)."""
+def test_minted_receipts_are_hash_version_7():
+    """#10/v7: new mints bind receipt_id (v6) + event_type (v7); v4/v5 stay byte-compatible via dispatch."""
     import kry.kry_mint as km
     r = km.mint("cache_hit", 100.0, evidence="e", avoided_model="opus")
-    assert r is not None and r.hash_version == 6
+    assert r is not None and r.hash_version == 7
 
 
 # ── #1/#17 & #2 & #3 — ledger accounting ──────────────────────────────────────
@@ -326,3 +327,93 @@ def test_pending_store_rejects_nonfinite_symmetrically(monkeypatch):
         kp.record_pending({"event_type": "cache_hit", "tokens_saved": float("inf")})
     # the prior good pending must survive (atomic write never replaced the store with a poison value)
     assert kp.stats().get("pending") == 1
+
+
+# ── Review-round-2 regressions (external-review fixes) ────────────────────────
+
+def test_v7_binds_event_type_against_same_rate_relabel():
+    """Review #5/v7: relabeling a link to a same-earn_rate event type now breaks the chain."""
+    import kry.kry_mint as km
+    import kry.kry_attest as ka
+    km.mint("cache_hit", 1000.0, evidence="e", avoided_model="opus")     # cache_hit, rate 1.0
+    att = json.loads(ka.build_attestation().to_public_json())
+    assert att["links"][0]["hash_version"] == 7
+    assert ka.verify_attestation(json.dumps(att))[0]
+    att["links"][0]["event_type"] = "short_circuit"      # same rate 1.0 (magnitude can't catch it)
+    att["event_type_counts"] = {"short_circuit": 1}
+    att["attestation_hash"] = ""
+    att["attestation_hash"] = ka._attestation_hash(att)
+    assert not ka.verify_attestation(json.dumps(att))[0]
+
+
+def test_evidence_hash_is_full_sha256():
+    """Review #9: evidence_hash is the full SHA-256 (was 64-bit truncated)."""
+    import kry.kry_mint as km
+    r = km.mint("cache_hit", 100.0, evidence="e", avoided_model="opus")
+    assert r is not None and len(r.evidence_hash) == 64
+
+
+def test_save_reraises_and_preserves_delta_on_write_failure(monkeypatch):
+    """Review #6: save() re-raises on a write failure and does NOT adopt — the delta retries in full."""
+    import os
+    import kry.kry_token as kt
+    led = kt.KRYLedger()
+    led.balance = led.total_earned = 100.0
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+    real = os.replace
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError):
+        led.save()
+    monkeypatch.setattr(os, "replace", real)
+    led.total_earned += 50.0
+    led.balance += 50.0
+    led.save()
+    assert json.loads(kt._LEDGER_PATH.read_text())["total_earned"] == pytest.approx(150.0)
+
+
+def test_decay_state_write_fails_closed(monkeypatch):
+    """Review #8: a failed decay-state write refuses to mint (no replay-cap-less mint)."""
+    import os
+    import kry.kry_mint as km
+    real = os.replace
+
+    def boom(src, dst):
+        if "decay" in str(src) or "decay" in str(dst):
+            raise OSError("disk full")
+        return real(src, dst)
+    monkeypatch.setattr(os, "replace", boom)
+    assert km.mint("cache_hit", 100.0, evidence="e", avoided_model="opus") is None
+
+
+def test_load_or_create_quarantines_corrupt_ledger():
+    """Review #7: a corrupt ledger is quarantined + a fresh one returned (not silently blanked)."""
+    import kry.kry_token as kt
+    kt._LEDGER_PATH.write_text("{ not valid json")
+    led = kt.KRYLedger.load_or_create()
+    assert led.balance == 0.0
+    assert kt._LEDGER_PATH.with_suffix(kt._LEDGER_PATH.suffix + ".corrupt").exists()
+
+
+def test_savings_report_string_false_is_not_a_cache_hit():
+    """Review E1: the JSON string "false" must not be classified as a cache hit (bool('false') is True)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sr", "scripts/kry_savings_report.py")
+    sr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sr)
+    assert sr.normalize({"model": "x", "cache_hit": "false"})["cache_hit"] is False
+    assert sr.normalize({"model": "x", "cache_hit": "true"})["cache_hit"] is True
+
+
+def test_carbon_and_baseline_reject_bad_env(monkeypatch):
+    """Review #13/E8: NaN/inf/out-of-range/unparseable env constants fall back to the default."""
+    import kry.kry_carbon as kc
+    import kry.kry_baseline as kb
+    for bad in ("nan", "inf", "-5", "notanumber"):   # non-finite / negative / unparseable: bad for both
+        monkeypatch.setenv("KRY_TEST_BAD", bad)
+        assert kc._env_finite_nonnegative("KRY_TEST_BAD", 2.0) == 2.0
+        assert kb._env_rate("KRY_TEST_BAD", 0.02) == 0.02
+    monkeypatch.setenv("KRY_TEST_BAD", "1.5")        # >1 is invalid for a RATE, but valid for a constant
+    assert kb._env_rate("KRY_TEST_BAD", 0.02) == 0.02
+    assert kc._env_finite_nonnegative("KRY_TEST_BAD", 2.0) == 1.5

@@ -5,6 +5,7 @@ This pins the smallest buyer/reviewer packet: savings report + public attestatio
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 from datetime import datetime, timezone
@@ -2276,6 +2277,16 @@ def test_attestation_event_counts_must_match_savings_report(minted_sample, tmp_p
         "cache_hit": att["event_type_counts"]["cache_hit"] - 1,
         "short_circuit": att["event_type_counts"].get("short_circuit", 0) + 1,
     }
+    # v7 binds event_type into chain_hash, so a relabel must RE-CHAIN to stay internally valid. The
+    # point of this test is that the higher artifact gate (attestation_matches_report_event_counts)
+    # rejects an attestation whose event counts disagree with the SAVINGS REPORT even when it is
+    # internally consistent — so make it internally consistent first.
+    _prev = "0" * 64
+    for _lk in att["links"]:
+        _blk = art.kry_verify._v4_public_block(_lk)
+        _lk["chain_hash"] = hashlib.sha256(f"{_prev}:{_lk['receipt_hash']}:{_blk}".encode()).hexdigest()
+        _prev = _lk["chain_hash"]
+    att["chain_head"] = att["links"][-1]["chain_hash"]
     att["attestation_hash"] = art.kry_verify._attestation_hash(att)
     assert art.kry_verify.verify_attestation(att)[0]
     tampered_att.write_text(json.dumps(att, indent=2, sort_keys=True), encoding="utf-8")

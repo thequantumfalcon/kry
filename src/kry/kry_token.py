@@ -330,22 +330,36 @@ class KRYLedger:
 
     @classmethod
     def load_or_create(cls) -> "KRYLedger":
+        if not _LEDGER_PATH.exists():
+            return cls()   # normal first run — no ledger yet
         try:
-            if _LEDGER_PATH.exists():
-                raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
-                events = [_event_from_raw(e) for e in raw.get("events", [])]
-                return cls(
-                    balance=_finite_number(raw.get("balance", 0.0), "balance"),
-                    total_earned=_finite_number(raw.get("total_earned", 0.0),
-                                                "total_earned", nonnegative=True),
-                    total_spent=_finite_number(raw.get("total_spent", 0.0),
-                                               "total_spent", nonnegative=True),
-                    events=events[-500:],
-                    cycle_count=raw.get("cycle_count", 0),
-                )
-        except Exception:
-            pass
-        return cls()
+            raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
+            events = [_event_from_raw(e) for e in raw.get("events", [])]
+            return cls(
+                balance=_finite_number(raw.get("balance", 0.0), "balance"),
+                total_earned=_finite_number(raw.get("total_earned", 0.0),
+                                            "total_earned", nonnegative=True),
+                total_spent=_finite_number(raw.get("total_spent", 0.0),
+                                           "total_spent", nonnegative=True),
+                events=events[-500:],
+                cycle_count=raw.get("cycle_count", 0),
+            )
+        except Exception as exc:
+            # A PRESENT-but-unparseable/invalid ledger is corruption. Do NOT silently return a blank
+            # ledger — that hides the corruption and reports a false 0 balance until someone reconciles.
+            # Quarantine the bad file and start fresh LOUDLY; reconcile_ledger_from_chain() rebuilds the
+            # real balance from the tamper-evident mint chain.
+            try:
+                corrupt = _LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt")
+                os.replace(_LEDGER_PATH, corrupt)
+                where = str(corrupt)
+            except OSError:
+                where = "(could not move it aside)"
+            logger.error(
+                "KRY ledger at %s is corrupt (%s) — quarantined to %s and starting from a blank "
+                "ledger. Run kry.kry_mint.reconcile_ledger_from_chain() to rebuild the balance from "
+                "the mint chain.", _LEDGER_PATH, exc, where)
+            return cls()
 
     def save(self) -> None:
         """Delta-merge save (R6): apply only this process's change since its last
@@ -380,10 +394,6 @@ class KRYLedger:
             if merged["balance"] < 0:
                 merged["balance"] = 0.0
                 merged["total_spent"] = merged["total_earned"]
-            # adopt merged values as the new in-memory truth + reset baseline
-            for k in _MERGE_FIELDS:
-                setattr(self, k, merged[k])
-            self._baseline = {k: merged[k] for k in _MERGE_FIELDS}
             # Events accumulate across writers too. The scalars already do (delta-merge), but the
             # events list was written last-writer-wins, silently dropping a concurrent process's audit
             # records. Keep ALL of this process's in-memory events, and ADD only on-disk events that
@@ -391,6 +401,8 @@ class KRYLedger:
             # disk events are skipped — they were already loaded into self.events at startup — so
             # distinct legacy records that happen to share a (ts,kind,source,amount,detail) payload are
             # NEVER collapsed by a tuple key, and our own events are never duplicated on a round-trip.
+            # Build the merged state into LOCALS first; self/_baseline are adopted only AFTER a durable
+            # write succeeds (see below), so a write failure loses nothing.
             _mine = {e.tx_id for e in self.events if e.tx_id}
             _combined = list(self.events)
             for _raw in on_disk.get("events", []):
@@ -401,24 +413,38 @@ class KRYLedger:
                 if _de.tx_id and _de.tx_id not in _mine:
                     _combined.append(_de)
             _combined.sort(key=lambda x: x.ts)
-            self.events = _combined[-500:]
+            merged_events = _combined[-500:]
+            _m_total = merged["total_earned"] + merged["total_spent"]
             data = {
-                "balance": round(self.balance, 4),
-                "total_earned": round(self.total_earned, 4),
-                "total_spent": round(self.total_spent, 4),
+                "balance": round(merged["balance"], 4),
+                "total_earned": round(merged["total_earned"], 4),
+                "total_spent": round(merged["total_spent"], 4),
                 "cycle_count": self.cycle_count,
-                "usd_equivalent_saved": round(self.usd_equivalent_saved, 6),
-                "efficiency_ratio": round(self.efficiency_ratio, 4),
-                "events": [asdict(e) for e in self.events[-500:]],
+                "usd_equivalent_saved": round(merged["total_earned"] * USD_PER_KRY, 6),
+                "efficiency_ratio": round(merged["total_earned"] / _m_total if _m_total > 0 else 0.0, 4),
+                "events": [asdict(e) for e in merged_events],
             }
             fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
             try:
                 with os.fdopen(fd, "w") as f:
                     f.write(_json_dumps(data, indent=2))
+                    f.flush()
+                    os.fsync(f.fileno())   # durability: the ledger must survive power loss, not tear
                 os.replace(tmp, _LEDGER_PATH)
             except Exception:
+                # Do NOT swallow, and do NOT adopt the merged state. earn()/spend() wrap save() to warn
+                # + fall back to the mint chain on a persistence failure — that warning only fires if we
+                # re-raise. Leaving self/_baseline UNADVANCED means the unpersisted delta is retried in
+                # FULL on the next save instead of being silently dropped (adopting before the write
+                # would zero the delta and lose it).
                 if os.path.exists(tmp):
                     os.unlink(tmp)
+                raise
+            # Durable write succeeded — NOW adopt the merged values as the new in-memory truth.
+            for k in _MERGE_FIELDS:
+                setattr(self, k, merged[k])
+            self._baseline = {k: merged[k] for k in _MERGE_FIELDS}
+            self.events = merged_events
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────

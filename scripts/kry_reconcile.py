@@ -409,8 +409,14 @@ def main(argv: list[str] | None = None) -> int:
     print("KRY T1 provider reconciliation")
     print(f"  T1 (provider_metered) receipts: {result['t1_receipts']}")
     print(f"  provider usage records:         {result['provider_records']}")
-    print(f"  matched:                        {result['matched']} "
-          f"({result['reconciled_fraction'] * 100:.0f}%)")
+    # reconciled_fraction is None when there are no T1 receipts (division by zero) — guard the format
+    # so the CLI prints a verdict instead of crashing with `None * 100`.
+    frac = result["reconciled_fraction"]
+    frac_label = "n/a" if frac is None else f"{frac * 100:.0f}%"
+    print(f"  matched:                        {result['matched']} ({frac_label})")
+    if result.get("verdict") == "NO_T1_RECEIPTS":
+        print("  VERDICT: NO_T1_RECEIPTS — no provider_metered receipts to reconcile.")
+        return 1
     if result["unmatched_receipts"]:
         print(f"  VERDICT: DISCREPANCY — {len(result['unmatched_receipts'])} "
               f"T1 receipt(s) with no provider record:")

@@ -65,10 +65,11 @@ Every mint is classified by **how the event was witnessed** (weakest → stronge
  operator cannot upgrade a receipt's tier after the fact without breaking the
  chain. New provider-metered receipts also hash-bind their `metered_tokens`
  (`hash_version = 3`), so reconciliation cannot swap token counts under an
- unchanged receipt hash. The current format (`hash_version = 6`) additionally
- binds each receipt's `receipt_id` into the chain hash, so a T2 tier-promotion's
- `supersedes` target cannot be relabeled onto a different, larger receipt to
- inflate the externally-anchored fraction. Legacy `v1` receipts (pre-tier) default
+ unchanged receipt hash. The current format (`hash_version = 7`) additionally
+ binds each receipt's `receipt_id` (so a T2 tier-promotion's `supersedes` target
+ cannot be relabeled onto a different, larger receipt to inflate the externally-
+ anchored fraction) and its `event_type` (so a link cannot be relabeled between two
+ same-`earn_rate` event types). Legacy `v1` receipts (pre-tier) default
  to `self_reported` — the honest assumption — and verify bit-for-bit unchanged.
 - The attestation exposes a **`veracity` block**: KRY by tier, and a
  **`veracity_floor`** = the fraction backed by an external anchor (T1+T2), *not*

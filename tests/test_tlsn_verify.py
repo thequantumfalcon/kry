@@ -106,7 +106,7 @@ def test_t2_receipt_is_tamper_evident(isolated):
     # forge a tier downgrade in place → the receipt hash (which binds the tier) breaks
     lines = log.read_text(encoding="utf-8").splitlines()
     rec = json.loads(lines[-1])
-    assert rec["hash_version"] == 6   # current mint format (v6: +receipt_id binding)
+    assert rec["hash_version"] == 7   # current mint format (v7: +event_type binding)
     rec["evidence_tier"] = "self_reported"
     lines[-1] = json.dumps(rec)
     log.write_text("\n".join(lines) + "\n", encoding="utf-8")

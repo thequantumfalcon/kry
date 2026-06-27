@@ -82,9 +82,10 @@ USAGE_LOG_ALLOWED_KEYS = {
 } | USAGE_LOG_PUBLIC_TOKEN_KEYS
 PROVIDER_EXPORT_ALLOWED_KEYS = {
     "id", "request_id", "requestid", "generation_id", "gen_id", "model", "model_name",
-    "provider", "object", "type", "index", "created", "created_at", "ts", "timestamp",
+    "provider", "provider_name", "object", "type", "index", "created", "created_at", "ts", "timestamp",
     "finish_reason", "native_finish_reason", "usage", "cost", "total_cost",
-} | PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS
+} | PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS   # provider_name: kry_or_fetch.to_export_record emits it (the
+                                       # project's own OpenRouter export must pass its own privacy gate)
 
 
 def _json_key_label(value) -> str:

@@ -123,8 +123,10 @@ CAPABILITIES: tuple = (
 
 
 def verify_capabilities() -> dict:
-    """Mechanically check every `implemented` capability resolves to real code + tests.
-    A failure here means an 'implemented' claim is not backed — the audit is not clean."""
+    """STATIC capability audit: check every `implemented` capability's symbols import and its declared
+    files/tests EXIST. This does NOT run the tests — `static_claims_resolve` means the claims resolve
+    to present code+test files, not that the suite passed. For "release gate passed" use
+    scripts/kry_release_verify.py (which runs pytest + ruff + the rest)."""
     failures: list[str] = []
     for cap in CAPABILITIES:
         if cap.status != "implemented":
@@ -141,7 +143,7 @@ def verify_capabilities() -> dict:
         for path in (*cap.files, *cap.tests):
             if not (_REPO / path).exists():
                 failures.append(f"{cap.name}: missing {path}")
-    return {"failures": failures, "clean": not failures}
+    return {"failures": failures, "static_claims_resolve": not failures}
 
 
 def audit_summary() -> dict:
@@ -170,7 +172,7 @@ def readiness_label(*, replay_pass_rate: float,
     """KRY's readiness on the readiness ladder. Top label ('production_ready' = A+) requires
     external evidence (independent agreement + a real-world corpus), by design."""
     if audit_clean is None:
-        audit_clean = verify_capabilities()["clean"]
+        audit_clean = verify_capabilities()["static_claims_resolve"]
     disclosed = [c.name for c in CAPABILITIES if c.status == "not_guaranteed"]
 
     reasons: list[str] = []

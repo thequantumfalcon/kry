@@ -71,7 +71,17 @@ _LOCK = threading.RLock()
 
 # Fraction of cache-eligible requests forced to the real call to measure the
 # counterfactual. The honest price of veracity = this × avoided value.
-HOLDOUT_RATE = float(os.environ.get("KRY_HOLDOUT_RATE", "0.02"))   # 2%
+def _env_rate(name: str, default: float) -> float:
+    """A holdout rate must be a finite fraction in [0, 1]; fall back to the default on a NaN/inf/
+    out-of-range/unparseable env value rather than letting it corrupt the deterministic assignment."""
+    try:
+        raw = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return raw if math.isfinite(raw) and 0.0 <= raw <= 1.0 else default
+
+
+HOLDOUT_RATE = _env_rate("KRY_HOLDOUT_RATE", 0.02)   # 2%
 
 # Published seed: salts the deterministic holdout assignment so it is unbiased and
 # an operator cannot grind request-ids to dodge holdout. COMMIT THIS PUBLICLY — the

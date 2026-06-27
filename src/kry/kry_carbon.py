@@ -40,11 +40,24 @@ Grid carbon intensity (g CO2/kWh): global avg ~400–480; varies hugely by regio
 """
 from __future__ import annotations
 
+import math
 import os
 
+
+def _env_finite_nonnegative(name: str, default: float) -> float:
+    """Read a non-negative finite float from env; fall back to the default on a NaN/inf/negative/
+    unparseable value (matches kry_mint/kry_sanctions env handling). Without this a hostile or typo'd
+    env var would propagate NaN/inf/negative straight into the CO2 estimate."""
+    try:
+        raw = float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+    return raw if math.isfinite(raw) and raw >= 0 else default
+
+
 # 1 KRY = 1 frontier-equivalent output token avoided (matches kry_token).
-_JOULES_PER_TOKEN = float(os.environ.get("KRY_JOULES_PER_TOKEN", "2.0"))   # labeled estimate
-_GRID_CO2_G_PER_KWH = float(os.environ.get("KRY_GRID_CO2_G_PER_KWH", "400.0"))
+_JOULES_PER_TOKEN = _env_finite_nonnegative("KRY_JOULES_PER_TOKEN", 2.0)   # labeled estimate
+_GRID_CO2_G_PER_KWH = _env_finite_nonnegative("KRY_GRID_CO2_G_PER_KWH", 400.0)
 _J_PER_KWH = 3.6e6
 
 
