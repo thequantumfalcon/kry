@@ -297,7 +297,7 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     type_counts: Counter = Counter()
     promotions: list = []      # F5: (superseded_receipt_id, promoting_tier)
     kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), to reproduce the promotion overlay
-    for link in links:
+    for _pos, link in enumerate(links):
         if not isinstance(link, dict):
             errors.append("link must be a JSON object")
             continue
@@ -356,10 +356,10 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         if rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
             if rid in kry_by_receipt:
                 errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
-            kry_by_receipt[rid] = (tier, kry_minted)
+            kry_by_receipt[rid] = (tier, kry_minted, _pos)
         sup = link.get("supersedes")
         if tier in ("tlsn_attested", "tee_attested") and sup:
-            promotions.append((sup, tier))
+            promotions.append((sup, tier, _pos))
         errors.extend(_magnitude_errors(link))   # F2: magnitude is public arithmetic
         errors.extend(_tier_schema_errors(link))
         prev = chain_hash
@@ -411,15 +411,21 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     # F5: reproduce the promotion overlay the minter applies — a zero-value tlsn/tee promotion re-tiers
     # its superseded receipt's value onto the promoting tier, so the declared (overlaid) by_tier is
     # verifiable here. Replica of kry_mint._apply_promotion_overlay; no-op without promotions.
-    for src_id, to_tier in promotions:
+    for src_id, to_tier, promo_pos in promotions:
         src = kry_by_receipt.get(src_id)
         if not src:
             continue
-        src_tier, src_kry = src
+        src_tier, src_kry, src_pos = src
+        # A1-1 (order): a promotion may re-tier ONLY a receipt seen EARLIER in the verified scan; a
+        # target at/after the promotion's position is a forward-reference capture — refuse it. Consume
+        # the target so it can be promoted at most once.
+        if src_pos >= promo_pos:
+            continue
         if src_kry <= 0:
             continue
         tier_kry[src_tier] = tier_kry.get(src_tier, 0.0) - src_kry
         tier_kry[to_tier] = tier_kry.get(to_tier, 0.0) + src_kry
+        del kry_by_receipt[src_id]
 
     # Trust surface must be honest: declared floor must match the per-link tiers.
     v = attestation.get("veracity")
@@ -447,7 +453,7 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                 f"links imply {by_tier}")
         try:
             externally_anchored = _finite_number(
-                v.get("anchored_kry", 0.0),
+                v.get("anchored_kry", v.get("externally_anchored_kry", 0.0)),   # legacy alias (round-4 rename)
                 "veracity.anchored_kry",
                 nonnegative=True,
             )

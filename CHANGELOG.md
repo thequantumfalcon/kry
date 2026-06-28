@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (audit round 5 — third independent deep audit)
+
+- **A1-1b (HIGH) — promotion order bug: an earlier promotion could capture a LATER receipt.** The
+  round-4 fix gated promotions to v6+ targets and rejected duplicates, but built one global
+  `receipt_id`→receipt map and applied promotions AFTER the scan — so a zero-value promotion at
+  position 0 superseding `RID-future`, with a 1000-KRY receipt carrying `receipt_id="RID-future"`
+  appended at position 1, captured it (`veracity_floor=1.0`, chain + anchor intact). Fix: promotions
+  now resolve against the verified forward scan — a promotion may re-tier ONLY a positive-value,
+  hash-bound (v6+) receipt seen EARLIER, and each receipt is consumed (promoted at most once). Applied
+  in `kry_mint`, `kry_attest` (build + verify), and `kry_verify`; legit promotions (target before the
+  promotion) still work.
+- **F2 completion** — the round-4 rename `externally_anchored_kry` → `anchored_kry` is now also
+  reflected in the README / examples / CLI prose (no more "externally anchored" where the tiers are
+  operator-run), and the verifiers accept the OLD field name as a read-only **legacy alias** so a
+  pre-rename attestation still verifies (the round-4 rename had been an un-aliased schema break).
+
+### Deferred (audit round 5)
+
+- **Release dev tooling un-hashed on the privileged job (MED).** `release.yml` still runs
+  `pip install -e ".[dev]"` and `kry_release_verify` installs `DEV_REQUIREMENTS` without
+  `--require-hashes`, on the `id-token:write` job. The correct fix is to **de-privilege** — split a
+  read-only `gate` job (tests/lint/verify) from a privileged `publish` job (hash-pinned build +
+  provenance only). Deferred because it is only verifiable on a real release run, and a full
+  hash-pinned dev lock is blocked locally by `ruff`'s platform-specific binary wheel (a linux-targeted
+  hash-pin cannot be install-verified on macOS). Tracked, not shipped blind.
+
 ### Security (audit round 4 — two independent deep external audits)
 
 - **A1-1 (HIGH) — v4/v5 promotion relabel could inflate the anchored floor.** `receipt_id` is

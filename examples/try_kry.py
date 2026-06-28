@@ -78,7 +78,7 @@ def main() -> int:
     print(f"  chain_valid: {summary['chain_valid']}")
     v = summary["veracity"]
     print(f"  veracity_floor: {v['veracity_floor']}  "
-          f"(fraction externally anchored vs operator self-report)")
+          f"(fraction anchored by more than self-report — external OR operator-run)")
 
     rule("4. ATTEST — a public, content-sealed proof of the balance")
     att = kry_attest.build_attestation()
