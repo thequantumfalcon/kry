@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   free; the prior noncommercial restriction is removed. Copyright remains Thomas Albrecht; inbound
   contributions are accepted under Apache-2.0 (inbound=outbound).
 
+### Security (supply chain)
+
+- **L5 — hash-pinned release build frontend.** The Release workflow installed `build` via
+  `pip install --upgrade pip build` on the `id-token:write` runner; it now installs from
+  `.github/build-requirements.txt` with `--require-hashes` (`build`/`packaging`/`pyproject_hooks`
+  pinned by sha256), so a tampered or substituted artifact fails the release closed. Verified to
+  install and run (`build 1.5.0`) in a clean venv.
+- **L7 (partial) — digest-pinned PoC enclave bases.** `poc/nitro/enclave/Dockerfile` pins
+  `rust:1-bookworm` and `debian:bookworm-slim` by `@sha256:` digest (fetched from the registry) for a
+  reproducible PCR0. Committing `Cargo.lock` (+ a `--locked` build) for full dependency reproducibility
+  needs the Rust toolchain and is documented inline as the one remaining manual step.
+
 ### Security (audit round 3)
 
 - **PQC verifier `alg` allowlist (M1)** — `kry_pqc/verify.py` pins the attacker-supplied `alg` to the
@@ -62,8 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **L3** (PQC domain separation — sign `SCHEME_TAG || policy_digest || bytes`) is a signature
   wire-format change; deferred to a versioned `kry-pqc/v2` so existing artifacts stay verifiable.
-- **L5** (hash-pin the release build frontend) and **L7** (digest-pin the PoC enclave bases + commit
-  `Cargo.lock`) need validated pins/digests not derivable in-repo; left as tracked residuals.
+  (L5 and L7 are now addressed — see *Security (supply chain)* above; L7's `Cargo.lock` is the one
+  remaining toolchain-dependent step.)
 
 ### Security (audit round 2)
 

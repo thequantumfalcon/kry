@@ -1,0 +1,17 @@
+# Hash-pinned build frontend for the Release workflow (audit L5).
+#
+# The release job holds `id-token: write` (Sigstore OIDC for build provenance), so the
+# tooling it installs is part of the trusted release path. Pinning `build` + its deps by
+# sha256 and installing with `--require-hashes` means a tampered or substituted PyPI
+# artifact fails the release closed instead of being silently pulled by `pip install
+# --upgrade`.
+#
+# Regenerate when bumping `build`:
+#   pip download --only-binary=:all: build -d /tmp/bd && pip hash /tmp/bd/*.whl
+# (all three are pure-Python py3-none-any wheels, valid on the runner's Python 3.11.)
+build==1.5.0 \
+    --hash=sha256:13f3eecb844759ab66efec90ca17639bbf14dc06cb2fdf37a9010322d9c50a6f
+packaging==26.2 \
+    --hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e
+pyproject_hooks==1.2.0 \
+    --hash=sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913

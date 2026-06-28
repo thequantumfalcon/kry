@@ -38,7 +38,9 @@ jobs:
       - name: Release gate (must pass before anything is published)
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip build
+          # L5: hash-pinned build frontend (this job holds id-token:write) — fail closed on a
+          # tampered/substituted artifact instead of pulling floating latest via --upgrade.
+          python -m pip install --require-hashes -r .github/build-requirements.txt
           python -m pip install -e ".[dev]"
           python3 scripts/kry_release_verify.py --full --json-out release-verify.json
 
