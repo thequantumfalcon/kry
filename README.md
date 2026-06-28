@@ -10,7 +10,9 @@
 
 ### don't trust your LLM savings dashboard. verify it. 🧾
 
-**kry turns the usage logs you already have into a _stranger-verifiable_ proof that your caching & routing savings ledger is **intact and honestly priced** — cryptographically tamper-evident, recomputed against public pricing, with the trust you place in the operator made an explicit, machine-checked `veracity_floor`. It proves integrity, not that the savings happened (that's the floor's job). No prompts exposed, zero dependencies.**
+**kry turns the usage logs you already have into a tamper-evident savings receipt a stranger can verify offline — no trust in you required.**
+
+It hash-chains your caching/routing savings and recomputes them against public model pricing, so the ledger is provably _intact and honestly priced_. How much you're trusting the operator that the savings actually _happened_ is a single explicit number — the `veracity_floor`. Proves integrity, not the savings themselves. No prompts exposed. Zero dependencies.
 
 `zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade`
 
