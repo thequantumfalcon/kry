@@ -22,6 +22,7 @@ _PATH_ATTRS = {
     "kry.kry_settlement": ["_REGISTRY_PATH"],
     "kry.kry_baseline": ["_BASELINE_PATH"],
     "kry.kry_sanctions": ["_REP_PATH"],
+    "kry.kry_pending": ["_PENDING_PATH", "_LOCK_PATH"],
 }
 
 

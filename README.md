@@ -314,8 +314,9 @@ classified by *how the event was witnessed*, weakest to strongest:
  verifier holding the published anchor then catches any retroactive re-mint
  (`kry_verify.py --anchor`). Absent a published anchor, a self-reported balance is
  operator-trusted by construction — which is exactly what `veracity_floor` discloses.
-- An attestation exposes a **`veracity_floor`** = the fraction backed by an *external* anchor
- (T1+T2), not operator self-report. `verify_attestation()` **re-derives** the floor from the
+- An attestation exposes a **`veracity_floor`** = the fraction backed by something stronger than
+ bare self-report — an *external* anchor (provider-metered / TEE / TLSNotary) **or** an operator-run
+ randomized holdout (`holdout_validated`). `verify_attestation()` **re-derives** the floor from the
  per-link tiers (so it can't be misstated *relative to the tiers shown*) and only credits a
  tier the public surface actually binds (v4) — a pre-v4 link claiming an external tier is
  coerced to `self_reported`. That is tamper-evident against anyone who cannot recompute the

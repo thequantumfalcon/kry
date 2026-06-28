@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 import pathlib
+import time
 import tomllib
 import zipfile
 from email.message import EmailMessage
@@ -117,10 +119,28 @@ def _build(wheel_directory: str, editable: bool) -> str:
     record = "".join(_record_entry(path, data) for path, data in files)
     record += f"{record_path},,\n"
 
+    # L6: byte-reproducible wheel — stamp every entry with SOURCE_DATE_EPOCH (else the 1980 zip
+    # epoch) instead of the current wall clock, and pin perms to writestr()'s 0o600 default. The
+    # RECORD hashes cover file DATA, not zip metadata, so this does not change them.
+    dt = (1980, 1, 1, 0, 0, 0)
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch:
+        try:
+            cand = time.gmtime(int(epoch))[:6]
+            if cand[0] >= 1980:                       # ZIP cannot encode timestamps before 1980
+                dt = cand
+        except (ValueError, OSError):
+            pass
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as wheel:
         for path, data in files:
-            wheel.writestr(path, data)
-        wheel.writestr(record_path, record.encode())
+            info = zipfile.ZipInfo(path, date_time=dt)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o600 << 16          # match ZipFile.writestr(str)'s default perms
+            wheel.writestr(info, data)
+        rec_info = zipfile.ZipInfo(record_path, date_time=dt)
+        rec_info.compress_type = zipfile.ZIP_DEFLATED
+        rec_info.external_attr = 0o600 << 16
+        wheel.writestr(rec_info, record.encode())
 
     return filename
 

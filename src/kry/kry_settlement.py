@@ -797,6 +797,16 @@ def settle(
     it, conservation only confirms the debit reported the agreed grant amount
     (conservation_basis="self_asserted"); the receipt LABELS which, so a stranger never
     reads an unverified check as a guarantee.
+
+    Two intentional operator-side trust boundaries (NOT remote-exploitable — settle() runs
+    in the operator's own process, on grants the operator constructed):
+      - A grant built directly (not via verify_and_accept) carries attested_balance = -1 and
+        is exempt from the commit-time double-spend ceiling re-check: there is no attested
+        ceiling to re-check against. Grants that DO carry a ceiling (>= 0) are always
+        re-checked. Route through verify_and_accept to get a ceiling-guarded grant.
+      - The self_asserted basis trusts debit_a_fn's reported amount; it is honestly labeled,
+        not independently verified. Pass a_balance_after_fn for the measured basis whenever
+        the settlement is recorded somewhere a stranger will later read it.
     """
     amount = _finite_number(grant.accepted_kry, "accepted_kry", positive=True)
     a_balance_before = _finite_number(a_balance_before, "a_balance_before",

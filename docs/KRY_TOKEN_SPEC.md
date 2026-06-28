@@ -59,9 +59,10 @@ KRY is earned when the system avoids a compute call it would otherwise have made
 | Short-circuit (CC probe) | 1.0 | Quota-check/suggestion-mode intercepted |
 | Output compression | 0.6 | Directive reduced output token count |
 | FeedBag deposit | 0.7 | IV-bag portion of fuel ledger deposit |
-| Cache creation | 0.1 | Future hits earn; creation earns fractionally |
+| Cache creation | 0.0 | A cache write is a cost/bet, not a saving — the realized saving is the later cache hit; crediting both would double-count |
+| Continuity capsule | 0.1 | Cross-session continuity reuse |
 
-**Why discounted rates?** L3 matches are approximate (0.8). Compression saves exist but the call still happened (0.6). Cache creation only earns future value (0.1). The frontier-value anchor (cache_hit = 1.0) is the reference.
+**Why discounted rates?** L3 matches are approximate (0.8). Compression saves exist but the call still happened (0.6). Cache creation earns **0.0** — the write is a cost/bet and the realized saving is the later cache hit; crediting both would double-count. The frontier-value anchor (cache_hit = 1.0) is the reference.
 
 ---
 

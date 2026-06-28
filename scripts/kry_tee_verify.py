@@ -327,12 +327,20 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
     if not isinstance(signature, (bytes, bytearray)) or len(signature) != 96:
         errs.append("COSE signature is not a 96-byte ES384 (P-384 r||s) value")
         return result
+    # M2: the COSE protected header MUST decode to a map that pins alg = ES384. Treat a missing
+    # alg (None), a non-dict/undecodable header, or absent protected_bytes as a HARD failure
+    # rather than silently accepting them. The ES384 verify below is hard-pinned regardless, but
+    # the *documented* alg guard must itself fail closed (result["verified"] = not errs).
+    prot_alg_ok = False
     try:
-        prot_hdr, _ = _cbor_decode(bytes(protected_bytes)) if protected_bytes else ({}, 0)
+        if protected_bytes:
+            prot_hdr, _ = _cbor_decode(bytes(protected_bytes))
+            prot_alg_ok = isinstance(prot_hdr, dict) and prot_hdr.get(1) == COSE_ALG_ES384
     except _CBORError:
-        prot_hdr = {}
-    if isinstance(prot_hdr, dict) and prot_hdr.get(1) not in (COSE_ALG_ES384, None):
-        errs.append(f"unexpected COSE alg {prot_hdr.get(1)} (expected ES384 {COSE_ALG_ES384})")
+        prot_alg_ok = False
+    if not prot_alg_ok:
+        errs.append(f"COSE protected header must pin alg = ES384 ({COSE_ALG_ES384}); a "
+                    "missing/undecodable/non-ES384 header is rejected")
 
     # decode the attestation payload
     try:

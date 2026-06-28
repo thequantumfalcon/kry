@@ -22,6 +22,7 @@ import argparse
 import base64
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -91,8 +92,12 @@ def _cmd_keygen(args) -> int:
     pk_path = out / "kry_pqc_public.key"
     sk_path = out / "kry_pqc_secret.key"
     pk_path.write_text(_b64(public_key))
-    sk_path.write_text(_b64(secret_key))
-    sk_path.chmod(0o600)  # private key: owner read/write only, never group/world-readable
+    # L2: create the SECRET key 0o600 from the start via O_EXCL — a plain write_text() then
+    # chmod() leaves a brief window where the key is umask-default (group/world) readable.
+    # O_EXCL also refuses to clobber an existing secret key rather than silently overwriting it.
+    sk_fd = os.open(sk_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(sk_fd, "w") as f:
+        f.write(_b64(secret_key))
     print(f"alg:         {args.alg}")
     print(f"public key:  {pk_path}  (share this)")
     print(f"secret key:  {sk_path}  (KEEP SECRET -- never share or commit)")

@@ -9,3 +9,4 @@ kry_data/
 .env.*
 !.env.example
 .claude/
+dist/
