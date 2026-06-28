@@ -24,6 +24,11 @@ boundary until real external evidence changes it.
 - Provider-reconciled savings **for that window** (same bundle): the operator cannot inflate
  the reconciled token counts without the check against the provider export breaking. This is
  reconciliation veracity, **not** an external verified-savings claim (that stays blocked below).
+- The **action-receipt layer** (`kry_action`) gives tamper-evident, content-free, hash-chained
+ receipts for agent ACTIONS, with a stdlib stranger verifier (`scripts/kry_action_verify.py`) and
+ automated regression coverage (`tests/test_action.py`, `tests/test_action_concurrency.py`, incl. a
+ cross-process no-fork test). It proves an action log is intact, ordered, and append-only — **not**
+ that an action's real-world effect occurred.
 
 ## Blocked Until External Evidence Exists
 
@@ -33,6 +38,9 @@ boundary until real external evidence changes it.
 - Outside-review-complete claim.
 - Buyer reliance or materiality claim.
 - Legal approval of external retained-savings language.
+- Action-layer T1 (`server_witnessed`) third-party-witness claim: the witness is operator-supplied
+ until `kry_action` is wired to a real MCP-server signature, so read its `veracity_floor` as
+ operator-asserted until then (the verifier already coerces a witness-less anchored tier to T0).
 
 Required evidence:
 
