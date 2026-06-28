@@ -513,6 +513,12 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     # tier. No-op when there are no promotions, so non-promotion attestations are byte-unaffected.
     from kry.kry_mint import _ANCHORED_TIERS, _apply_promotion_overlay
     _apply_promotion_overlay(tier_kry, promotions, kry_by_receipt)
+    # OUTCOME GUARD (see _apply_promotion_overlay's SAFETY CONTRACT): the overlay is a pure transfer,
+    # so no tier may be negative afterwards. A negative tier means a promotion moved value that was
+    # not there (a forged chain / a future overlay bug) — caught even if an invariant were missed.
+    if any(val < -0.01 for val in tier_kry.values()):
+        errors.append("veracity by_tier went negative after the promotion overlay — "
+                      "a promotion moved value that was not there")
 
     # Verify the veracity breakdown matches the links — the trust surface itself
     # must be honest. An operator can't claim a high external-anchor floor unless

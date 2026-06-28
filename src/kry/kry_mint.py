@@ -1187,9 +1187,26 @@ def _apply_promotion_overlay(by_tier: dict, promotions: list, kry_by_receipt: di
     """Re-tier promoted value IN PLACE: a zero-value tlsn/tee promotion moves the value of the
     receipt it supersedes OFF its original tier and ONTO the promoting tier (total unchanged — the
     value was minted exactly once). SHARED by veracity_breakdown (internal) and
-    kry_attest.build_attestation (public) so both veracity surfaces compute the SAME floor from the
-    SAME overlay (F5: they diverged — the public attestation ignored promotions and under-reported
-    the anchored fraction)."""
+    kry_attest.build_attestation (public) so both veracity surfaces compute the SAME floor.
+
+    SAFETY CONTRACT — this overlay has been the source of THREE HIGH findings (the original
+    promotion-relabel, A1-1, A1-1b). It is sound ONLY if EVERY invariant below holds; each is
+    enforced AND regression-tested (tests/test_audit_deep_external.py), so a change that drops one
+    must fail a test:
+      1. HASH-BOUND target — the superseded receipt's id is bound into its chain hash
+         (hash_version >= 6). v4/v5 ids are mutable, so such receipts are NEVER added to
+         kry_by_receipt at the build sites.                                                   [A1-1]
+      2. UNIQUE target — no two hash-bound receipts share an id (duplicates rejected at the
+         verifier build sites), so the lookup is unambiguous.                                 [A1-1]
+      3. PRIOR target — `src_pos < promo_pos`: a promotion may re-tier ONLY a receipt seen EARLIER
+         in the verified forward scan, never a later one (a forward-reference capture).       [A1-1b]
+      4. POSITIVE value — a zero/negative-value target moves nothing (a promotion is itself
+         zero-value, so a promotion cannot re-tier another promotion).
+      5. CONSUMED ONCE — the target is deleted from the map after use, so it is promoted at most once
+         (else its value would move twice and the anchored fraction could exceed 1.0).
+    OUTCOME GUARD (defence in depth, enforced by the verifiers after this returns): the overlay is a
+    pure transfer, so NO tier may be negative afterwards — a negative tier means a promotion moved
+    value that wasn't there, catching any over-move bug even if an invariant above were ever missed."""
     for src_id, to_tier, promo_pos in promotions:
         src = kry_by_receipt.get(src_id)
         if not src:

@@ -112,6 +112,46 @@ def test_a1_1b_legit_promotion_of_prior_receipt_still_works():
     assert km.veracity_breakdown()["veracity_floor"] == 1.0
 
 
+# ── overlay lock: CONSUME invariant — a target is promoted at most once
+def test_overlay_consume_target_promoted_at_most_once():
+    """SAFETY CONTRACT invariant 5: two promotions superseding the SAME receipt re-tier its value
+    exactly ONCE (the target is consumed). Without consume the value would move twice and the
+    anchored fraction would exceed 1.0 (and a source tier would go negative)."""
+    import kry.kry_mint as km
+    recs = [
+        {"evidence_tier": "self_reported", "kry_minted": 1000.0, "receipt_id": "RID-x",
+         "hash_version": 7, "supersedes": None},                  # the only positive-value receipt
+        {"evidence_tier": "tee_attested", "kry_minted": 0.0, "receipt_id": "P1",
+         "hash_version": 7, "supersedes": "RID-x"},               # promotes RID-x
+        {"evidence_tier": "tlsn_attested", "kry_minted": 0.0, "receipt_id": "P2",
+         "hash_version": 7, "supersedes": "RID-x"},               # tries to promote it AGAIN
+    ]
+    km._MINT_LOG_PATH.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    vb = km.veracity_breakdown()
+    assert vb["anchored_kry"] == 1000.0                       # anchored exactly once, not 2000
+    assert vb["veracity_floor"] == 1.0                        # never exceeds 1.0
+    assert vb["by_tier"].get("self_reported", 0.0) >= 0.0     # source tier never goes negative
+
+
+# ── overlay lock: OUTCOME GUARD — the verifier rejects a (future) over-move that drives a tier < 0
+def test_overlay_outcome_guard_rejects_overmove(monkeypatch):
+    """Defence in depth for a FUTURE overlay bug: if the overlay ever over-moves (drives a tier
+    negative), verify_attestation rejects the attestation even though every per-link hash is intact.
+    Simulated by patching the overlay to move value that isn't there."""
+    import kry.kry_attest as ka
+    import kry.kry_mint as km
+    km.mint("cache_hit", 100.0, evidence="e", avoided_model="opus")
+    att_json = ka.build_attestation().to_public_json()        # built with the REAL (sound) overlay
+
+    def overmoving_overlay(by_tier, promotions, kry_by_receipt):
+        by_tier["self_reported"] = by_tier.get("self_reported", 0.0) - 999.0   # value that isn't there
+
+    monkeypatch.setattr(km, "_apply_promotion_overlay", overmoving_overlay)
+    ok, errs = ka.verify_attestation(att_json)
+    assert not ok
+    assert any("went negative" in e for e in errs), errs
+
+
 # ── F2 schema break (round 5): the rename must accept the OLD field name as a legacy alias
 def test_f2_legacy_externally_anchored_field_still_verifies():
     """Renaming externally_anchored_kry → anchored_kry (round 4) broke otherwise-valid older
