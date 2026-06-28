@@ -16,11 +16,9 @@ It hash-chains your caching/routing savings and recomputes them against public m
 
 `zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade`
 
-![kry running live — earn → mint → attest → a stranger verifies → carbon, then a real routing log becomes a verifiable savings statement](media/kry-demo.gif)
+![kry running live — a real routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
 <sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇</sub>
-
-<sub>💸😭 <em>your inference bill is about to cry.</em></sub>
 
 </div>
 
