@@ -313,10 +313,10 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                 rid = rec.get("receipt_id")
                 _hv = rec.get("hash_version", 1)   # A1-1: only v6+ (hash-bound) receipts anchor the overlay
                 if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
-                    kry_by_receipt[rid] = (tier, rec["kry_minted"])
+                    kry_by_receipt[rid] = (tier, rec["kry_minted"], i)   # i = forward-scan position
                 sup = rec.get("supersedes")
                 if tier in ("tlsn_attested", "tee_attested") and sup:
-                    promotions.append((sup, tier))
+                    promotions.append((sup, tier, i))
                 prev_chain = rec["chain_hash"]
                 chain_head = rec["chain_hash"]
 
@@ -385,7 +385,7 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     if data.get("chain_valid") is not True:
         errors.append("chain_valid is not true")
 
-    for link in links:
+    for _pos, link in enumerate(links):
         if not isinstance(link, dict):
             errors.append("link must be a JSON object")
             continue
@@ -455,10 +455,10 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         if rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
             if rid in kry_by_receipt:
                 errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
-            kry_by_receipt[rid] = (tier, kry_minted)
+            kry_by_receipt[rid] = (tier, kry_minted, _pos)
         sup = link.get("supersedes")
         if tier in ("tlsn_attested", "tee_attested") and sup:
-            promotions.append((sup, tier))
+            promotions.append((sup, tier, _pos))
         errors.extend(_magnitude_errors(link))
         errors.extend(_tier_schema_errors(link))
         prev_chain = chain_hash
@@ -542,7 +542,11 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             errors.append(
                 f"veracity by_tier mismatch: claimed {v.get('by_tier')}, "
                 f"links imply {by_tier}")
-        if abs(_veracity_number(v, "anchored_kry", errors) - round(anchored, 4)) > 0.01:
+        # Legacy alias: pre-round-4 attestations used `externally_anchored_kry` (renamed to
+        # `anchored_kry` because the metered/holdout tiers are operator-run). Accept the old field so
+        # an otherwise-valid older attestation still verifies — the value is cross-checked either way.
+        _vh = v if "anchored_kry" in v else {**v, "anchored_kry": v.get("externally_anchored_kry", 0.0)}
+        if abs(_veracity_number(_vh, "anchored_kry", errors) - round(anchored, 4)) > 0.01:
             errors.append("anchored_kry mismatch")
         if abs(_veracity_number(v, "self_reported_kry", errors)
                - round(tier_kry.get("self_reported", 0.0), 4)) > 0.01:

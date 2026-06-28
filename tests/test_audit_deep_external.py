@@ -80,3 +80,49 @@ def test_a1_4_release_dev_pins_match_pyproject():
     dev = re.search(r"dev = \[([^\]]*)\]", (root / "pyproject.toml").read_text()).group(1)
     for pin in krv.DEV_REQUIREMENTS:
         assert pin in dev, f"{pin!r} not in pyproject dev pins ({dev})"
+
+
+# ── A1-1b (HIGH, round 5): a promotion that FORWARD-references a later receipt must not capture it
+def test_a1_1b_forward_reference_promotion_cannot_capture_later_receipt():
+    """The round-4 fix gated v6+ + duplicates but not ORDER: a zero-value promotion at position 0
+    superseding a receipt minted at position 1 still captured it (floor 1.0, chain intact). A
+    promotion may now re-tier ONLY a receipt seen EARLIER in the verified scan."""
+    import kry.kry_mint as km
+    recs = [
+        {"evidence_tier": "tee_attested", "kry_minted": 0.0, "receipt_id": "RID-promo",
+         "hash_version": 7, "supersedes": "RID-future"},          # promotion FIRST (position 0)
+        {"evidence_tier": "self_reported", "kry_minted": 1000.0, "receipt_id": "RID-future",
+         "hash_version": 7, "supersedes": None},                  # target appended AFTER (position 1)
+    ]
+    km._MINT_LOG_PATH.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    vb = km.veracity_breakdown()
+    assert vb["anchored_kry"] == 0.0 and vb["veracity_floor"] == 0.0   # forward reference refused
+
+
+def test_a1_1b_legit_promotion_of_prior_receipt_still_works():
+    """Guard: a NORMAL promotion (target minted BEFORE the promotion) must still re-tier."""
+    import kry.kry_mint as km
+    recs = [
+        {"evidence_tier": "self_reported", "kry_minted": 500.0, "receipt_id": "RID-real",
+         "hash_version": 7, "supersedes": None},                  # target FIRST
+        {"evidence_tier": "tee_attested", "kry_minted": 0.0, "receipt_id": "RID-promo2",
+         "hash_version": 7, "supersedes": "RID-real"},            # promotion AFTER
+    ]
+    km._MINT_LOG_PATH.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    assert km.veracity_breakdown()["veracity_floor"] == 1.0
+
+
+# ── F2 schema break (round 5): the rename must accept the OLD field name as a legacy alias
+def test_f2_legacy_externally_anchored_field_still_verifies():
+    """Renaming externally_anchored_kry → anchored_kry (round 4) broke otherwise-valid older
+    attestations. The verifier now accepts the old field as a read-only alias."""
+    import kry.kry_attest as ka
+    import kry.kry_mint as km
+    km.mint("cache_hit", 100.0, evidence="e", avoided_model="opus")
+    att = json.loads(ka.build_attestation().to_public_json())
+    v = att["veracity"]
+    v["externally_anchored_kry"] = v.pop("anchored_kry")        # an old-style (pre-rename) attestation
+    att["attestation_hash"] = ""
+    att["attestation_hash"] = ka._attestation_hash(att)
+    ok, errs = ka.verify_attestation(json.dumps(att))
+    assert ok, errs

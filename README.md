@@ -54,7 +54,7 @@ The whole loop, on real efficiency events, in one program:
   receipts:    3
   chain_tip:   eae1b80e8baedc1e...
   chain_valid: True
-  veracity_floor: 0.3924  (fraction externally anchored vs operator self-report)
+  veracity_floor: 0.3924  (fraction anchored by more than self-report — external OR operator-run)
 
 ──────────────────────────────────────────────────────────────────────
 4. ATTEST — a public, content-sealed proof of the balance
@@ -69,11 +69,11 @@ The whole loop, on real efficiency events, in one program:
 KRY external verification — attestation
   receipts:        3 (recomputed from links)
   total_kry:       2436.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.3924 (fraction externally anchored; rest rests on operator self-report)
+  veracity_floor:  0.3924 (fraction anchored by more than self-report — external OR operator-run)
                    ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                      kry_tlsn_verify to independently check the underlying evidence doc
   price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
-  anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED
+  anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                    here: a genesis re-mint with upgraded tiers passes this check.
                    Re-run with --anchor <operator's pre-published chain head> to make
                    a retroactive re-mint detectable.
@@ -118,11 +118,11 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
   KRY external verification — attestation
     receipts:        11 (recomputed from links)
     total_kry:       3080.4984 (recomputed from links, not the declared field)
-    veracity_floor:  0.7078 (fraction externally anchored; rest rests on operator self-report)
+    veracity_floor:  0.7078 (fraction anchored by more than self-report — external OR operator-run)
                      ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                        kry_tlsn_verify to independently check the underlying evidence doc
     price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
-    anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED
+    anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                      here: a genesis re-mint with upgraded tiers passes this check.
                      Re-run with --anchor <operator's pre-published chain head> to make
                      a retroactive re-mint detectable.
@@ -227,7 +227,7 @@ python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
 # reports SAVED vs SPEND and the veracity_floor (holdout-validated vs self-reported)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
 python3 scripts/kry_verify.py "$tmp/att.json" # the stranger's check — stdlib only
-# ↑ WITHOUT --anchor, the externally-anchored fraction is operator-asserted (a genesis re-mint
+# ↑ WITHOUT --anchor, the anchored fraction is operator-asserted (a genesis re-mint
 #   passes). The operator PUBLISHES this anchor out-of-band, then a stranger checks against it:
 python3 scripts/kry_chain_anchor.py export > "$tmp/anchor.json"
 python3 scripts/kry_verify.py "$tmp/att.json" --anchor "$tmp/anchor.json" # re-mint now detectable
@@ -304,7 +304,7 @@ classified by *how the event was witnessed*, weakest to strongest:
  also hash-bind their `metered_tokens` (`hash_version = 3`), so provider reconciliation
  cannot swap token counts under the same receipt hash. The current format (`hash_version = 7`)
  also binds each receipt's `receipt_id` (so a T2 tier-promotion's `supersedes` target cannot be
- relabeled onto a different, larger receipt to inflate the externally-anchored fraction) and its
+ relabeled onto a different, larger receipt to inflate the anchored fraction) and its
  `event_type` (so a link cannot be relabeled between two same-`earn_rate` event types).
 - **`verify_chain` proves integrity, not veracity.** It cannot distinguish an honest chain
  from one an operator re-derived from genesis (keyless SHA-256 + a local checkpoint): a full

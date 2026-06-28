@@ -1190,15 +1190,21 @@ def _apply_promotion_overlay(by_tier: dict, promotions: list, kry_by_receipt: di
     kry_attest.build_attestation (public) so both veracity surfaces compute the SAME floor from the
     SAME overlay (F5: they diverged — the public attestation ignored promotions and under-reported
     the anchored fraction)."""
-    for src_id, to_tier in promotions:
+    for src_id, to_tier, promo_pos in promotions:
         src = kry_by_receipt.get(src_id)
         if not src:
             continue
-        src_tier, src_kry = src
+        src_tier, src_kry, src_pos = src
+        # A1-1 (order): a promotion may re-tier ONLY a receipt seen EARLIER in the verified forward
+        # scan. A target at or after the promotion's position is a forward-reference capture (an
+        # earlier promotion grabbing a LATER receipt to inflate the anchored floor) — refuse it.
+        if src_pos >= promo_pos:
+            continue
         if src_kry <= 0:
             continue
         by_tier[src_tier] = by_tier.get(src_tier, 0.0) - src_kry
         by_tier[to_tier] = by_tier.get(to_tier, 0.0) + src_kry
+        del kry_by_receipt[src_id]      # consume: a receipt is promoted at most once
 
 
 def veracity_breakdown() -> dict:
@@ -1218,7 +1224,7 @@ def veracity_breakdown() -> dict:
     if _MINT_LOG_PATH.exists():
         try:
             with open(_MINT_LOG_PATH, encoding="utf-8") as f:
-                for line in f:
+                for _pos, line in enumerate(f):
                     line = line.strip()
                     if not line:
                         continue
@@ -1234,10 +1240,10 @@ def veracity_breakdown() -> dict:
                     # receipt_id is not in the chain hash, so it is mutable (own log is v7; this keeps
                     # the internal and public veracity surfaces consistent).
                     if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
-                        kry_by_receipt[rid] = (tier, k)
+                        kry_by_receipt[rid] = (tier, k, _pos)
                     sup = rec.get("supersedes")
                     if tier in (TIER_TLSN_ATTESTED, TIER_TEE_ATTESTED) and sup:
-                        promotions.append((sup, tier))
+                        promotions.append((sup, tier, _pos))
         except Exception:
             pass
     # T2 tier-promotion overlay (shared with the public attestation so both surfaces agree).
