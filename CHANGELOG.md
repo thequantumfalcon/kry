@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Action-receipt layer (`kry_action`)** — tamper-evident, stranger-verifiable receipts for agent
+  ACTIONS (the `kry_mint`/`kry_attest` discipline applied to "what did the agent DO?"). Content-free
+  hash chain (canonical JSON + IEEE-754 big-endian floats + `chain_hash = SHA256(prev:receipt_hash)`),
+  three veracity tiers (T0 `self_reported` / T1 `server_witnessed` / T2 `attested`) with a
+  `veracity_floor`; a stdlib-only stranger verifier (`scripts/kry_action_verify.py`, imports nothing
+  from the package and coerces a witness-less anchored tier to T0); an anchor for re-mint/dropped-action
+  detection; and a zero-dependency MCP middleware (`scripts/kry_action_mcp.py`, `@attested_tool`).
+  20 adversarial tests (`tests/test_action.py`), stdlib-only, ruff clean. By design it carries NO
+  promotions (so no overlay/forward-reference class of bug) and a single hash version (no downgrade
+  vector). **Known limits (disclosed):** T1 binds whatever the witness fn returns — until wired to a
+  real MCP server signature it is operator-supplied; single-process writer only (the `kry._locks`
+  cross-process swap is a one-liner). Not yet wired into the release gate / doctor / CLAIMS_BOUNDARY.
+
 ### Security (audit round 5 — third independent deep audit)
 
 - **A1-1b (HIGH) — promotion order bug: an earlier promotion could capture a LATER receipt.** The
