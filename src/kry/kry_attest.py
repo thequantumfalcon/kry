@@ -311,7 +311,8 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                 tier_kry[tier] = tier_kry.get(tier, 0.0) + rec["kry_minted"]
                 total_kry += rec["kry_minted"]
                 rid = rec.get("receipt_id")
-                if rid:
+                _hv = rec.get("hash_version", 1)   # A1-1: only v6+ (hash-bound) receipts anchor the overlay
+                if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
                     kry_by_receipt[rid] = (tier, rec["kry_minted"])
                 sup = rec.get("supersedes")
                 if tier in ("tlsn_attested", "tee_attested") and sup:
@@ -328,7 +329,7 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
     anchored = sum(v for t, v in tier_kry.items() if t in _ANCHORED_TIERS)
     veracity = {
         "by_tier": {t: round(v, 4) for t, v in tier_kry.items()},
-        "externally_anchored_kry": round(anchored, 4),
+        "anchored_kry": round(anchored, 4),
         "self_reported_kry": round(tier_kry.get("self_reported", 0.0), 4),
         "veracity_floor": round(anchored / total_kry, 4) if total_kry > 0 else 0.0,
     }
@@ -448,7 +449,12 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
         rid = link.get("receipt_id")
-        if rid:
+        # A1-1: only a HASH-BOUND (v6+) receipt may anchor a promotion overlay (a v4/v5 receipt_id is
+        # mutable → relabel/swap to redirect a promotion onto a larger receipt). Reject duplicate ids
+        # too (a forged chain could collide two v6+ ids; the last-wins dict would pick the larger).
+        if rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
+            if rid in kry_by_receipt:
+                errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
             kry_by_receipt[rid] = (tier, kry_minted)
         sup = link.get("supersedes")
         if tier in ("tlsn_attested", "tee_attested") and sup:
@@ -536,8 +542,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             errors.append(
                 f"veracity by_tier mismatch: claimed {v.get('by_tier')}, "
                 f"links imply {by_tier}")
-        if abs(_veracity_number(v, "externally_anchored_kry", errors) - round(anchored, 4)) > 0.01:
-            errors.append("externally_anchored_kry mismatch")
+        if abs(_veracity_number(v, "anchored_kry", errors) - round(anchored, 4)) > 0.01:
+            errors.append("anchored_kry mismatch")
         if abs(_veracity_number(v, "self_reported_kry", errors)
                - round(tier_kry.get("self_reported", 0.0), 4)) > 0.01:
             errors.append("self_reported_kry mismatch")

@@ -95,7 +95,8 @@ def test_adapter_output_feeds_kry_tlsn_verify(monkeypatch, tmp_path):
     pres = adapter.parse_verify_output(_verifier_stdout())
     res = verify.run(pres, expect_server="openrouter.ai", event_type="short_circuit",
                      avoided_model="gh/claude-opus-4.8", served_model=None,
-                     tokens_saved=None, require_status=200, dry_run=False)
+                     tokens_saved=None, require_status=200, dry_run=False,
+                     expect_notary="04deadbeefcafe1234567890")
     assert res["verdict"] == "OK"
     assert res["attested_tokens"] == {"prompt": 120, "completion": 300}
     assert res["minted"]["evidence_tier"] == "tlsn_attested"

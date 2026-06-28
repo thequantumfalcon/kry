@@ -85,7 +85,7 @@ def test_verified_mints_tee_and_lifts_floor():
     vb = km.veracity_breakdown()
     assert vb["by_tier"].get("tee_attested", 0) > 0
     assert vb["tee_attested_fraction"] > 0
-    assert vb["externally_anchored_kry"] > 0
+    assert vb["anchored_kry"] > 0
 
 
 def test_snp_receipt_is_tamper_evident():

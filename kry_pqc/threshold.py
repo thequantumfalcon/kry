@@ -35,7 +35,7 @@ except ImportError:  # pragma: no cover
 
 POLICY_SCHEME = "kry-pqc-council/v1"
 ARTIFACT_SCHEME = "kry-pqc-threshold/v2"            # L3: v2 domain-separates + binds the policy
-_LEGACY_ARTIFACT_SCHEME = "kry-pqc-threshold/v1"    # v1 signed raw bytes; still verifiable
+_LEGACY_ARTIFACT_SCHEME = "kry-pqc-threshold/v1"    # F1: v1 (raw bytes) is now REJECTED for threshold
 
 # L3 domain separation for threshold contributions: each contribution commits to the council
 # (policy_sha256), so a single-signer signature is not a valid contribution, and a contribution
@@ -123,7 +123,12 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
         ok = ok and bool(passed)
 
     scheme = artifact.get("scheme")
-    check("artifact scheme recognised", scheme in (ARTIFACT_SCHEME, _LEGACY_ARTIFACT_SCHEME))
+    # F1: a threshold quorum REQUIRES the v2 (domain-separated, policy-bound) scheme. Accepting legacy
+    # v1 raw-byte artifacts let an attacker declare scheme=v1 to opt out of domain separation — replaying
+    # a standalone signature as a contribution, or a contribution across councils. v1 is refused here;
+    # single-signer v1 back-compat (authenticity of raw bytes, no quorum claim) stays in kry_pqc.verify.
+    check("artifact scheme is v2 (legacy v1 raw-byte artifacts are not a valid quorum)",
+          scheme == ARTIFACT_SCHEME)
     check("message digest matches signed bytes",
           hashlib.sha256(attestation_bytes).hexdigest() == artifact.get("message_sha256"))
     check("artifact bound to this council policy",
@@ -151,9 +156,9 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
 
     by_fp = {e["fingerprint"]: _unb64(e["public_key"]) for e in policy["signers"]}
     alg = policy["alg"]
-    # L3: v2 contributions are over a domain-separated, policy-bound message; v1 over raw bytes.
-    signed_message = (threshold_signed_message(attestation_bytes, policy_digest(policy))
-                      if scheme == ARTIFACT_SCHEME else attestation_bytes)
+    # F1/L3: threshold contributions are ALWAYS verified over the v2 domain-separated, policy-bound
+    # message (v1 is rejected at the scheme check above), so a raw-byte signature can never count.
+    signed_message = threshold_signed_message(attestation_bytes, policy_digest(policy))
     counted: set[str] = set()
     for s in artifact.get("signatures", []):
         fp = s.get("fingerprint")

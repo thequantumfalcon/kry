@@ -5291,7 +5291,7 @@
     "by_tier": {
       "holdout_validated": 37020.4252
     },
-    "externally_anchored_kry": 37020.4252,
+    "anchored_kry": 37020.4252,
     "self_reported_kry": 0.0,
     "veracity_floor": 1.0
   },

@@ -184,9 +184,9 @@ def test_veracity_breakdown_floor(isolated):
     vb = km.veracity_breakdown()
     # floor is the anchored share of total kry, computed from the receipts themselves.
     assert 0.0 < vb["veracity_floor"] < 1.0
-    assert vb["externally_anchored_kry"] > 0
+    assert vb["anchored_kry"] > 0
     assert vb["self_reported_kry"] > 0
-    assert abs(vb["externally_anchored_kry"] + vb["self_reported_kry"]
+    assert abs(vb["anchored_kry"] + vb["self_reported_kry"]
                - vb["total_kry"]) < 0.01
 
 
@@ -344,7 +344,7 @@ def test_v4_forged_tier_is_rejected_by_both_verifiers(isolated):
         lk["evidence_tier"] = "tee_attested"                          # forge an external anchor
     tot = sum(row["kry_minted"] for row in forged["links"])
     forged["veracity"] = {"by_tier": {"tee_attested": round(tot, 4)},
-                          "externally_anchored_kry": round(tot, 4),
+                          "anchored_kry": round(tot, 4),
                           "self_reported_kry": 0.0, "veracity_floor": 1.0}
     forged["attestation_hash"] = ka._attestation_hash(forged)          # re-stamp (operator-controlled)
 
