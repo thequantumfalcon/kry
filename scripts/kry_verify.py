@@ -358,7 +358,9 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                 errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
             kry_by_receipt[rid] = (tier, kry_minted, _pos)
         sup = link.get("supersedes")
-        if tier in ("tlsn_attested", "tee_attested") and sup:
+        # invariant #4 ENFORCED (stranger replica): a promotion must be zero-value — a positive-value
+        # tlsn/tee link that also supersedes keeps its own value only; it cannot re-tier the target too.
+        if tier in ("tlsn_attested", "tee_attested") and sup and kry_minted <= 0:
             promotions.append((sup, tier, _pos))
         errors.extend(_magnitude_errors(link))   # F2: magnitude is public arithmetic
         errors.extend(_tier_schema_errors(link))

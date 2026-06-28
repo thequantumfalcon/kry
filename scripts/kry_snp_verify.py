@@ -361,6 +361,9 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         avoided_model=avoided,
         served_model=served,
         evidence_tier=kry_mint.TIER_TEE_ATTESTED,
+        # MINT-1: refuse a second FRESH tee credit for the same measurement under the mint lock — the
+        # fresh-tee path had no dedup at all (the audit flagged only tlsn; this is the same race class).
+        dedup_check=lambda: kry_mint._find_fresh_tee_receipt_for_measurement(mid) is not None,
     )
     if receipt is None:
         result["verdict"] = "NOT_MINTED"

@@ -41,7 +41,7 @@ import threading
 import time
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger("kry.mint")
 
@@ -399,6 +399,47 @@ def _decayed_tokens(evidence_hash: str, tokens: float) -> float:
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
+def _mint_window_cap() -> Optional[tuple[float, float]]:
+    """Opt-in per-window issuance cap (default OFF). KRY_MINT_WINDOW_CAP = max KRY mintable per
+    KRY_MINT_WINDOW_SEC (default 86400s). Returns (cap_kry, window_sec), or None when unset/invalid —
+    so default behaviour is UNBOUNDED. Bounds honest-but-fabricated at-scale minting for operators who
+    opt in; supply visibility lives in kry_token.supply() (circulating vs lifetime)."""
+    raw = os.environ.get("KRY_MINT_WINDOW_CAP")
+    if not raw:
+        return None
+    try:
+        cap_kry = _finite_number(float(raw), "KRY_MINT_WINDOW_CAP", positive=True)
+        window = _finite_number(float(os.environ.get("KRY_MINT_WINDOW_SEC", "86400")),
+                                "KRY_MINT_WINDOW_SEC", positive=True)
+    except ValueError:
+        return None
+    return cap_kry, window
+
+
+def _minted_kry_in_window(cutoff_ts: float) -> float:
+    """Sum kry_minted for receipts at/after cutoff_ts — the rolling-window total the opt-in issuance
+    cap checks. Only walked when a cap is configured."""
+    if not _MINT_LOG_PATH.exists():
+        return 0.0
+    total = 0.0
+    try:
+        with open(_MINT_LOG_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = _json_loads(line)
+                ts = rec.get("ts")
+                if isinstance(ts, (int, float)) and not isinstance(ts, bool) and ts >= cutoff_ts:
+                    try:
+                        total += _finite_number(rec.get("kry_minted", 0.0), "kry_minted", nonnegative=True)
+                    except ValueError:
+                        continue
+    except Exception:
+        return total
+    return total
+
+
 def mint(
     event_type: str,
     tokens_saved: float,
@@ -408,6 +449,7 @@ def mint(
     evidence_tier: str = TIER_SELF_REPORTED,
     metered_tokens: list | None = None,
     served_model: str | None = None,
+    dedup_check: Callable[[], bool] | None = None,
 ) -> Optional[MintReceipt]:
     """Mint KRY from an efficiency event. Returns MintReceipt or None on failure.
 
@@ -458,6 +500,13 @@ def mint(
             # tip is what keeps the chain unforked under concurrent writers.
             _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with cross_process_lock(_MINT_LOG_PATH):
+                # MINT-1: an optional duplicate check UNDER the cross-process lock, atomic with the
+                # append. Two concurrent fresh-T2/tee mints of the SAME provider generation / measurement
+                # present transient-byte-differing payloads, so the evidence_hash decay (which only
+                # collapses byte-identical replays) cannot stop both. A pre-lock check in the verifier is
+                # racy; re-checking here (as promote_to_tlsn does with _already_promoted) is race-free.
+                if dedup_check is not None and dedup_check():
+                    return None
                 count, prev_chain = _load_chain_tip()
                 receipt = MintReceipt.create(
                     receipt_id=f"KRY-{count + 1:08d}",
@@ -471,6 +520,12 @@ def mint(
                     metered_tokens=metered_tokens,
                     served_model=served_model,
                 )
+                # Issuance cap (opt-in, default OFF): refuse if this mint would push KRY minted in the
+                # rolling window past KRY_MINT_WINDOW_CAP — bounds honest-but-fabricated at-scale minting.
+                _cap = _mint_window_cap()
+                if _cap is not None and (
+                        _minted_kry_in_window(receipt.ts - _cap[1]) + receipt.kry_minted > _cap[0] + 1e-9):
+                    return None
                 # Append to mint log (append-only, like an event store)
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
                     f.write(_json_dumps(asdict(receipt)) + "\n")
@@ -549,6 +604,41 @@ def _find_fresh_t2_receipt_for_gen(gen_id: str) -> Optional[dict]:
                 if gen_id not in _OR_REF.findall(str(rec.get("detail") or "")):
                     continue
                 if rec.get("evidence_tier") != TIER_TLSN_ATTESTED:
+                    continue
+                if rec.get("event_type") == "tier_promotion":   # zero-value promotion, not a credit
+                    continue
+                try:
+                    if _finite_number(rec.get("kry_minted", 0.0), "kry_minted", positive=True) <= 0:
+                        continue
+                except ValueError:
+                    continue
+                found = rec
+    except Exception:
+        return None
+    return found
+
+
+def _find_fresh_tee_receipt_for_measurement(measurement_id: str) -> Optional[dict]:
+    """A prior FRESH (non-zero-value) tee_attested mint for this measurement id — the tee twin of
+    _find_fresh_t2_receipt_for_gen. Two presentations of the same measurement that differ only in
+    transient bytes evade the byte-identical replay decay, so the fresh-tee mint path (tee/snp) must
+    refuse a second credit. _find_measurement_receipt_for_tee only matches UPGRADABLE (self_reported/
+    holdout) receipts, so it does NOT catch a prior fresh tee credit; this does. Skips zero-value
+    tier_promotion rows. Exact measurement-id match. Returns the raw receipt dict, or None."""
+    if not measurement_id or not _MINT_LOG_PATH.exists():
+        return None
+    marker = f"/measurement:{measurement_id}"
+    found: Optional[dict] = None
+    try:
+        with open(_MINT_LOG_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or marker not in line:
+                    continue
+                rec = _json_loads(line)
+                if marker not in str(rec.get("detail") or ""):
+                    continue
+                if rec.get("evidence_tier") != TIER_TEE_ATTESTED:
                     continue
                 if rec.get("event_type") == "tier_promotion":   # zero-value promotion, not a credit
                     continue
@@ -1259,7 +1349,11 @@ def veracity_breakdown() -> dict:
                     if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
                         kry_by_receipt[rid] = (tier, k, _pos)
                     sup = rec.get("supersedes")
-                    if tier in (TIER_TLSN_ATTESTED, TIER_TEE_ATTESTED) and sup:
+                    # invariant #4 ENFORCED (was only asserted): a promotion is itself zero-value, so a
+                    # positive-value tlsn/tee link with `supersedes` keeps its own value and is NOT a
+                    # promotion — else it re-tiers the target ON TOP of its own value (forged floor 1.0
+                    # vs honest 0.333). The promoting link's own `k` must be zero.
+                    if tier in (TIER_TLSN_ATTESTED, TIER_TEE_ATTESTED) and sup and k <= 0:
                         promotions.append((sup, tier, _pos))
         except Exception:
             pass

@@ -435,6 +435,9 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
         served_model=served,
         evidence_tier=kry_mint.TIER_TLSN_ATTESTED,
         metered_tokens=[prompt, completion],
+        # MINT-1: re-check fresh-T2 gen_id uniqueness UNDER the mint lock (the check above is a pre-lock
+        # fast path; this closes the concurrent-presentation double-mint race the evidence decay can't).
+        dedup_check=lambda: kry_mint._find_fresh_t2_receipt_for_gen(gen_id) is not None,
     )
     if receipt is None:
         result["verdict"] = "NOT_MINTED"

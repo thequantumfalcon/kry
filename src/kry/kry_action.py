@@ -113,7 +113,9 @@ def commit(value) -> str:
 
 
 def _kry_data_dir() -> Path:
-    return Path(os.environ.get("KRY_DATA_DIR", "./kry_data"))
+    # ENV-1: .expanduser() so a `~`-relative KRY_DATA_DIR resolves to the SAME directory the savings
+    # layer (kry_mint/kry_settlement) uses — otherwise the action log split-brains into ./~/kry_data.
+    return Path(os.environ.get("KRY_DATA_DIR", "./kry_data")).expanduser()
 
 
 def _action_log_path() -> Path:
@@ -294,10 +296,10 @@ def record(
     Returns the ActionReceipt (whose .chain_hash is the new tip — publish it as an
     anchor with `export_anchor()` to make a later re-mint detectable).
 
-    NOTE on concurrency: this uses a single in-process lock. The savings layer uses
-    kry._locks.cross_process_lock for multi-process safety; wiring that here is the
-    same one-line change and is intentionally left out to keep this module droppable
-    and testable in isolation. Single-writer per process is the supported mode.
+    Concurrency (CONC-2): serialized by an in-process lock AND kry._locks.cross_process_lock, and the
+    authoritative chain tip is RE-READ from the log under that lock on every append — so concurrent
+    workers (a multi-worker MCP / ASGI server) chain off the real tip, never a stale in-memory one, and
+    cannot fork the action chain. Mirrors kry_mint.mint().
     """
     global _COUNTER, _CHAIN_TIP
     args_commit = args if _is_commit(args) else commit(args)
@@ -311,25 +313,32 @@ def record(
             server_evidence if _is_commit(server_evidence) else commit(server_evidence))
 
     with _LOCK:
-        _ensure_init()
-        receipt = ActionReceipt.create(
-            receipt_id=f"act-{_COUNTER + 1}",
-            tool=tool,
-            args_commit=args_commit,
-            previous_chain_hash=_CHAIN_TIP,
-            result_commit=result_commit,
-            status=status,
-            ts=ts,
-            agent_id=agent_id,
-            evidence_tier=evidence_tier,
-            server_evidence_commit=server_evidence_commit,
-        )
+        from kry._locks import cross_process_lock
         path = _action_log_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a") as fh:
-            fh.write(_canon(receipt.to_dict()) + "\n")
-        _COUNTER += 1
-        _CHAIN_TIP = receipt.chain_hash
+        # CONC-2: hold a cross-process lock and RE-READ the authoritative file tip under it, so two
+        # workers (a multi-worker MCP/ASGI server) append against the real tip instead of each process's
+        # stale in-memory _CHAIN_TIP — otherwise concurrent records fork the chain. Mirrors kry_mint.mint().
+        with cross_process_lock(path):
+            count, prev_tip = _load_tip_from_log()
+            receipt = ActionReceipt.create(
+                receipt_id=f"act-{count + 1}",
+                tool=tool,
+                args_commit=args_commit,
+                previous_chain_hash=prev_tip,
+                result_commit=result_commit,
+                status=status,
+                ts=ts,
+                agent_id=agent_id,
+                evidence_tier=evidence_tier,
+                server_evidence_commit=server_evidence_commit,
+            )
+            with path.open("a") as fh:
+                fh.write(_canon(receipt.to_dict()) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+            _COUNTER = count + 1
+            _CHAIN_TIP = receipt.chain_hash
     return receipt
 
 

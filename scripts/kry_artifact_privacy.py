@@ -108,8 +108,11 @@ def _private_key_errors(
 ) -> list[str]:
     errors: list[str] = []
 
-    def visit(current: object, current_path: str) -> None:
+    def visit(current: object, current_path: str, depth: int = 0) -> None:
         if len(errors) >= limit:
+            return
+        if depth > 64:   # F2: bound recursion so a deeply-nested attacker JSON fails clean, not RecursionError
+            errors.append(f"{source_label} is nested too deeply to scan safely")
             return
         if isinstance(current, dict):
             for key, item in current.items():
@@ -136,10 +139,10 @@ def _private_key_errors(
                         f"private content (only documented schema fields are allowed)")
                     if len(errors) >= limit:
                         return
-                visit(item, child_path)
+                visit(item, child_path, depth + 1)
         elif isinstance(current, list):
             for idx, item in enumerate(current):
-                visit(item, f"{current_path}[{idx}]")
+                visit(item, f"{current_path}[{idx}]", depth + 1)
                 if len(errors) >= limit:
                     return
         elif isinstance(current, str) and PRIVATE_STRING_VALUE_RE.search(current):

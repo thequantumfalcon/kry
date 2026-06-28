@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (remediation — two independent deep audits, 2026-06-28)
+
+Two independent maximum-depth audits each surfaced a real issue the other (and six prior rounds)
+missed; both were reproduced before fixing, and every fix ships with a regression test (607 tests).
+
+- **OVERLAY (HIGH) — positive-value promotion double-count.** A tlsn/tee link that BOTH minted its own
+  value AND carried `supersedes` had its value booked to the anchored tier, then the overlay moved the
+  superseded receipt's value on TOP — one anchored receipt double-counting an unrelated one (forged
+  `veracity_floor` 1.0 vs the honest 0.333, confirmed passing the stranger verifier). The contract's
+  invariant #4 ("a promotion is itself zero-value") was asserted but never enforced; it is now enforced
+  at all four overlay enqueue sites (`kry_mint`, `kry_attest` build + verify, `kry_verify`).
+- **SETTLE-1 (HIGH) — cross-node double-spend via `offer_id` nonce collision.** `offer_id` is a
+  spender-settable field, and idempotency keyed on it at THREE sites (the cross-node lease, the
+  in-process reservation, and `settle()`'s reservation-clear). Reusing one `offer_id` across two offers
+  to different recipients was taken as an idempotent replay and bypassed the ceiling. All three now key
+  on a canonical content identity (`from:to:amount:tokens:ts`, one shared `_offer_identity` helper), and
+  the lease re-asserts the ceiling on replay.
+- **MINT-1 (MED) — fresh-T2/tee dedup race (TOCTOU).** The gen-id / measurement uniqueness check ran
+  before `mint()` and outside its lock, so two transient-byte-differing presentations of one provider
+  generation both minted. `mint()` now takes an in-lock `dedup_check`. Extended past the audit's
+  tlsn-only scope to the tee/snp fresh-mint paths, which had no fresh-dedup at all.
+- **CONC-2 (MED) — action-chain fork under multi-process serving.** `kry_action.record()` chained off a
+  per-process in-memory tip, so concurrent workers (a multi-worker MCP server) forked the chain. It now
+  re-reads the authoritative tip under a cross-process lock with an atomic fsync append (mirrors
+  `kry_mint.mint()`). Also **ENV-1**: `kry_action._kry_data_dir()` gained `.expanduser()`.
+- **Low hardening:** the PQC threshold verifier now allowlists the ML-DSA alg and fails clean on a
+  malformed policy (no uncaught KeyError) [PQC-1/2]; the AWS-Nitro X.509 chain rejects an issuer that is
+  not a CA (BasicConstraints) [EXT-1]; the CBOR decoder and the artifact privacy scan bound their
+  recursion → clean failure, not a `RecursionError` [EXT-2 / F2].
+
+### Added (new controls — opt-in, default OFF)
+
+- **Per-window issuance cap** — `KRY_MINT_WINDOW_CAP` (+ `KRY_MINT_WINDOW_SEC`, default 86400) bounds
+  KRY minted per rolling window; unset, minting is unbounded (default unchanged). Bounds
+  honest-but-fabricated at-scale minting; supply visibility stays in `kry_token.supply()`.
+- **Opt-in settlement policy guard** — `kry_settlement.set_settlement_guard(fn)` registers a
+  `(offer, attestation_json) -> reason | None` hook to gate settlement on operator policy (reputation /
+  audit-rate via `kry_referee` / `kry_sanctions`). Default OFF; SECURITY.md now documents that those
+  modules are advisory scaffolding, not enforced by default [SANC-1].
+
+### Changed
+
+- Release-workflow hardening: a `concurrency` guard (one release per ref), `persist-credentials: false`
+  on the release checkout, and an `environment: release` binding (configure required reviewers in repo
+  settings to gate). Two items flagged for operator action: enforce signed-tag verification
+  (`git verify-tag`, needs allowed-signers) and pin-or-drop the release job's dev-tool install.
+
 ### Added
 
 - **Action-receipt layer (`kry_action`)** — tamper-evident, stranger-verifiable receipts for agent

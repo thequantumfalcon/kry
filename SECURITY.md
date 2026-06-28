@@ -20,6 +20,18 @@ By design, **integrity ≠ veracity**: the chain proves *untampered + conserved*
 happened. A balance with no external anchor honestly reports `veracity_floor = 0.0`. That is the
 **honest label, not a defect** — do not report it as a vulnerability.
 
+## Advisory (non-enforcing) controls
+
+`kry_sanctions` (reputation) and `kry_referee` (audit-rate, gate decisions) ship as **advisory
+scaffolding**: by default they are invoked by **no value-bearing path**, so a low-reputation identity
+is not penalized at mint or settle time. This is intentional for v1 — sybil-resistant identity is a
+disclosed honest limit (`src/kry/kry_capabilities.py`), and a reputation gate is only as strong as
+the identity behind it. An operator running KRY inside a trusted-identity boundary can **opt in**:
+`kry_settlement.set_settlement_guard(fn)` registers a `(offer, attestation_json) -> reason | None`
+hook that gates settlement on whatever policy (reputation, audit-rate) the operator wires from
+`kry_referee` / `kry_sanctions`. Unset (the default), settlement behaviour is unchanged. Do **not**
+treat the advisory default as a vulnerability — it is a labeled limit, like `veracity_floor`.
+
 ## Supported versions
 
 | Version | Supported |

@@ -10,9 +10,18 @@ on:
 permissions:
   contents: read
 
+# F6: one release per ref at a time — a re-pushed / racing tag can't mint two provenance attestations.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    # F1: bind this id-token-bearing job to a protected environment. Add required reviewers in
+    # Settings -> Environments -> "release" to gate signed-artifact publication behind approval
+    # (no-op until configured, so this is safe to land now).
+    environment: release
     permissions:
       contents: write       # create the GitHub Release
       id-token: write        # build provenance via Sigstore OIDC
@@ -24,6 +33,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false   # F5: don't leave the write-scoped token in .git/config during build
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.11"
