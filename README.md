@@ -423,11 +423,12 @@ have tooling: run real `provider_metered`/holdout traffic, then
 
 ## Modules
 
-All under `src/kry/` — ~5,000 LOC, stdlib only.
+All under `src/kry/` — ~5,500 LOC, stdlib only.
 
 | Module | Responsibility |
 |---|---|
 | `kry_token.py` | earn / spend / cycle, edge-weighted; `retained_dollars()`, `supply()`, dated price provenance, flow-balance, CSD solvency early-warning |
+| `kry_action.py` | the same discipline for agent **actions** (not savings): content-free hash-chained action receipts, tiers T0 `self_reported` / T1 `server_witnessed` / T2 `attested`, `veracity_floor`; stranger verifier `scripts/kry_action_verify.py` + zero-dep MCP middleware `scripts/kry_action_mcp.py` (`@attested_tool`). **T1 binds whatever the witness returns — operator-supplied until wired to a real MCP server signature.** |
 | `kry_mint.py` | SHA-256 hash-chain receipts, per-evidence supply decay, evidence tiers, dated-basis valuation |
 | `kry_attest.py` | content-sealed public proof-of-balance + the verifiable `veracity` surface |
 | `kry_settlement.py` | federated conservation transfer + double-spend guard (single-host multi-process: commit-time ceiling re-check under a cross-process lock; tamper-evident registry, rollback/HOLE-F checkpoint + published registry anchor, negative-offer guard) |

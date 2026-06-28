@@ -426,6 +426,12 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         tier_kry[src_tier] = tier_kry.get(src_tier, 0.0) - src_kry
         tier_kry[to_tier] = tier_kry.get(to_tier, 0.0) + src_kry
         del kry_by_receipt[src_id]
+    # OUTCOME GUARD (see kry_mint._apply_promotion_overlay SAFETY CONTRACT): the overlay is a pure
+    # transfer, so no tier may be negative afterwards — a negative means a promotion moved value that
+    # was not there (forged chain / overlay bug), caught even if an invariant above were ever missed.
+    if any(val < -0.01 for val in tier_kry.values()):
+        errors.append("veracity by_tier went negative after the promotion overlay — "
+                      "a promotion moved value that was not there")
 
     # Trust surface must be honest: declared floor must match the per-link tiers.
     v = attestation.get("veracity")
