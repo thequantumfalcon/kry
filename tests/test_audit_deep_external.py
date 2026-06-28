@@ -166,3 +166,71 @@ def test_f2_legacy_externally_anchored_field_still_verifies():
     att["attestation_hash"] = ka._attestation_hash(att)
     ok, errs = ka.verify_attestation(json.dumps(att))
     assert ok, errs
+
+
+# ── overlay lock #2 (audit 2026-06-28): a POSITIVE-VALUE promotion link cannot double-count ──
+# invariant #4 ("a promotion is itself zero-value") was ASSERTED in the safety contract but never
+# ENFORCED at the enqueue: a tlsn/tee link that BOTH minted its own value AND carried `supersedes`
+# had its own value booked to the anchored tier, then the overlay moved the target's value on TOP —
+# one anchored receipt double-counting an unrelated one (forged veracity_floor 1.0 vs 0.333, confirmed
+# passing the stranger verifier). The enqueue now requires the promoting link's own value to be zero,
+# at all four overlay sites (kry_mint, kry_attest build + verify, scripts/kry_verify).
+def test_overlay_positive_value_promotion_cannot_double_count():
+    import kry.kry_mint as km
+    recs = [
+        {"evidence_tier": "self_reported", "kry_minted": 1000.0, "receipt_id": "RID-A",
+         "hash_version": 7, "supersedes": None},
+        {"evidence_tier": "tlsn_attested", "kry_minted": 500.0, "receipt_id": "RID-P",
+         "hash_version": 7, "supersedes": "RID-A"},   # earns its OWN 500 AND supersedes -> NOT a promotion
+    ]
+    km._MINT_LOG_PATH.write_text("\n".join(json.dumps(r) for r in recs) + "\n")
+    vb = km.veracity_breakdown()
+    assert vb["anchored_kry"] == 500.0                      # the tlsn link's own 500 ONLY, not 1500
+    assert vb["veracity_floor"] == round(500 / 1500, 4)     # 0.3333, not the forged 1.0
+    assert vb["by_tier"].get("self_reported") == 1000.0     # the self_reported 1000 stays put
+
+
+# ── MINT-1 (audit 2026-06-28): fresh-T2/tee mint dedup must be ATOMIC with the append (under the lock) ──
+# The fresh-mint path credited T2 value when no prior receipt existed; two presentations of the SAME
+# provider generation / measurement that differ only in transient bytes (Date header, notary sig) produce
+# different evidence_hashes, so the byte-identical replay decay can't collapse them. The dedup check ran
+# BEFORE mint() and outside its lock (racy). mint() now takes an in-lock dedup_check. (We also extended
+# the fix to the tee/snp fresh path, which had NO fresh-dedup at all — same race class.)
+def test_mint_dedup_check_refuses_duplicate_fresh_t2_gen():
+    import kry.kry_mint as km
+    common = dict(avoided_model="opus", evidence_tier=km.TIER_TLSN_ATTESTED)
+    dc = lambda: km._find_fresh_t2_receipt_for_gen("gen-DUP") is not None  # noqa: E731
+    r1 = km.mint("displacement", 100.0, detail="tlsn /openrouter:gen-DUP", evidence="bytes-A",
+                 dedup_check=dc, **common)
+    assert r1 is not None and r1.kry_minted > 0
+    # second presentation: DIFFERENT bytes -> decay can't catch it, but the in-lock dedup_check must.
+    r2 = km.mint("displacement", 100.0, detail="tlsn /openrouter:gen-DUP", evidence="bytes-B",
+                 dedup_check=dc, **common)
+    assert r2 is None, "second fresh-T2 mint of the same gen id must be refused under the lock"
+
+
+def test_mint_dedup_check_refuses_duplicate_fresh_tee_measurement():
+    import kry.kry_mint as km
+    common = dict(avoided_model="opus", evidence_tier=km.TIER_TEE_ATTESTED)
+    dc = lambda: km._find_fresh_tee_receipt_for_measurement("meas-DUP") is not None  # noqa: E731
+    r1 = km.mint("holdout", 100.0, detail="tee /measurement:meas-DUP", evidence="att-A",
+                 dedup_check=dc, **common)
+    assert r1 is not None and r1.kry_minted > 0
+    r2 = km.mint("holdout", 100.0, detail="tee /measurement:meas-DUP", evidence="att-B",
+                 dedup_check=dc, **common)
+    assert r2 is None, "second fresh-tee mint of the same measurement id must be refused under the lock"
+
+
+# ── new control (opt-in): per-window issuance cap, default OFF ──
+def test_issuance_window_cap_opt_in(monkeypatch):
+    """With KRY_MINT_WINDOW_CAP set, minting beyond the cap in the rolling window is refused; unset
+    (the default), minting is unbounded. Bounds honest-but-fabricated at-scale minting for operators
+    who opt in — conservation governs transfer only, decay only collapses byte-identical replays."""
+    import kry.kry_mint as km
+    monkeypatch.setenv("KRY_MINT_WINDOW_CAP", "150")
+    monkeypatch.setenv("KRY_MINT_WINDOW_SEC", "3600")
+    assert km.mint("cache_hit", 100.0, evidence="e1", avoided_model="opus") is not None   # 100 <= 150
+    assert km.mint("cache_hit", 100.0, evidence="e2", avoided_model="opus") is None        # 200 > 150 -> refused
+    # cap removed -> unbounded again (default behaviour)
+    monkeypatch.delenv("KRY_MINT_WINDOW_CAP")
+    assert km.mint("cache_hit", 100.0, evidence="e3", avoided_model="opus") is not None

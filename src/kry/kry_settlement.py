@@ -146,6 +146,18 @@ def make_offer(from_party: str, to_party: str, kry_amount: float,
         kry_amount=kry_amount, routing_tokens=routing_tokens, ts=now)
 
 
+def _offer_identity(offer: SettlementOffer) -> str:
+    """SETTLE-1: the offer's CANONICAL content identity — the idempotency key for BOTH the in-process
+    reservation and the cross-node lease. `offer_id` is a spender-settable field, so keying idempotency
+    on it let ONE offer_id reused across two offers to DIFFERENT recipients be taken as an idempotent
+    replay, bypassing the ceiling (a cross-node — and in-flight in-process — double-spend). Binding
+    from/to/amount/tokens/ts makes two distinct offers distinct, while a genuine replay of the SAME
+    offer stays idempotent. One source of truth so verify_and_accept and settle() cannot drift."""
+    return hashlib.sha256(
+        f"{offer.from_party}:{offer.to_party}:{offer.kry_amount}:"
+        f"{offer.routing_tokens}:{offer.ts}".encode()).hexdigest()
+
+
 # ── Federated shared registry — double-spend prevention ───────────────────────
 #
 # A double-spend probe proved one attestation can buy routing from N
@@ -630,11 +642,15 @@ def _acquire_lease(party: str, amount: float, ceiling: float, *, nonce: str,
             ]
         except Exception:
             return False
-        # Idempotent replay: the same offer already holds a lease.
+        # Idempotent replay: the same offer (canonical identity) already holds a lease. Re-assert the
+        # ceiling anyway (defence in depth): a genuine replay was already within ceiling, so this only
+        # fails closed if the lease file was tampered to exceed it.
         if any(lo.get("nonce") == nonce for lo in leases):
+            active = sum(_finite_number(lo.get("amount", 0.0), "lease.amount", positive=True)
+                         for lo in leases)
             data[party] = leases
             _lease_write(p, data)
-            return True
+            return active <= ceiling + 1e-9
         active = sum(_finite_number(lo.get("amount", 0.0), "lease.amount",
                                     positive=True) for lo in leases)
         granted = active + amount <= ceiling + 1e-9
@@ -645,6 +661,18 @@ def _acquire_lease(party: str, amount: float, ceiling: float, *, nonce: str,
         return granted
     finally:
         _lease_unlock(authdir)
+
+
+_SETTLEMENT_GUARD = None   # SANC-1: optional operator policy hook (offer, attestation_json) -> reason|None
+
+
+def set_settlement_guard(guard) -> None:
+    """Register an opt-in settlement policy guard (default None = OFF). `guard(offer, attestation_json)`
+    returns a rejection-reason string to REFUSE a settlement, or a falsy value to allow. Wire
+    kry_referee / kry_sanctions here to gate on a counterparty's reputation / audit-rate; left unset,
+    those modules stay advisory scaffolding (see SECURITY.md) and settlement behaviour is unchanged."""
+    global _SETTLEMENT_GUARD
+    _SETTLEMENT_GUARD = guard
 
 
 def verify_and_accept(
@@ -693,6 +721,15 @@ def verify_and_accept(
     valid, errs = verify_attestation(attestation_json)
     if not valid:
         return None, f"attestation invalid: {errs[:2]}"
+    # SANC-1: optional operator-registered enforcement hook (default None = OFF). Wire kry_referee /
+    # kry_sanctions here to gate settlement on reputation; by default they stay advisory (SECURITY.md).
+    if _SETTLEMENT_GUARD is not None:
+        try:
+            _guard_reason = _SETTLEMENT_GUARD(offer, attestation_json)
+        except Exception as exc:   # a guard must never crash settlement — treat a raising guard as refusal
+            return None, f"settlement policy guard raised: {exc}"
+        if _guard_reason:
+            return None, f"settlement refused by policy guard: {_guard_reason}"
 
     try:
         att = _json_loads(attestation_json)
@@ -721,13 +758,14 @@ def verify_and_accept(
     # verify->settle TOCTOU). On success it reserves the amount; settle() clears it.
     from kry._locks import cross_process_lock
     _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    offer_identity = _offer_identity(offer)   # SETTLE-1: idempotency keys on offer CONTENT, not offer_id
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
         registry = _load_registry()
         if registry.get("__tampered__"):
             return None, "settlement registry tampered — failing closed (HOLE E)"
         already_settled = registry.get(offer.from_party, 0.0)
         pending = [r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
-                   if now - r["ts"] < _LEASE_TTL and r["offer_id"] != offer.offer_id]
+                   if now - r["ts"] < _LEASE_TTL and r["offer_id"] != offer_identity]
         reserved = sum(r["amount"] for r in pending)
         available = attested_balance - already_settled - reserved
         if available < offer_amount:
@@ -735,7 +773,7 @@ def verify_and_accept(
             return None, (f"double-spend guard: attested {attested_balance:.0f} − "
                           f"already-settled {already_settled:.0f} − in-flight {reserved:.0f} "
                           f"= {available:.0f} < offered {offer_amount:.0f}")
-        pending.append({"offer_id": offer.offer_id, "amount": offer_amount, "ts": now})
+        pending.append({"offer_id": offer_identity, "amount": offer_amount, "ts": now})
         _PENDING_RESERVATIONS[offer.from_party] = pending
 
     # HOLE D fix: the registry guard above is per-node. When a shared lease
@@ -748,7 +786,7 @@ def verify_and_accept(
         try:
             granted = _acquire_lease(
                 offer.from_party, offer_amount, attested_balance,
-                nonce=offer.offer_id, now=now, authdir=authdir,
+                nonce=offer_identity, now=now, authdir=authdir,
             )
         finally:
             # On DENIAL *or* an exception from the lease layer, drop the in-process reservation we
@@ -759,7 +797,7 @@ def verify_and_accept(
                 with _REGISTRY_LOCK:
                     _PENDING_RESERVATIONS[offer.from_party] = [
                         r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
-                        if r["offer_id"] != offer.offer_id
+                        if r["offer_id"] != offer_identity
                     ]
         if not granted:
             return None, (f"cross-node lease denied (HOLE D): {offer.from_party} "
@@ -887,7 +925,7 @@ def settle(
             # authoritative double-spend bound is the committed registry. Mirrors the lease finally.
             _PENDING_RESERVATIONS[offer.from_party] = [
                 r for r in _PENDING_RESERVATIONS.get(offer.from_party, [])
-                if r["offer_id"] != offer.offer_id
+                if r["offer_id"] != _offer_identity(offer)
             ]
 
     # Obligation committed and A debited by exactly `amount` — NOW credit B.

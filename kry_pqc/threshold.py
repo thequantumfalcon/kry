@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 from kry_pqc.signer import DEFAULT_ALG, _b64, _unb64, fingerprint, sign_bytes
+from kry_pqc.verify import ALLOWED_ALGS   # PQC-1: one allowed-ML-DSA set, shared with the single-signer M1
 
 try:
     import oqs
@@ -112,6 +113,25 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     ML-DSA signatures over exactly these attestation bytes, the artifact is bound
     to this policy, and the message digest matches.
     """
+    # PQC-2: artifact + policy are attacker-supplied; a malformed policy (missing keys / wrong types /
+    # non-base64 key) must FAIL CLEAN, not crash this stranger verifier with an uncaught
+    # KeyError/binascii.Error/TypeError. PQC-1: the algorithm must be allowlisted (consistency with
+    # kry_pqc.verify's M1) — an arbitrary alg otherwise reaches oqs.Signature(alg) below.
+    if not isinstance(policy, dict) or "threshold" not in policy:
+        return False, {"error": "policy must be a JSON object carrying a threshold"}
+    if policy.get("alg") not in ALLOWED_ALGS:
+        return False, {"error": f"policy.alg {policy.get('alg')!r} not allowed (need {sorted(ALLOWED_ALGS)})"}
+    _signers = policy.get("signers")
+    if not isinstance(_signers, list) or not _signers:
+        return False, {"error": "policy.signers must be a non-empty list"}
+    try:
+        for _e in _signers:
+            if not isinstance(_e, dict) or not isinstance(_e.get("fingerprint"), str):
+                return False, {"error": "policy.signers entry must have a string fingerprint"}
+            _unb64(_e["public_key"])   # reject a non-base64 public_key cleanly (no binascii crash below)
+    except (binascii.Error, ValueError, KeyError, TypeError):
+        return False, {"error": "policy.signers has a missing or non-base64 public_key"}
+
     report = {"checks": [], "valid_signers": [], "valid_count": 0,
               "threshold": policy["threshold"], "council_size": len(policy["signers"]),
               "trust_ratio": f"{policy['threshold']}/{len(policy['signers'])}"}

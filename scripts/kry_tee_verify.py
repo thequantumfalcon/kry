@@ -107,10 +107,13 @@ class _CBORError(ValueError):
 
 
 _BREAK = object()   # CBOR "break" stop code (0xff) terminating an indefinite-length item
+_CBOR_MAX_DEPTH = 64   # EXT-2: max CBOR nesting before failing closed (vs an uncaught RecursionError)
 
 
-def _cbor_decode(buf: bytes, i: int = 0) -> tuple[object, int]:
+def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
     """Decode one CBOR item starting at index i. Returns (value, next_index)."""
+    if depth > _CBOR_MAX_DEPTH:    # EXT-2: bound recursion -> clean _CBORError, not a RecursionError
+        raise _CBORError("CBOR nesting too deep")
     if i >= len(buf):
         raise _CBORError("truncated CBOR")
     ib = buf[i]
@@ -123,7 +126,7 @@ def _cbor_decode(buf: bytes, i: int = 0) -> tuple[object, int]:
         if major in (2, 3):                # indefinite byte/text string: concat chunks
             chunks = []
             while True:
-                item, i = _cbor_decode(buf, i)
+                item, i = _cbor_decode(buf, i, depth + 1)
                 if item is _BREAK:
                     break
                 chunks.append(item)
@@ -131,7 +134,7 @@ def _cbor_decode(buf: bytes, i: int = 0) -> tuple[object, int]:
         if major == 4:                     # indefinite array
             out = []
             while True:
-                item, i = _cbor_decode(buf, i)
+                item, i = _cbor_decode(buf, i, depth + 1)
                 if item is _BREAK:
                     break
                 out.append(item)
@@ -139,10 +142,10 @@ def _cbor_decode(buf: bytes, i: int = 0) -> tuple[object, int]:
         if major == 5:                     # indefinite map
             out_map: dict = {}
             while True:
-                k, i = _cbor_decode(buf, i)
+                k, i = _cbor_decode(buf, i, depth + 1)
                 if k is _BREAK:
                     break
-                v, i = _cbor_decode(buf, i)
+                v, i = _cbor_decode(buf, i, depth + 1)
                 out_map[k] = v
             return out_map, i
         raise _CBORError(f"indefinite-length not valid for major type {major}")
@@ -175,18 +178,18 @@ def _cbor_decode(buf: bytes, i: int = 0) -> tuple[object, int]:
     if major == 4:                         # array
         out = []
         for _ in range(val):
-            item, i = _cbor_decode(buf, i)
+            item, i = _cbor_decode(buf, i, depth + 1)
             out.append(item)
         return out, i
     if major == 5:                         # map
         out_map: dict = {}
         for _ in range(val):
-            k, i = _cbor_decode(buf, i)
-            v, i = _cbor_decode(buf, i)
+            k, i = _cbor_decode(buf, i, depth + 1)
+            v, i = _cbor_decode(buf, i, depth + 1)
             out_map[k] = v
         return out_map, i
     if major == 6:                         # tag — decode and return the tagged item
-        item, i = _cbor_decode(buf, i)
+        item, i = _cbor_decode(buf, i, depth + 1)
         return item, i
     if major == 7:                         # simple / float
         if ai == 20:
@@ -395,6 +398,15 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
         except Exception:
             errs.append(f"chain broken: '{child.subject.rfc4514_string()}' is not directly "
                         f"issued by '{issuer.subject.rfc4514_string()}'")
+        # EXT-1: the issuer must be a CA permitted to sign certs (BasicConstraints CA=TRUE), else a
+        # leaf / non-CA cert slipped into the path could vouch for a child.
+        try:
+            if not issuer.extensions.get_extension_for_class(x509.BasicConstraints).value.ca:
+                errs.append(f"issuer '{issuer.subject.rfc4514_string()}' is not a CA "
+                            "(BasicConstraints CA=FALSE) — cannot sign certificates")
+        except x509.ExtensionNotFound:
+            errs.append(f"issuer '{issuer.subject.rfc4514_string()}' lacks BasicConstraints "
+                        "(not a valid CA)")
     # the chain MUST terminate at exactly the pinned root (the trust anchor)
     chain_root_der = chain[-1].public_bytes(serialization.Encoding.DER)
     if chain_root_der != bytes(root_cert_der):
@@ -535,6 +547,9 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         avoided_model=avoided,
         served_model=served,
         evidence_tier=kry_mint.TIER_TEE_ATTESTED,
+        # MINT-1: refuse a second FRESH tee credit for the same measurement under the mint lock — the
+        # fresh-tee path had no dedup at all (the audit flagged only tlsn; this is the same race class).
+        dedup_check=lambda: kry_mint._find_fresh_tee_receipt_for_measurement(mid) is not None,
     )
     if receipt is None:
         result["verdict"] = "NOT_MINTED"

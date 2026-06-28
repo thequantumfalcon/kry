@@ -173,3 +173,67 @@ def test_concurrent_accepts_do_not_overspend(tmp_path, monkeypatch):
     for t in threads:
         t.join()
     assert len(grants) == 2, f"expected 2 grants (no overspend), got {len(grants)}"
+
+
+# ── SETTLE-1: offer_id is spender-settable — idempotency must key on the CANONICAL content identity ──
+
+def test_lease_nonce_collision_cannot_double_spend(tmp_path, monkeypatch):
+    """A spender bypasses make_offer and reuses ONE offer_id across two offers to DIFFERENT recipients.
+    Before the fix the cross-node lease took the second as an idempotent replay (same nonce) and bypassed
+    the ceiling — ~120% of the attested balance settled across two nodes. The lease nonce is now the
+    offer's canonical content identity, so node C's over-balance accept is denied."""
+    att_json, attested = _mint_and_attest()
+    amount = attested * 0.6
+    monkeypatch.setenv("KRY_SETTLE_LEASE_DIR", str(tmp_path / "authority"))
+    ks._PENDING_RESERVATIONS.clear()
+    now = time.time()
+    offer_b = ks.SettlementOffer(offer_id="COLLIDE", from_party="A", to_party="B",
+                                 kry_amount=amount, routing_tokens=1000, ts=now)
+    offer_c = ks.SettlementOffer(offer_id="COLLIDE", from_party="A", to_party="C",
+                                 kry_amount=amount, routing_tokens=1000, ts=now)
+    ks._REGISTRY_PATH = tmp_path / "nodeB" / "reg.jsonl"
+    grant_b, reason_b = ks.verify_and_accept(offer_b, att_json, now=now)
+    assert grant_b is not None, reason_b
+    ks._PENDING_RESERVATIONS.clear()                     # node C runs in a separate process
+    ks._REGISTRY_PATH = tmp_path / "nodeC" / "reg.jsonl"
+    grant_c, reason_c = ks.verify_and_accept(offer_c, att_json, now=now)
+    assert grant_c is None and "lease denied" in reason_c, reason_c
+
+
+def test_in_process_offer_id_collision_cannot_double_spend(tmp_path, monkeypatch):
+    """The in-process verify->settle reservation ALSO keyed idempotency on offer_id. Two offers sharing
+    an offer_id but different recipients, in the in-flight window, must both count against the ceiling
+    (canonical identity), so the second is denied — even with no file lease configured."""
+    monkeypatch.delenv("KRY_SETTLE_LEASE_DIR", raising=False)
+    ks._PENDING_RESERVATIONS.clear()
+    att_json, attested = _mint_and_attest()
+    amount = attested * 0.6
+    now = time.time()
+    offer_b = ks.SettlementOffer(offer_id="COLLIDE", from_party="A", to_party="B",
+                                 kry_amount=amount, routing_tokens=1000, ts=now)
+    offer_c = ks.SettlementOffer(offer_id="COLLIDE", from_party="A", to_party="C",
+                                 kry_amount=amount, routing_tokens=1000, ts=now)
+    ks._REGISTRY_PATH = tmp_path / "nodeB" / "reg.jsonl"
+    g_b, _ = ks.verify_and_accept(offer_b, att_json, now=now)
+    ks._REGISTRY_PATH = tmp_path / "nodeC" / "reg.jsonl"     # different node, SAME process (in-flight)
+    g_c, reason_c = ks.verify_and_accept(offer_c, att_json, now=now)
+    assert g_b is not None
+    assert g_c is None and "double-spend" in reason_c, reason_c
+
+
+def test_settlement_guard_opt_in(monkeypatch):
+    """SANC-1: a registered settlement guard refuses by policy; default (None) leaves behaviour unchanged."""
+    monkeypatch.delenv("KRY_SETTLE_LEASE_DIR", raising=False)
+    ks._PENDING_RESERVATIONS.clear()
+    att_json, attested = _mint_and_attest()
+    now = time.time()
+    offer = ks.make_offer("A", "B", attested * 0.5, 1000, now=now)
+    g_ok, _ = ks.verify_and_accept(offer, att_json, now=now)          # default: no guard -> accepted
+    assert g_ok is not None
+    ks._PENDING_RESERVATIONS.clear()
+    ks.set_settlement_guard(lambda offer, att: "counterparty below reputation floor")  # opt in a refusing guard
+    try:
+        g_no, reason = ks.verify_and_accept(offer, att_json, now=now)
+        assert g_no is None and "policy guard" in reason, reason
+    finally:
+        ks.set_settlement_guard(None)   # restore default OFF so the module global never leaks

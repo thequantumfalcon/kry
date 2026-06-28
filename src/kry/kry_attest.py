@@ -315,7 +315,9 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                 if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
                     kry_by_receipt[rid] = (tier, rec["kry_minted"], i)   # i = forward-scan position
                 sup = rec.get("supersedes")
-                if tier in ("tlsn_attested", "tee_attested") and sup:
+                # invariant #4 ENFORCED: only a ZERO-value link may re-tier a prior receipt — a
+                # positive-value promoter double-counts (see kry_mint._apply_promotion_overlay).
+                if tier in ("tlsn_attested", "tee_attested") and sup and rec["kry_minted"] <= 0:
                     promotions.append((sup, tier, i))
                 prev_chain = rec["chain_hash"]
                 chain_head = rec["chain_hash"]
@@ -457,7 +459,10 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                 errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
             kry_by_receipt[rid] = (tier, kry_minted, _pos)
         sup = link.get("supersedes")
-        if tier in ("tlsn_attested", "tee_attested") and sup:
+        # invariant #4 ENFORCED on the verifier boundary: a promotion must be zero-value, so a forged
+        # positive-value tlsn/tee link with `supersedes` cannot re-tier a prior receipt onto itself
+        # (the double-count that read veracity_floor 1.0 vs the honest 0.333).
+        if tier in ("tlsn_attested", "tee_attested") and sup and kry_minted <= 0:
             promotions.append((sup, tier, _pos))
         errors.extend(_magnitude_errors(link))
         errors.extend(_tier_schema_errors(link))
