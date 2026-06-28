@@ -230,14 +230,21 @@ def test_pending_rejects_nonfinite_ttl():
             kp.record_pending({"event_type": "cache_hit", "tokens_saved": 1000}, ttl=bad)
 
 
-def test_pending_load_rejects_nan_constant():
-    """#15: a NaN-poisoned store reads as empty (fail-closed: nothing mints)."""
+def test_pending_load_quarantines_corrupt_store():
+    """#15 / M5: a NaN-poisoned (or otherwise corrupt) store fails CLOSED *and LOUD* — _load
+    raises PendingStoreCorrupt and quarantines the bad file, instead of silently resetting to {}
+    (which would erase confirm()'s write-ahead idempotency and open a re-mint window). Contrast
+    the token ledger, which may reset to a fresh balance — the honest UNDERcount direction; a
+    fresh PENDING store is the OVERcount risk, so here we refuse to proceed."""
     import kry.kry_pending as kp
     kp._PENDING_PATH.write_text(
         '{"PEND-x": {"created_ts": 0.0, "ttl": NaN, "status": "pending", '
         '"mint_kwargs": {"event_type": "cache_hit", "tokens_saved": 1000}}}')
-    assert kp.stats() == {}
-    assert kp.sweep_expired() == 0
+    with pytest.raises(kp.PendingStoreCorrupt):
+        kp.stats()
+    # the corrupt file was quarantined (moved aside), not left to fail on every access
+    assert not kp._PENDING_PATH.exists()
+    assert kp._PENDING_PATH.with_name(kp._PENDING_PATH.name + ".corrupt").exists()
 
 
 # ── #16 — wilson interval ─────────────────────────────────────────────────────

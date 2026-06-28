@@ -34,6 +34,14 @@ def _unb64(s: str) -> bytes:
     return base64.b64decode(s.encode())
 
 
+# M1: the signature algorithm is read from the attacker-supplied .sig.json. Pin it to the
+# FIPS-204 ML-DSA parameter sets KRY actually signs with, so a bogus/unsupported `alg` fails
+# closed (RESULT: FAILED, exit 1) inside the parse guard instead of reaching oqs.Signature(alg)
+# and raising an uncaught MechanismNotSupportedError. The three sets have distinct key lengths,
+# so pinning also blocks alg-confusion: a key pinned for one set won't verify under another.
+ALLOWED_ALGS = frozenset({"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
+
+
 def verify_signature(attestation_bytes: bytes, signature: bytes, public_key: bytes,
                      alg: str) -> bool:
     with oqs.Signature(alg) as verifier:
@@ -80,6 +88,8 @@ def main(argv=None) -> int:
         if not isinstance(artifact, dict):
             raise ValueError("signature artifact is not a JSON object")
         alg = artifact["alg"]
+        if alg not in ALLOWED_ALGS:
+            raise ValueError(f"unsupported alg {alg!r}; allowed: {sorted(ALLOWED_ALGS)}")
         signature = _unb64(artifact["signature"])
         if args.public_key:
             public_key = _unb64(Path(args.public_key).read_text().strip())
@@ -105,6 +115,9 @@ def main(argv=None) -> int:
 
     if args.expect_fingerprint:
         want = args.expect_fingerprint.strip().lower()
+        if 0 < len(want) < 16:
+            print(f"[warn] --expect-fingerprint is only {len(want)} hex chars; a short prefix is "
+                  "brute-forceable — pin >= 16 hex (64-bit) for a meaningful binding")
         fp_ok = bool(want) and full_fp.startswith(want)
         print(f"[{'PASS' if fp_ok else 'FAIL'}] key fingerprint matches pinned --expect-fingerprint")
         ok = ok and fp_ok

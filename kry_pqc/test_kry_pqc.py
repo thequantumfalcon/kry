@@ -104,6 +104,21 @@ def test_single_wrong_key_fails(attestation, tmp_path):
     assert verify.main(["--attestation", str(attestation), "--signature", str(sig)]) == 1
 
 
+def test_verify_rejects_unsupported_alg(attestation, tmp_path):
+    """M1: a bogus/unsupported `alg` in the artifact fails CLOSED (exit 1), not an uncaught
+    MechanismNotSupportedError crash. The alg is allowlisted inside the parse guard, before
+    it can reach oqs.Signature(alg)."""
+    pk, sk = signer.generate_keypair()
+    artifact = signer.sign_attestation(attestation, sk, pk)
+    artifact["alg"] = "ML-DSA-9999"                       # not in the ML-DSA allowlist
+    sig = tmp_path / "att.sig.json"
+    sig.write_text(json.dumps(artifact))
+    pk_file = tmp_path / "signer.pub"
+    pk_file.write_text(base64.b64encode(pk).decode())
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig),
+                        "--public-key", str(pk_file)]) == 1
+
+
 def test_keygen_writes_secret_key_owner_only(tmp_path):
     """The keygen CLI must write the private key owner-only (0o600), never group/world-readable."""
     import stat

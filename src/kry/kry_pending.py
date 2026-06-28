@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import tempfile
@@ -29,6 +30,15 @@ from pathlib import Path
 from typing import Optional
 
 from kry.kry_mint import MintReceipt, mint
+
+
+logger = logging.getLogger("kry.pending")
+
+
+class PendingStoreCorrupt(RuntimeError):
+    """The pending store is present but unparseable. Raised instead of silently
+    resetting to ``{}`` — a fresh store would erase confirm()'s write-ahead
+    idempotency state and open a re-mint window."""
 
 
 def _reject_json_constant(value: str):
@@ -88,10 +98,27 @@ def _load() -> dict:
         with open(_PENDING_PATH, encoding="utf-8") as f:
             # HOLE #15: reject NaN/Infinity (mirrors kry_mint). A NaN `ttl` makes the expiry check
             # `now > created_ts + NaN` always False, so the pending never expires and stays mintable
-            # forever. A poisoned/externally-written store now reads as empty (fail-closed: no mint).
+            # forever. A poisoned/externally-written store is treated as corrupt below.
             return json.loads(f.read(), parse_constant=_reject_json_constant)
-    except (json.JSONDecodeError, OSError, ValueError):
-        return {}
+    except FileNotFoundError:
+        return {}  # vanished between exists() and open() — genuinely absent
+    except (json.JSONDecodeError, ValueError) as e:
+        # M5: a PRESENT-but-corrupt store must NOT silently reset to {} — that erases the
+        # write-ahead confirm() idempotency state and opens a re-mint window (a previously
+        # confirmed displacement could be recorded and confirmed a second time). Quarantine
+        # the bad file for forensics, log loudly, and FAIL CLOSED. This mirrors
+        # kry_mint._decayed_tokens (also fails closed on a present-but-unparseable file);
+        # contrast kry_token's ledger, which may reset to a fresh balance because that is the
+        # honest UNDERcount direction — here a fresh store is the OVERcount risk.
+        quarantine = _PENDING_PATH.with_name(_PENDING_PATH.name + ".corrupt")
+        try:
+            os.replace(_PENDING_PATH, quarantine)
+        except OSError:
+            quarantine = None
+        logger.error("kry_pending: corrupt store %s quarantined to %s (%s); refusing to proceed",
+                     _PENDING_PATH, quarantine, e)
+        raise PendingStoreCorrupt(
+            f"pending store {_PENDING_PATH} is present but unparseable: {e}") from e
 
 
 def _store(data: dict) -> None:

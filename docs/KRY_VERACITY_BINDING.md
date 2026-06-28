@@ -72,8 +72,9 @@ Every mint is classified by **how the event was witnessed** (weakest → stronge
  same-`earn_rate` event types). Legacy `v1` receipts (pre-tier) default
  to `self_reported` — the honest assumption — and verify bit-for-bit unchanged.
 - The attestation exposes a **`veracity` block**: KRY by tier, and a
- **`veracity_floor`** = the fraction backed by an external anchor (T1+T2), *not*
- operator self-report. `verify_attestation()` re-derives the floor from the
+ **`veracity_floor`** = the fraction backed by something stronger than bare operator
+ self-report — an external anchor (provider-metered / TEE / TLSNotary) *or* an operator-run
+ randomized holdout (`holdout_validated`). `verify_attestation()` re-derives the floor from the
  per-link tiers and rejects a misstated one — the trust surface is itself
  tamper-evident, not just asserted.
 

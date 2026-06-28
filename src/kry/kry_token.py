@@ -57,7 +57,8 @@ Earning rates (KRY earned per event):
   Short-circuit (probe)    | prompt_tokens  | Avoided round-trip
   Compression saving       | tokens_saved   | Reduced output cost
   FeedBag deposit          | deposited * 0.7| IV bag portion earns full
-  Cache creation           | tokens * 0.1   | Future hits = future earn
+  Cache creation           | 0.0 (a cost)   | Saving is the later cache_hit, not the write
+  Continuity capsule       | tokens * 0.1   | Cross-session continuity reuse
 
 ## Novel claim vs. existing systems
 

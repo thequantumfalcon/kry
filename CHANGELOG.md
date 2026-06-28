@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (audit round 3)
+
+- **PQC verifier `alg` allowlist (M1)** — `kry_pqc/verify.py` pins the attacker-supplied `alg` to the
+  FIPS-204 ML-DSA sets (`ML-DSA-44/65/87`) inside the parse guard, so a bogus/unsupported mechanism fails
+  closed (`RESULT: FAILED`, exit 1) instead of reaching `oqs.Signature(alg)` and raising an uncaught
+  `MechanismNotSupportedError`. The three sets have distinct key lengths, so this also blocks
+  alg-confusion under a pinned key. A `--expect-fingerprint` shorter than 16 hex chars now warns.
+- **Nitro COSE `alg` guard fails closed (M2)** — `scripts/kry_tee_verify.py` now requires the COSE
+  protected header to decode to a map pinning `alg = ES384`; a missing/undecodable/non-dict header is
+  rejected, not silently accepted. (The ES384 verify was already hard-pinned; now the documented guard
+  fails closed too.)
+- **Pending store fails closed on corruption (M5)** — `kry_pending._load` quarantines a present-but-
+  unparseable store to `<path>.corrupt`, logs, and raises `PendingStoreCorrupt` instead of silently
+  resetting to `{}` (which would erase `confirm()`'s write-ahead idempotency and open a re-mint window).
+  "File absent" still returns `{}`.
+- **Cross-process lock degradation is logged (M6)** — `_locks.cross_process_lock` emits a one-time
+  warning when neither `fcntl` nor `msvcrt` is available (cross-process serialization is then off;
+  latent on macOS/Linux), instead of a silent no-op.
+- **PQC secret-key write closes a chmod TOCTOU (L2)** — `kry_pqc/signer.py` creates the secret key with
+  `O_EXCL | 0o600` rather than write-then-`chmod`, so it is never briefly umask-default readable (and it
+  refuses to clobber an existing key).
+
+### Fixed (audit round 3)
+
+- **Reproducible wheel (L6)** — `build_backend.py` stamps every wheel entry with `SOURCE_DATE_EPOCH`
+  (else the 1980 zip epoch) and fixed perms instead of the build-time wall clock, so the wheel is
+  byte-reproducible (RECORD data-hashes unchanged; verified byte-identical across builds + installable).
+- **Test isolation** — `kry_pending` is now repointed to a per-test data dir by the autouse fixture
+  (it was the one persistence module missing from `conftest`).
+
+### Documentation (audit round 3)
+
+- **`cache_creation` rate drift (M7)** — the spec table, its prose, and the `kry_token` module-docstring
+  table said `0.1`; the code earns `0.0` (a cache write is a cost/bet — the realized saving is the later
+  cache hit; crediting both double-counts). All three now read `0.0`, and the missing
+  `continuity_capsule = 0.1` row is added.
+- **Veracity-ladder wording (L9)** — the README and `KRY_VERACITY_BINDING.md` framed `veracity_floor`
+  as "external anchor (T1+T2)" only; both now state the floor counts anything stronger than bare self-
+  report, including an operator-run randomized holdout (`holdout_validated`), matching `_ANCHORED_TIERS`.
+- **Settlement trust boundaries (M3/M4)** — `settle()`'s docstring now states the two intentional
+  operator-side boundaries explicitly: a directly-built grant (`attested_balance = -1`) is exempt from
+  the commit-time ceiling re-check (no ceiling to check), and the `self_asserted` conservation basis is
+  labeled, not verified. By design; not remote-exploitable.
+
+### Deferred (audit round 3)
+
+- **L3** (PQC domain separation — sign `SCHEME_TAG || policy_digest || bytes`) is a signature
+  wire-format change; deferred to a versioned `kry-pqc/v2` so existing artifacts stay verifiable.
+- **L5** (hash-pin the release build frontend) and **L7** (digest-pin the PoC enclave bases + commit
+  `Cargo.lock`) need validated pins/digests not derivable in-repo; left as tracked residuals.
+
 ### Security (audit round 2)
 
 - **Durability fail-closed** — `KRYLedger.save()` re-raises on a write failure (and fsyncs), adopting

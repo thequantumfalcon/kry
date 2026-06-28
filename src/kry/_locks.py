@@ -13,6 +13,7 @@ multi-process correct and is the honest best-effort for a shared FS that support
 from __future__ import annotations
 
 import contextlib
+import logging
 import time
 
 try:
@@ -25,6 +26,9 @@ except ImportError:               # pragma: no cover - Windows
         _msvcrt = None
 else:
     _msvcrt = None
+
+logger = logging.getLogger("kry.locks")
+_warned_no_lock_primitive = False
 
 
 @contextlib.contextmanager
@@ -65,4 +69,13 @@ def cross_process_lock(path):
             finally:
                 lf.close()
         return
+    # M6: neither fcntl nor msvcrt is available, so the cross-PROCESS guarantee is gone — only
+    # the in-process thread locks remain. Warn ONCE so this silent fail-open is visible in the
+    # logs rather than degrading quietly (concurrent processes/nodes sharing the same state file
+    # can now race the read-modify-write).
+    global _warned_no_lock_primitive
+    if not _warned_no_lock_primitive:
+        _warned_no_lock_primitive = True
+        logger.warning("cross_process_lock(%s): no fcntl/msvcrt on this platform — cross-PROCESS "
+                       "locking is DISABLED; only in-process thread locks apply", path)
     yield                         # pragma: no cover - no locking primitive available
