@@ -10,6 +10,7 @@ Run from the repo root:
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -142,7 +143,7 @@ def _council(n: int, threshold_m: int):
 
 def test_threshold_quorum_met_verifies(attestation):
     keys, policy = _council(3, 2)
-    contribs = [threshold.contribute(attestation, sk, pk) for pk, sk in keys[:2]]
+    contribs = [threshold.contribute(attestation, sk, pk, policy) for pk, sk in keys[:2]]
     artifact = threshold.combine(attestation, policy, contribs)
     ok, report = threshold.verify_threshold(attestation.read_bytes(), artifact, policy)
     assert ok and report["valid_count"] == 2 and report["trust_ratio"] == "2/3"
@@ -150,7 +151,7 @@ def test_threshold_quorum_met_verifies(attestation):
 
 def test_threshold_insufficient_quorum_fails(attestation):
     keys, policy = _council(3, 2)
-    contribs = [threshold.contribute(attestation, *reversed(keys[0]))]  # only 1 of 2 needed
+    contribs = [threshold.contribute(attestation, *reversed(keys[0]), policy)]  # only 1 of 2 needed
     # reversed(keys[0]) -> (sk, pk); contribute(att, secret, public)
     artifact = threshold.combine(attestation, policy, contribs)
     ok, report = threshold.verify_threshold(attestation.read_bytes(), artifact, policy)
@@ -161,8 +162,8 @@ def test_threshold_outsider_signature_ignored(attestation):
     keys, policy = _council(3, 2)
     outsider_pk, outsider_sk = signer.generate_keypair()             # not on the council
     contribs = [
-        threshold.contribute(attestation, keys[0][1], keys[0][0]),
-        threshold.contribute(attestation, outsider_sk, outsider_pk),
+        threshold.contribute(attestation, keys[0][1], keys[0][0], policy),
+        threshold.contribute(attestation, outsider_sk, outsider_pk, policy),
     ]
     artifact = threshold.combine(attestation, policy, contribs)
     ok, report = threshold.verify_threshold(attestation.read_bytes(), artifact, policy)
@@ -171,7 +172,7 @@ def test_threshold_outsider_signature_ignored(attestation):
 
 def test_threshold_tampered_attestation_fails(attestation):
     keys, policy = _council(3, 2)
-    contribs = [threshold.contribute(attestation, sk, pk) for pk, sk in keys[:2]]
+    contribs = [threshold.contribute(attestation, sk, pk, policy) for pk, sk in keys[:2]]
     artifact = threshold.combine(attestation, policy, contribs)
     # Tamper a field guaranteed present in any attestation (not the receipts count,
     # which varies with ledger state) and assert the tamper actually changed bytes.
@@ -184,8 +185,76 @@ def test_threshold_tampered_attestation_fails(attestation):
 
 def test_threshold_wrong_council_rejected(attestation):
     keys, policy = _council(3, 2)
-    contribs = [threshold.contribute(attestation, sk, pk) for pk, sk in keys[:2]]
+    contribs = [threshold.contribute(attestation, sk, pk, policy) for pk, sk in keys[:2]]
     artifact = threshold.combine(attestation, policy, contribs)
     _, other_policy = _council(3, 2)                                 # different keys entirely
     ok, _ = threshold.verify_threshold(attestation.read_bytes(), artifact, other_policy)
     assert not ok                                                    # policy digest mismatch
+
+
+# ---------------------------------------------------- L3 domain separation + back-compat
+
+
+def test_single_signer_sig_is_not_a_threshold_contribution(attestation):
+    """L3: a v2 single-signer signature (domain ...single) is NOT a valid threshold contribution
+    (domain ...threshold), even from a real council member — so lifting a member's standalone
+    signature into a council artifact cannot forge a quorum."""
+    keys, policy = _council(3, 2)
+    pk0, sk0 = keys[0]
+    single = signer.sign_attestation(attestation, sk0, pk0)           # v2 single-signer signature
+    forged = {"fingerprint": signer.fingerprint(pk0), "signature": single["signature"]}
+    real = threshold.contribute(attestation, keys[1][1], keys[1][0], policy)
+    artifact = threshold.combine(attestation, policy, [forged, real])
+    ok, report = threshold.verify_threshold(attestation.read_bytes(), artifact, policy)
+    assert not ok and report["valid_count"] == 1                      # only the real one counts
+
+
+def test_contribution_not_replayable_across_councils(attestation):
+    """L3: a contribution commits to its council's policy_digest, so it cannot be replayed in a
+    DIFFERENT council that happens to share the same member key."""
+    keys_a, policy_a = _council(3, 2)
+    shared_pk, shared_sk = keys_a[0]
+    o1, o2 = signer.generate_keypair(), signer.generate_keypair()
+    policy_b = threshold.make_policy([("shared", shared_pk), ("b1", o1[0]), ("b2", o2[0])], 2)
+    contrib_for_a = threshold.contribute(attestation, shared_sk, shared_pk, policy_a)
+    artifact_b = threshold.combine(attestation, policy_b, [contrib_for_a])   # replay A's into B
+    ok, report = threshold.verify_threshold(attestation.read_bytes(), artifact_b, policy_b)
+    assert not ok and report["valid_count"] == 0                      # A's contribution invalid in B
+
+
+def test_v1_single_artifact_still_verifies(attestation, tmp_path):
+    """Back-compat: a legacy v1 single-signer artifact (signature over RAW bytes, scheme
+    kry-pqc/v1) still verifies via the verifier's scheme dispatch."""
+    pk, sk = signer.generate_keypair()
+    msg = attestation.read_bytes()
+    raw_sig = signer.sign_bytes(msg, sk)                             # v1: raw bytes, no domain tag
+    v1 = {"scheme": "kry-pqc/v1", "alg": signer.DEFAULT_ALG,
+          "attestation_file": attestation.name,
+          "message_sha256": hashlib.sha256(msg).hexdigest(),
+          "public_key": base64.b64encode(pk).decode(),
+          "public_key_fingerprint": signer.fingerprint(pk),
+          "signature": base64.b64encode(raw_sig).decode()}
+    sig = tmp_path / "v1.sig.json"
+    sig.write_text(json.dumps(v1))
+    pk_file = tmp_path / "pk"
+    pk_file.write_text(base64.b64encode(pk).decode())
+    assert verify.main(["--attestation", str(attestation), "--signature", str(sig),
+                        "--public-key", str(pk_file)]) == 0
+
+
+def test_v1_threshold_artifact_still_verifies(attestation):
+    """Back-compat: a legacy v1 threshold artifact (contributions over RAW bytes, scheme
+    kry-pqc-threshold/v1) still verifies via scheme dispatch."""
+    keys, policy = _council(3, 2)
+    msg = attestation.read_bytes()
+    sigs = [{"fingerprint": signer.fingerprint(pk),
+             "signature": base64.b64encode(signer.sign_bytes(msg, sk)).decode()}
+            for pk, sk in keys[:2]]
+    v1 = {"scheme": "kry-pqc-threshold/v1", "alg": policy["alg"],
+          "attestation_file": attestation.name,
+          "message_sha256": hashlib.sha256(msg).hexdigest(),
+          "policy_sha256": threshold.policy_digest(policy),
+          "threshold": policy["threshold"], "council_size": len(policy["signers"]),
+          "signatures": sigs}
+    ok, report = threshold.verify_threshold(msg, v1, policy)
+    assert ok and report["valid_count"] == 2

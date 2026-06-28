@@ -36,7 +36,18 @@ except ImportError:  # pragma: no cover
     raise
 
 DEFAULT_ALG = "ML-DSA-65"   # FIPS 204, NIST security level 3
-SCHEME = "kry-pqc/v1"
+SCHEME = "kry-pqc/v2"       # L3: v2 domain-separates the signed message (v1 signed raw bytes)
+
+# L3 domain separation: a v2 signature commits to its CONTEXT, not just the attestation bytes, so a
+# single-signer signature cannot be replayed as a threshold contribution (and vice-versa). The
+# stranger verifier dispatches on the artifact's `scheme`, so v1 artifacts (raw-byte signatures)
+# still verify unchanged.
+_DOMAIN_SINGLE = b"kry-pqc/v2/single\x00"
+
+
+def single_signed_message(attestation_bytes: bytes) -> bytes:
+    """The exact bytes a v2 single-signer signature is computed over."""
+    return _DOMAIN_SINGLE + attestation_bytes
 
 
 def generate_keypair(alg: str = DEFAULT_ALG) -> tuple[bytes, bytes]:
@@ -70,7 +81,7 @@ def sign_attestation(attestation_path: Path, secret_key: bytes, public_key: byte
                      alg: str = DEFAULT_ALG) -> dict:
     """Sign an attestation file's exact bytes; return a detached signature artifact."""
     message = Path(attestation_path).read_bytes()
-    signature = sign_bytes(message, secret_key, alg)
+    signature = sign_bytes(single_signed_message(message), secret_key, alg)
     return {
         "scheme": SCHEME,
         "alg": alg,

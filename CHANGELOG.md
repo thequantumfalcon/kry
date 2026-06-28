@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reproducible PCR0. Committing `Cargo.lock` (+ a `--locked` build) for full dependency reproducibility
   needs the Rust toolchain and is documented inline as the one remaining manual step.
 
+### Security (PQC threshold — L3)
+
+- **PQC signature domain separation (`kry-pqc/v2`).** Single-signer and threshold signatures now
+  commit to their *context*, not just the attestation bytes: a single-signer signature is taken over
+  `"kry-pqc/v2/single\0" || bytes`, and a threshold contribution over
+  `"kry-pqc/v2/threshold\0" || policy_sha256 || bytes`. This closes (a) replaying a standalone
+  signature as a council contribution, and (b) replaying a contribution into a *different* council
+  that shares a member. `threshold.contribute()` now takes the council `policy`. Additive and
+  version-dispatched — the verifiers accept both `v2` and legacy `v1` (raw-byte) artifacts, so
+  existing signatures still verify. Four new regression tests cover domain separation, cross-council
+  replay, and v1 single + threshold back-compat (PQC suite 12 → 16).
+
 ### Security (audit round 3)
 
 - **PQC verifier `alg` allowlist (M1)** — `kry_pqc/verify.py` pins the attacker-supplied `alg` to the
@@ -70,12 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the commit-time ceiling re-check (no ceiling to check), and the `self_asserted` conservation basis is
   labeled, not verified. By design; not remote-exploitable.
 
-### Deferred (audit round 3)
+### Residuals
 
-- **L3** (PQC domain separation — sign `SCHEME_TAG || policy_digest || bytes`) is a signature
-  wire-format change; deferred to a versioned `kry-pqc/v2` so existing artifacts stay verifiable.
-  (L5 and L7 are now addressed — see *Security (supply chain)* above; L7's `Cargo.lock` is the one
-  remaining toolchain-dependent step.)
+- **Every audit finding is now addressed.** The only outstanding item is **L7's `Cargo.lock`** — a
+  one-step manual task that needs the Rust toolchain (the enclave base images are already digest-pinned;
+  see *Security (supply chain)*). The compact-signature **FROST** upgrade noted in
+  `kry_pqc/threshold.py` remains an optional future enhancement, not an audit finding.
 
 ### Security (audit round 2)
 
