@@ -1,0 +1,7 @@
+# Git tag-signature trust roots (audit F2 / EXT hardening).
+#
+# Each line: <principal-email> <key-type> <key-data>. The Release workflow runs `git verify-tag`
+# against this file, so a release tag MUST be signed by a key listed here, by the tagger email shown.
+# Adding a new machine / rotating a key: append its line here (and register it as a GitHub *Signing
+# Key*) BEFORE cutting a release from it, else the release fails closed at the verify-tag step.
+thomasalbrecht2025@gmail.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM0dNY2krXFRkhyYynXUnomH33Yr9X91AW6c/0bLh4vL
