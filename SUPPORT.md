@@ -8,7 +8,7 @@ Thanks for using KRY. Here is where to go for each kind of help.
 | Report a bug | An **Issue** using the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) |
 | Request a feature | An **Issue** using the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml) |
 | Report a security vulnerability | **Do not** open a public issue — follow [SECURITY.md](SECURITY.md) |
-| Ask about commercial use / licensing | Email **thequantumfalcon@gmail.com** (KRY is PolyForm-Noncommercial) |
+| Ask about commercial use / licensing | KRY is **Apache-2.0** — commercial use is free; for support or partnership, email **thequantumfalcon@gmail.com** |
 
 ## Before opening an issue
 

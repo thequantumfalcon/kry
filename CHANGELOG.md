@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **License: PolyForm-Noncommercial-1.0.0 → Apache-2.0.** KRY is now permissively open source
+  (OSI-approved, with an explicit patent grant + defensive-termination clause). Commercial use is
+  free; the prior noncommercial restriction is removed. Copyright remains Thomas Albrecht; inbound
+  contributions are accepted under Apache-2.0 (inbound=outbound).
+
 ### Security (audit round 3)
 
 - **PQC verifier `alg` allowlist (M1)** — `kry_pqc/verify.py` pins the attacker-supplied `alg` to the

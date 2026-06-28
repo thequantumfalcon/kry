@@ -1,8 +1,8 @@
 # Contributing to KRY
 
-Thanks for your interest. KRY is **source-available** under the
-[PolyForm Noncommercial 1.0.0](LICENSE.md) license (not an OSI open-source license — commercial
-use is reserved). Contributions are welcome under that license, and this project is governed by our
+Thanks for your interest. KRY is **open source** under the
+[Apache License 2.0](LICENSE.md). Contributions are accepted under the same license — inbound=outbound:
+by submitting a contribution you license it under Apache-2.0. This project is governed by our
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
 KRY values one thing above all: **claims you can prove to a stranger who doesn't trust you.** The
