@@ -1229,7 +1229,11 @@ def veracity_breakdown() -> dict:
                     by_tier[tier] = by_tier.get(tier, 0.0) + k
                     total += k
                     rid = rec.get("receipt_id")
-                    if rid:
+                    _hv = rec.get("hash_version", 1)
+                    # A1-1: only a HASH-BOUND (v6+) receipt may anchor a promotion overlay — a v4/v5
+                    # receipt_id is not in the chain hash, so it is mutable (own log is v7; this keeps
+                    # the internal and public veracity surfaces consistent).
+                    if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
                         kry_by_receipt[rid] = (tier, k)
                     sup = rec.get("supersedes")
                     if tier in (TIER_TLSN_ATTESTED, TIER_TEE_ATTESTED) and sup:
@@ -1244,22 +1248,25 @@ def veracity_breakdown() -> dict:
     return {
         "by_tier": {t: round(v, 4) for t, v in by_tier.items()},
         "total_kry": round(total, 4),
-        "externally_anchored_kry": round(anchored, 4),
+        "anchored_kry": round(anchored, 4),
         "self_reported_kry": round(by_tier.get(TIER_SELF_REPORTED, 0.0), 4),
         "tlsn_attested_kry": round(tlsn, 4),                       # T2: cryptographically notarized
         "tlsn_attested_fraction": round(tlsn / total, 4) if total > 0 else 0.0,
         "tee_attested_kry": round(tee, 4),                         # T2: measured in attested hardware
         "tee_attested_fraction": round(tee / total, 4) if total > 0 else 0.0,
         "veracity_floor": round(anchored / total, 4) if total > 0 else 0.0,
-        "note": ("veracity_floor = fraction backed by an external anchor "
-                 "(provider metering / TEE / TLS-notary), not operator self-report alone. "
-                 "tlsn_attested_fraction (notarized provider bytes) and tee_attested_fraction "
-                 "(measurement run in attested hardware) are surfaced separately because the binary "
-                 "floor cannot distinguish them from provider_metered. IMPORTANT: the chain binds the "
-                 "tier LABEL, not the underlying proof — a label is trustless ONLY when its external "
-                 "verifier (kry_tee_verify / kry_tlsn_verify / F1 reconcile) was run on the evidence "
-                 "AND the chain head is externally anchored; absent that, treat the label as "
-                 "operator-asserted — see docs/KRY_VERACITY_BINDING.md"),
+        "note": ("veracity_floor = fraction backed by something STRONGER than bare operator "
+                 "self-report — an EXTERNAL anchor (TEE / TLS-notary) OR an OPERATOR-RUN measurement "
+                 "(provider metering / holdout). 'anchored' is NOT all third-party: provider_metered "
+                 "and holdout_validated are operator-run. CRITICAL (F2): an anchor witnesses that the "
+                 "EVENT occurred (a real provider call / a hardware measurement) — it does NOT by "
+                 "itself prove the counterfactual MAGNITUDE (tokens_saved / avoided_model), which "
+                 "stays operator-asserted. tlsn_attested_fraction and tee_attested_fraction surface "
+                 "the genuinely-external share separately — the chain binds the tier LABEL, not the "
+                 "underlying proof — a label is trustless ONLY when its verifier (kry_tee_verify / "
+                 "kry_tlsn_verify / F1 reconcile) was run on the evidence AND the chain head is "
+                 "externally anchored; absent that, treat it as operator-asserted — see "
+                 "docs/KRY_VERACITY_BINDING.md"),
     }
 
 

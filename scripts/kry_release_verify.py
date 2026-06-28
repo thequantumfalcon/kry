@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEV_REQUIREMENTS = ("pytest==9.1.0", "ruff==0.15.17")  # keep in sync with pyproject [project.optional-dependencies].dev
+DEV_REQUIREMENTS = ("pytest==9.1.1", "ruff==0.15.18")  # A1-4: MUST match pyproject [project.optional-dependencies].dev
 
 
 def _reject_json_constant(value: str):

@@ -77,7 +77,7 @@ def test_verified_200_mints_t2_and_lifts_floor(isolated):
     res = mod.run(_presentation(), expect_server="openrouter.ai",
                   event_type="short_circuit", avoided_model="gh/claude-opus-4.8",
                   served_model=None, tokens_saved=None, require_status=200,
-                  dry_run=False)
+                  dry_run=False, expect_notary=_PRES_NOTARY)
 
     assert res["verdict"] == "OK"
     assert res["attested_tokens"] == {"prompt": 120, "completion": 300}
@@ -89,7 +89,7 @@ def test_verified_200_mints_t2_and_lifts_floor(isolated):
     assert km.verify_chain()[0]
     vb = km.veracity_breakdown()
     assert vb["by_tier"].get("tlsn_attested", 0) > 0
-    assert vb["externally_anchored_kry"] > 0
+    assert vb["anchored_kry"] > 0
 
 
 def test_t2_receipt_is_tamper_evident(isolated):
@@ -99,7 +99,7 @@ def test_t2_receipt_is_tamper_evident(isolated):
     res = mod.run(_presentation(), expect_server="openrouter.ai",
                   event_type="short_circuit", avoided_model="gh/claude-opus-4.8",
                   served_model=None, tokens_saved=None, require_status=200,
-                  dry_run=False)
+                  dry_run=False, expect_notary=_PRES_NOTARY)
     assert res["minted"]["evidence_tier"] == "tlsn_attested"
     assert km.verify_chain()[0]
 
@@ -206,7 +206,8 @@ def test_replay_does_not_double_mint(isolated):
     pres = _presentation()
     kw = dict(expect_server="openrouter.ai", event_type="short_circuit",
               avoided_model="gh/claude-opus-4.8", served_model=None,
-              tokens_saved=None, require_status=200, dry_run=False)
+              tokens_saved=None, require_status=200, dry_run=False,
+              expect_notary=_PRES_NOTARY)
     first = mod.run(pres, **kw)
     assert first["minted"]["kry_minted"] > 0
     floor_after_first = km.veracity_breakdown()["veracity_floor"]
@@ -261,7 +262,8 @@ def test_avoided_model_from_routing_log_upgrades_not_double_credits(isolated):
     pres = _presentation(gen_id="gen-routed-1", model="some/cheap:free")
     res = mod.run(pres, expect_server="openrouter.ai", event_type="short_circuit",
                   avoided_model=None, served_model=None,   # no CLI — must come from the log
-                  tokens_saved=None, require_status=200, dry_run=False)
+                  tokens_saved=None, require_status=200, dry_run=False,
+                  expect_notary=_PRES_NOTARY)
     assert res["avoided_model"]["value"] == "gh/claude-opus-4.8"
     assert res["avoided_model"]["source"] == "routing-log"
 
@@ -284,7 +286,7 @@ def test_avoided_model_from_routing_log_upgrades_not_double_credits(isolated):
     # idempotent: a re-run does not stack a second promotion
     res2 = mod.run(pres, expect_server="openrouter.ai", event_type="short_circuit",
                    avoided_model=None, served_model=None, tokens_saved=None,
-                   require_status=200, dry_run=False)
+                   require_status=200, dry_run=False, expect_notary=_PRES_NOTARY)
     assert res2["verdict"] == "ALREADY_UPGRADED"
     assert "minted" not in res2
     assert km.veracity_breakdown()["total_kry"] == pytest.approx(before["total_kry"])
@@ -348,17 +350,18 @@ def test_pinned_notary_but_presentation_has_none_is_refused(isolated):
     assert km.chain_summary()["receipts"] == 0
 
 
-def test_no_pin_is_unchanged(isolated):
-    """Without --notary-key the path is byte-for-byte the prior behavior: any verified
-    presentation mints, and notary_pinned is False."""
+def test_no_pin_refuses_anchored_mint(isolated):
+    """A1-3: without --notary-key an unpinned presentation must NOT mint the anchored tlsn_attested
+    tier — the notary identity is unverified, so it is operator-trusted, not externally anchored.
+    (Previously this minted tlsn_attested at veracity_floor 1.0 — the demonstrated overclaim.)"""
     kt, km, log = isolated
     mod = _load()
     res = mod.run(_presentation(), expect_server="openrouter.ai", event_type="short_circuit",
                   avoided_model="gh/claude-opus-4.8", served_model=None, tokens_saved=None,
                   require_status=200, dry_run=False)   # expect_notary defaults to None
-    assert res["verdict"] == "OK"
+    assert res["verdict"] == "NO_NOTARY_PIN"
     assert res["notary_pinned"] is False
-    assert res["minted"]["evidence_tier"] == "tlsn_attested"
+    assert km.chain_summary()["receipts"] == 0          # nothing anchored was minted
 
 
 def test_credits_body_no_tokens_needs_explicit_basis(isolated):
@@ -375,6 +378,7 @@ def test_credits_body_no_tokens_needs_explicit_basis(isolated):
     # with an explicit basis it mints
     res2 = mod.run(credits, expect_server="openrouter.ai", event_type="short_circuit",
                    avoided_model="gh/claude-opus-4.8", served_model=None,
-                   tokens_saved=500.0, require_status=200, dry_run=False)
+                   tokens_saved=500.0, require_status=200, dry_run=False,
+                   expect_notary=_PRES_NOTARY)
     assert res2["verdict"] == "OK"
     assert res2["minted"]["evidence_tier"] == "tlsn_attested"

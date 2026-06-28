@@ -242,14 +242,16 @@ def test_v1_single_artifact_still_verifies(attestation, tmp_path):
                         "--public-key", str(pk_file)]) == 0
 
 
-def test_v1_threshold_artifact_still_verifies(attestation):
-    """Back-compat: a legacy v1 threshold artifact (contributions over RAW bytes, scheme
-    kry-pqc-threshold/v1) still verifies via scheme dispatch."""
+def test_f1_v1_threshold_artifact_is_rejected(attestation):
+    """F1 (demonstrated break): a legacy v1 threshold artifact (raw-byte signatures) is REJECTED.
+    Honoring v1 let an attacker declare scheme=v1 to bypass v2 domain separation — packaging members'
+    standalone raw-byte signatures as a council quorum, or replaying a contribution across councils.
+    Only v2 (policy-bound) counts; the raw-byte signatures never reach quorum."""
     keys, policy = _council(3, 2)
     msg = attestation.read_bytes()
     sigs = [{"fingerprint": signer.fingerprint(pk),
              "signature": base64.b64encode(signer.sign_bytes(msg, sk)).decode()}
-            for pk, sk in keys[:2]]
+            for pk, sk in keys[:2]]   # X, Y standalone raw-byte signatures (a v1 vouch)
     v1 = {"scheme": "kry-pqc-threshold/v1", "alg": policy["alg"],
           "attestation_file": attestation.name,
           "message_sha256": hashlib.sha256(msg).hexdigest(),
@@ -257,4 +259,24 @@ def test_v1_threshold_artifact_still_verifies(attestation):
           "threshold": policy["threshold"], "council_size": len(policy["signers"]),
           "signatures": sigs}
     ok, report = threshold.verify_threshold(msg, v1, policy)
-    assert ok and report["valid_count"] == 2
+    assert not ok and report["valid_count"] == 0
+
+
+def test_f1_require_v2_refuses_v1_single_signer(attestation, tmp_path):
+    """F1: single-signer v1 (raw-byte authenticity, no quorum claim) stays accepted by default but is
+    now killable — --require-v2 refuses it (and it always warns)."""
+    pk, sk = signer.generate_keypair()
+    msg = attestation.read_bytes()
+    v1 = {"scheme": "kry-pqc/v1", "alg": signer.DEFAULT_ALG,
+          "attestation_file": attestation.name,
+          "message_sha256": hashlib.sha256(msg).hexdigest(),
+          "public_key": base64.b64encode(pk).decode(),
+          "public_key_fingerprint": signer.fingerprint(pk),
+          "signature": base64.b64encode(signer.sign_bytes(msg, sk)).decode()}
+    sig = tmp_path / "v1.sig.json"
+    sig.write_text(json.dumps(v1))
+    pk_file = tmp_path / "pk"
+    pk_file.write_text(base64.b64encode(pk).decode())
+    base = ["--attestation", str(attestation), "--signature", str(sig), "--public-key", str(pk_file)]
+    assert verify.main(base) == 0                       # accepted by default (with a warning)
+    assert verify.main(base + ["--require-v2"]) == 1    # refused under --require-v2

@@ -17,8 +17,8 @@ What a stranger can confirm with only:
   2. CONSERVATION     — sum of per-link kry_minted == declared total_kry, and
                         chain_head == the last link's chain_hash.
   3. VERACITY SURFACE — declared veracity_floor matches the per-link tiers
-                        (how much of the balance is externally anchored vs the
-                        operator's word). See docs/KRY_VERACITY_BINDING.md.
+                        (how much of the balance is anchored by more than self-report
+                        — external OR operator-run). See docs/KRY_VERACITY_BINDING.md.
   4. SETTLEMENT       — the registry chain (entry_hash == SHA256(prev:party:amount:grant_ids))
                         is intact, and the offer fits inside
                         attested_balance − already_settled[party] (double-spend).
@@ -350,8 +350,12 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                           f"tier ({tier}) — unbound on the public surface (only v4+ binds it)")
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
-        rid = link.get("receipt_id")              # F5: reproduce the promotion overlay (see below)
-        if rid:
+        rid = link.get("receipt_id")              # F5/A1-1: reproduce the promotion overlay (see below)
+        # A1-1: only a HASH-BOUND (v6+) receipt may anchor a promotion (a v4/v5 receipt_id is mutable);
+        # reject duplicate ids (a forged chain could collide two v6+ ids → last-wins picks the larger).
+        if rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
+            if rid in kry_by_receipt:
+                errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
             kry_by_receipt[rid] = (tier, kry_minted)
         sup = link.get("supersedes")
         if tier in ("tlsn_attested", "tee_attested") and sup:
@@ -443,8 +447,8 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                 f"links imply {by_tier}")
         try:
             externally_anchored = _finite_number(
-                v.get("externally_anchored_kry", 0.0),
-                "veracity.externally_anchored_kry",
+                v.get("anchored_kry", 0.0),
+                "veracity.anchored_kry",
                 nonnegative=True,
             )
         except ValueError as exc:
@@ -465,7 +469,7 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
             errors.append(str(exc))
             veracity_floor = 0.0
         if abs(externally_anchored - round(anchored, 4)) > 0.01:
-            errors.append("externally_anchored_kry mismatch")
+            errors.append("anchored_kry mismatch")
         if abs(self_reported - round(tier_kry.get("self_reported", 0.0), 4)) > 0.01:
             errors.append("self_reported_kry mismatch")
         if abs(veracity_floor - derived) > 0.01:
@@ -715,7 +719,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  receipts:        {len(_links)} (recomputed from links)")
     print(f"  total_kry:       {round(_recomputed_total, 4)} (recomputed from links, not the declared field)")
     print(f"  veracity_floor:  {v.get('veracity_floor', 0.0)} "
-          f"(fraction externally anchored; rest rests on operator self-report)")
+          f"(fraction anchored by more than self-report — external OR operator-run; "
+          f"witnesses the event, NOT the magnitude)")
     if float(v.get("veracity_floor", 0.0) or 0.0) > 0.0:
         # H2: this verifier confirms anchored tiers are CHAIN-BOUND and internally consistent, but it does
         # NOT re-run the underlying TEE/TLSN evidence verification (that happened at mint time).
@@ -731,7 +736,7 @@ def main(argv: list[str] | None = None) -> int:
         # cannot tell an honest anchored chain from a re-minted one; only a pre-published anchor can.
         # Say so LOUDLY in the slot a reader checks, so a stranger never reads "VALID + veracity_floor"
         # as proof the anchored fraction is real.
-        print("  anchor check:    NONE — ⚠ the externally-anchored fraction is OPERATOR-ASSERTED")
+        print("  anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED")
         print("                   here: a genesis re-mint with upgraded tiers passes this check.")
         print("                   Re-run with --anchor <operator's pre-published chain head> to make")
         print("                   a retroactive re-mint detectable.")

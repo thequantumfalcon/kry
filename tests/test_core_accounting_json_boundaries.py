@@ -33,7 +33,7 @@ def _attestation(total_kry: float) -> str:
         "links": links,
         "veracity": {
             "by_tier": {"self_reported": total_kry},
-            "externally_anchored_kry": 0.0,
+            "anchored_kry": 0.0,
             "self_reported_kry": total_kry,
             "veracity_floor": 0.0,
         },

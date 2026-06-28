@@ -83,6 +83,8 @@ def main(argv=None) -> int:
                         "verification fails if the key does not match it.")
     p.add_argument("--require-chain", action="store_true",
                    help="fail unless KRY's chain-integrity check can also run and passes")
+    p.add_argument("--require-v2", action="store_true",
+                   help="refuse a legacy kry-pqc/v1 (raw-byte, non-domain-separated) artifact")
     args = p.parse_args(argv)
 
     att_path = Path(args.attestation)
@@ -122,6 +124,13 @@ def main(argv=None) -> int:
     print(f"public key  : {pk_fp}  [{key_source}]")
 
     ok = True
+
+    if scheme == _SCHEME_V1:
+        print("[warn] legacy kry-pqc/v1 artifact — a raw-byte signature, NOT domain-separated; it is "
+              "not valid as a threshold contribution. Pass --require-v2 to refuse v1 entirely.")
+        if args.require_v2:
+            print("[FAIL] --require-v2: legacy v1 artifact refused")
+            ok = False
 
     if args.expect_fingerprint:
         want = args.expect_fingerprint.strip().lower()

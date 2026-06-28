@@ -365,6 +365,16 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
                               "served cost (the displacement net is never over-credited)")
             return result
 
+    # A1-3: tlsn_attested is an ANCHORED tier — it must rest on a PINNED, trusted notary. The
+    # signature/CA check alone does not bind WHICH notary vouched, so an unpinned presentation
+    # (no --notary-key) is operator-trusted, NOT externally anchored. Refuse to mint anchored credit
+    # without a pinned notary (fail closed); the saving can still be recorded self_reported elsewhere.
+    if not expect_notary:
+        result["verdict"] = "NO_NOTARY_PIN"
+        result["note"] = ("refusing to mint tlsn_attested without a pinned notary (--notary-key): an "
+                          "unpinned presentation is operator-trusted, not externally anchored")
+        return result
+
     from kry import kry_mint
     before = kry_mint.veracity_breakdown()
     # Stamp provenance into detail (stored RAW): server, notary fp, and — when the
@@ -501,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
         pinned = "  (pinned ✓ — verified against --notary-key)" if result.get("notary_pinned") else ""
         print(f"  notary key:          {result['notary_key_fp']}{pinned}")
 
-    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_SERVED_MODEL"):
+    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_SERVED_MODEL", "NO_NOTARY_PIN"):
         print(f"  -> {result['note']}")
         return 1   # NO_SERVED_MODEL is a REFUSAL (no mint) — must exit non-zero, like its siblings
     if result["verdict"] in ("ALREADY_UPGRADED", "ALREADY_MINTED"):

@@ -72,7 +72,7 @@ def test_s3_forged_unknown_tier_does_not_inflate_floor():
         ("0" * 64 + ":" + link["receipt_hash"] + ":" + block).encode()).hexdigest()
     d["chain_head"] = link["chain_hash"]
     d["veracity"] = {"by_tier": {"magic_attested": link["kry_minted"]},
-                     "externally_anchored_kry": link["kry_minted"], "self_reported_kry": 0.0,
+                     "anchored_kry": link["kry_minted"], "self_reported_kry": 0.0,
                      "veracity_floor": 1.0}
     d["attestation_hash"] = a._attestation_hash(d)
     assert not a.verify_attestation(json.dumps(d))[0]                   # package verifier rejects
@@ -118,11 +118,12 @@ def test_s6_tlsn_refuses_full_credit_when_served_cost_unaccounted():
                 '"total_cost":%s,"provider_name":"DeepInfra"}}' % cost)
         recv = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + body
         return {"verified": True, "server_name": "openrouter.ai", "recv": recv,
+                "notary_key": "ab" * 32,
                 "sent": "GET /api/v1/generation?id=gen-x HTTP/1.1\r\nHost: openrouter.ai\r\n\r\n"}
 
     kw = dict(expect_server="openrouter.ai", event_type="displacement",
               avoided_model="gh/claude-opus-4.8", served_model=None, tokens_saved=None,
-              require_status=200, dry_run=False)
+              require_status=200, dry_run=False, expect_notary="ab" * 32)
     real_cost = ktv.run(pres("0.5"), **kw)             # real served cost, unknown served model
     assert real_cost["verdict"] == "NO_SERVED_MODEL"   # refuse rather than over-credit
     free_leg = ktv.run(pres("0.0"), **kw)              # $0 served leg -> full value is correct
@@ -141,6 +142,7 @@ def test_s6_tlsn_refuses_full_credit_when_served_cost_unaccounted():
                 '"total_cost":0.5,"model":%s,"provider_name":"DeepInfra"}}' % json.dumps(model))
         recv = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + body
         return {"verified": True, "server_name": "openrouter.ai", "recv": recv,
+                "notary_key": "ab" * 32,
                 "sent": "GET /api/v1/generation?id=gen-x HTTP/1.1\r\nHost: openrouter.ai\r\n\r\n"}
 
     for blank in ("", "   "):

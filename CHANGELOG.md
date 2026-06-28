@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (audit round 4 — two independent deep external audits)
+
+- **A1-1 (HIGH) — v4/v5 promotion relabel could inflate the anchored floor.** `receipt_id` is
+  hash-bound only at v6+, so a v4/v5 receipt's id was mutable. The promotion overlay matched
+  superseded receipts by `receipt_id`, so relabeling/colliding a large v5 receipt's id onto a
+  promotion's `supersedes` redirected its re-tiering onto the larger value (floor ~10/1010 →
+  ~1000/1010) with the chain unbroken. Fix: the overlay now honors ONLY hash-bound (v6+) receipts,
+  and both public verifiers reject duplicate ids — in `kry_mint.veracity_breakdown`, `kry_attest`
+  (build + verify), and `kry_verify`.
+- **F1 (MED) — PQC threshold v1 back-compat reopened cross-context replay.** The threshold verifier
+  accepted legacy `kry-pqc-threshold/v1` (raw-byte) artifacts, so an attacker could declare
+  `scheme=v1` to opt out of the v2 domain separation (replay a standalone signature as a contribution,
+  or a contribution across councils). Fix: the threshold verifier now REQUIRES v2; single-signer v1
+  authenticity stays (now killable via `--require-v2`, and it warns).
+- **A1-3 (MED) — unpinned TLSNotary minted anchored `tlsn_attested`.** The notary pin was enforced
+  only when `--notary-key` was given, so an unpinned presentation minted anchored credit at floor 1.0.
+  Fix: `kry_tlsn_verify` refuses to mint `tlsn_attested` without a pinned notary (`NO_NOTARY_PIN`).
+- **F2 (MED) — "externally anchored" overstated the veracity floor.** `provider_metered` and
+  `holdout_validated` are operator-run, and the metered payload bounds the EVENT, not the magnitude:
+  an anchor witnesses that a call happened, not the counterfactual `tokens_saved`/`avoided_model`. Fix:
+  renamed the public field `externally_anchored_kry` → `anchored_kry` across the package, the stranger
+  verifier, and attestations; the note + CLI now state the floor is "stronger than self-report (external
+  OR operator-run)" and that an anchor does not prove the magnitude.
+- **A1-4 (MED) — release dev pins were stale + un-hashed.** `kry_release_verify` pinned
+  `pytest==9.1.0 / ruff==0.15.17` while pyproject moved to `9.1.1 / 0.15.18` (a stale duplicate on the
+  `id-token:write` runner). Fix: synced the pins + a drift-guard test. (Hash-pinning / de-privileging
+  the dev install on the release runner remains a tracked follow-up, with L1 below.)
+- **Confirmed by-design** (both auditors): M3/M4 (no remote path to `attested_balance == -1` / the
+  labeled `self_asserted` basis). **L1** (a magnitude may cite a more-expensive avoided model than the
+  real one — bounded ≤1.0, disclosed for self_reported; on anchored tiers it compounds F2's now-honest
+  "magnitude is operator-asserted" labeling) is tracked, not yet bound. Regressions:
+  `tests/test_audit_deep_external.py`.
+
 ### Changed
 
 - **License: PolyForm-Noncommercial-1.0.0 → Apache-2.0.** KRY is now permissively open source

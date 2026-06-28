@@ -344,7 +344,7 @@ def test_stranger_rejects_invalid_settlement_offer_inputs_without_crashing(party
         "event_type_counts": {},
         "veracity": {
             "by_tier": {},
-            "externally_anchored_kry": 0.0,
+            "anchored_kry": 0.0,
             "self_reported_kry": 0.0,
             "veracity_floor": 0.0,
         },
