@@ -34,7 +34,18 @@ except ImportError:  # pragma: no cover
     raise
 
 POLICY_SCHEME = "kry-pqc-council/v1"
-ARTIFACT_SCHEME = "kry-pqc-threshold/v1"
+ARTIFACT_SCHEME = "kry-pqc-threshold/v2"            # L3: v2 domain-separates + binds the policy
+_LEGACY_ARTIFACT_SCHEME = "kry-pqc-threshold/v1"    # v1 signed raw bytes; still verifiable
+
+# L3 domain separation for threshold contributions: each contribution commits to the council
+# (policy_sha256), so a single-signer signature is not a valid contribution, and a contribution
+# cannot be replayed in a DIFFERENT council that happens to share a member.
+_DOMAIN_THRESHOLD = b"kry-pqc/v2/threshold\x00"
+
+
+def threshold_signed_message(attestation_bytes: bytes, policy_sha256: str) -> bytes:
+    """The exact bytes a v2 threshold contribution is computed over (binds the council)."""
+    return _DOMAIN_THRESHOLD + policy_sha256.encode() + b"\x00" + attestation_bytes
 
 
 def _canon(obj) -> bytes:
@@ -59,10 +70,15 @@ def policy_digest(policy: dict) -> str:
 
 
 def contribute(attestation_path: Path, secret_key: bytes, public_key: bytes,
-               alg: str = DEFAULT_ALG) -> dict:
-    """One council member signs the attestation bytes -> a contribution."""
+               policy: dict, alg: str = DEFAULT_ALG) -> dict:
+    """One council member signs the attestation -> a contribution, BOUND to `policy`.
+
+    L3: the signature is over threshold_signed_message(bytes, policy_digest), so it is valid
+    ONLY as a threshold contribution for THIS council — not as a single-signer signature, and
+    not replayable in another council that happens to share this member.
+    """
     message = Path(attestation_path).read_bytes()
-    sig = sign_bytes(message, secret_key, alg)
+    sig = sign_bytes(threshold_signed_message(message, policy_digest(policy)), secret_key, alg)
     return {"fingerprint": fingerprint(public_key), "signature": _b64(sig)}
 
 
@@ -106,7 +122,8 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
         report["checks"].append({"name": name, "pass": bool(passed)})
         ok = ok and bool(passed)
 
-    check("artifact scheme recognised", artifact.get("scheme") == ARTIFACT_SCHEME)
+    scheme = artifact.get("scheme")
+    check("artifact scheme recognised", scheme in (ARTIFACT_SCHEME, _LEGACY_ARTIFACT_SCHEME))
     check("message digest matches signed bytes",
           hashlib.sha256(attestation_bytes).hexdigest() == artifact.get("message_sha256"))
     check("artifact bound to this council policy",
@@ -134,6 +151,9 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
 
     by_fp = {e["fingerprint"]: _unb64(e["public_key"]) for e in policy["signers"]}
     alg = policy["alg"]
+    # L3: v2 contributions are over a domain-separated, policy-bound message; v1 over raw bytes.
+    signed_message = (threshold_signed_message(attestation_bytes, policy_digest(policy))
+                      if scheme == ARTIFACT_SCHEME else attestation_bytes)
     counted: set[str] = set()
     for s in artifact.get("signatures", []):
         fp = s.get("fingerprint")
@@ -150,7 +170,7 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
         except (binascii.Error, ValueError):
             continue
         with oqs.Signature(alg) as v:
-            if v.verify(attestation_bytes, sig, by_fp[fp]):
+            if v.verify(signed_message, sig, by_fp[fp]):
                 counted.add(fp)
     report["valid_signers"] = sorted(counted)
     report["valid_count"] = len(counted)
@@ -182,10 +202,11 @@ def _cmd_init_policy(args) -> int:
 
 
 def _cmd_contribute(args) -> int:
+    policy = json.loads(Path(args.policy).read_text())
     c = contribute(Path(args.attestation), _keyfile(args.secret_key),
-                   _keyfile(args.public_key), args.alg)
+                   _keyfile(args.public_key), policy, args.alg)
     Path(args.out).write_text(json.dumps(c, indent=2))
-    print(f"contribution by {c['fingerprint']} -> {args.out}")
+    print(f"contribution by {c['fingerprint']} (council {policy_digest(policy)[:16]}) -> {args.out}")
     return 0
 
 
@@ -233,8 +254,9 @@ def main(argv=None) -> int:
     ip.add_argument("--out", default="council.json")
     ip.set_defaults(func=_cmd_init_policy)
 
-    c = sub.add_parser("contribute", help="one signer signs an attestation")
+    c = sub.add_parser("contribute", help="one signer signs an attestation for a council")
     c.add_argument("--attestation", required=True)
+    c.add_argument("--policy", required=True, help="the council policy this contribution is bound to")
     c.add_argument("--secret-key", required=True)
     c.add_argument("--public-key", required=True)
     c.add_argument("--alg", default=DEFAULT_ALG)

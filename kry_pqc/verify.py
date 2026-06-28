@@ -41,6 +41,13 @@ def _unb64(s: str) -> bytes:
 # so pinning also blocks alg-confusion: a key pinned for one set won't verify under another.
 ALLOWED_ALGS = frozenset({"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
 
+# L3 domain separation — these MUST match kry_pqc.signer (the sign<->verify roundtrip tests are the
+# drift guard). A v2 single-signer signature is over _DOMAIN_SINGLE || attestation_bytes; v1 signed
+# the raw bytes. main() dispatches on the artifact `scheme` so legacy v1 artifacts still verify.
+_SCHEME_V2 = "kry-pqc/v2"
+_SCHEME_V1 = "kry-pqc/v1"
+_DOMAIN_SINGLE = b"kry-pqc/v2/single\x00"
+
 
 def verify_signature(attestation_bytes: bytes, signature: bytes, public_key: bytes,
                      alg: str) -> bool:
@@ -90,6 +97,9 @@ def main(argv=None) -> int:
         alg = artifact["alg"]
         if alg not in ALLOWED_ALGS:
             raise ValueError(f"unsupported alg {alg!r}; allowed: {sorted(ALLOWED_ALGS)}")
+        scheme = artifact.get("scheme")
+        if scheme not in (_SCHEME_V1, _SCHEME_V2):
+            raise ValueError(f"unsupported scheme {scheme!r}; allowed: {_SCHEME_V1!r}/{_SCHEME_V2!r}")
         signature = _unb64(artifact["signature"])
         if args.public_key:
             public_key = _unb64(Path(args.public_key).read_text().strip())
@@ -127,7 +137,9 @@ def main(argv=None) -> int:
     print(f"[{'PASS' if digest_ok else 'FAIL'}] message digest matches signed bytes")
     ok = ok and digest_ok
 
-    sig_ok = verify_signature(attestation_bytes, signature, public_key, alg)
+    # L3: v2 signs a domain-separated message; v1 signed raw bytes (scheme validated in the guard).
+    signed = _DOMAIN_SINGLE + attestation_bytes if scheme == _SCHEME_V2 else attestation_bytes
+    sig_ok = verify_signature(signed, signature, public_key, alg)
     print(f"[{'PASS' if sig_ok else 'FAIL'}] ML-DSA signature valid (authenticity)")
     ok = ok and sig_ok
 
