@@ -5,7 +5,7 @@
 [![CI](https://github.com/thequantumfalcon/kry/actions/workflows/ci.yml/badge.svg)](https://github.com/thequantumfalcon/kry/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/thequantumfalcon/kry/actions/workflows/codeql.yml/badge.svg)](https://github.com/thequantumfalcon/kry/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/thequantumfalcon/kry/badge)](https://scorecard.dev/viewer/?uri=github.com/thequantumfalcon/kry)
-[![License](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue.svg)](LICENSE.md)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE.md)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.11-blue.svg)](https://www.python.org/)
 
 ### don't trust your LLM savings dashboard. verify it. 🧾
@@ -541,9 +541,10 @@ bash lab/reproduce.sh 10 # full local reproducibility loop
 Designed as a **closed-loop, non-transferable consumptive credit** (rebate basis).
 Settlement is **federated, not an open exchange**. Nothing here is an offer of a security
 or a tradeable instrument. **Consult securities counsel before any external or tradeable
-use.** Licensed under **PolyForm Noncommercial 1.0.0** (see [LICENSE.md](LICENSE.md)):
-free for noncommercial use, research, and evaluation; **any commercial use requires a
-separate license** from the licensor, Thomas Albrecht <thequantumfalcon@gmail.com>.
+use.** Licensed under the **Apache License 2.0** (see [LICENSE.md](LICENSE.md)): a
+permissive OSI license — free for any use including commercial, with an explicit patent
+grant and defensive-termination clause; provided **as is, without warranty**. Copyright
+2026 Thomas Albrecht <thequantumfalcon@gmail.com>.
 
 **Trademarks & no affiliation.** Model and product names — OpenAI, GPT, Anthropic, Claude, Opus, Sonnet, OpenRouter, and any others — are trademarks of their respective owners, used here **descriptively** (nominative fair use) only to identify the systems measured. kry is **not affiliated with, endorsed by, or sponsored by** any of them. Every figure is reproducible on public benchmarks and labelled *measured* vs *projected*; nothing here is a guarantee of savings, financial advice, or a security, and the software is provided **as is, without warranty of any kind.**
 
