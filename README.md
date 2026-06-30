@@ -166,6 +166,7 @@ below is organized so the answer is *computed and labeled*, never asserted.
 - [Quickstart](#quickstart)
 - [How it works](#how-it-works)
 - [Veracity: the trust ladder](#veracity-the-trust-ladder)
+- [Authenticity (optional): who signed this attestation](#authenticity-optional-who-signed-this-attestation)
 - [Magnitude: publicly-checkable arithmetic](#magnitude-publicly-checkable-arithmetic)
 - [Readiness: a computed grade, not a claim](#readiness-a-computed-grade-not-a-claim)
 - [Modules](#modules)
@@ -423,13 +424,14 @@ have tooling: run real `provider_metered`/holdout traffic, then
 
 ## Modules
 
-All under `src/kry/` — ~5,500 LOC, stdlib only.
+All under `src/kry/` — ~6,100 LOC, stdlib only.
 
 | Module | Responsibility |
 |---|---|
 | `kry_token.py` | earn / spend / cycle, edge-weighted; `retained_dollars()`, `supply()`, dated price provenance, flow-balance, CSD solvency early-warning |
 | `kry_action.py` | the same discipline for agent **actions** (not savings): content-free hash-chained action receipts, tiers T0 `self_reported` / T1 `server_witnessed` / T2 `attested`, `veracity_floor`; stranger verifier `scripts/kry_action_verify.py` + zero-dep MCP middleware `scripts/kry_action_mcp.py` (`@attested_tool`). **T1 binds whatever the witness returns — operator-supplied until wired to a real MCP server signature.** |
 | `kry_mint.py` | SHA-256 hash-chain receipts, per-evidence supply decay, evidence tiers, dated-basis valuation |
+| `kry_pending.py` | defers a displacement mint until its output is **confirmed used downstream** (opt-in `KRY_DISPLACEMENT_DEFER`) — held in a side store off the chain so `veracity_floor` never rises on unaccepted work; unconfirmed pendings expire and never mint |
 | `kry_attest.py` | content-sealed public proof-of-balance + the verifiable `veracity` surface |
 | `kry_settlement.py` | federated conservation transfer + double-spend guard (single-host multi-process: commit-time ceiling re-check under a cross-process lock; tamper-evident registry, rollback/HOLE-F checkpoint + published registry anchor, negative-offer guard) |
 | `kry_referee.py` | adversarial-stability gate + ascension (ratify / revoke / escalate, challenge budget, probation) |
