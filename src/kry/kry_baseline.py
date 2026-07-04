@@ -59,6 +59,33 @@ from kry._locks import cross_process_lock
 logger = logging.getLogger("kry.baseline")
 
 
+# Strict JSON boundary — the same convention every other KRY persistence module uses
+# (kry_settlement/_mint/_pending/_token/_referee/_sanctions): reject NaN/Infinity on the
+# way in AND out, so a corrupted or externally-written baseline file cannot smuggle a
+# non-finite count into the estimator (a NaN holdout_n otherwise crashes avoidance_estimate).
+def _reject_json_constant(value: str):
+    raise ValueError(f"non-standard JSON constant rejected: {value}")
+
+
+def _json_loads(raw: str):
+    return json.loads(raw, parse_constant=_reject_json_constant)
+
+
+def _json_dumps(value, **kwargs) -> str:
+    return json.dumps(value, allow_nan=False, **kwargs)
+
+
+def _finite_number(value, field: str, *, nonnegative: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} must be a finite JSON number")
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError(f"{field} must be finite")
+    if nonnegative and value < 0:
+        raise ValueError(f"{field} must be non-negative")
+    return value
+
+
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
     d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
@@ -155,7 +182,7 @@ class ClassStats:
 def _load() -> dict:
     try:
         if _BASELINE_PATH.exists():
-            return json.loads(_BASELINE_PATH.read_text(encoding="utf-8"))
+            return _json_loads(_BASELINE_PATH.read_text(encoding="utf-8"))
     except Exception as exc:
         logger.warning("kry_baseline: could not load %s (%s) — treating as empty", _BASELINE_PATH, exc)
     return {}
@@ -166,7 +193,7 @@ def _save(state: dict) -> None:
         _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=_BASELINE_PATH.parent, prefix=".baseline_")
         with os.fdopen(fd, "w") as f:
-            json.dump(state, f, indent=2)
+            f.write(_json_dumps(state, indent=2))
         os.replace(tmp, _BASELINE_PATH)
     except Exception as exc:
         logger.warning("kry_baseline: could not persist holdout state (%s) — measurement may be LOST", exc)
@@ -200,7 +227,10 @@ def observe_treated(request_class: str, n: int = 1) -> None:
     with _LOCK, cross_process_lock(_BASELINE_PATH):
         state = _load()
         b = _bucket(state, request_class)
-        b["treated_n"] += int(n)
+        # treated_n is a cumulative population count — reject NaN/inf and negative n at the boundary
+        # (a negative n would decrement the treated population; the same _finite_number guard every
+        # other module applies to its numeric inputs).
+        b["treated_n"] += int(_finite_number(n, "observe_treated.n", nonnegative=True))
         b["updated"] = time.time()
         _save(state)
 

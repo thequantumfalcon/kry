@@ -444,6 +444,26 @@ def verify_registry_against_anchor(anchor: dict) -> tuple[bool, list[str]]:
     return len(errors) == 0, errors
 
 
+def _undo_registry_append(existed: bool, size_before: int) -> None:
+    """Truncate the registry back to `size_before` (or remove it if it did not exist before) after a
+    _record_settled append whose tip checkpoint failed to advance — so a durable entry the rollback
+    tip never covered cannot linger as a phantom settlement. A failure of the undo itself is logged
+    loudly rather than masking the original persistence error (mirrors _rollback_registry)."""
+    try:
+        if existed:
+            with open(_REGISTRY_PATH, "r+", encoding="utf-8") as f:
+                f.truncate(size_before)
+                f.flush()
+                os.fsync(f.fileno())
+        else:
+            _REGISTRY_PATH.unlink()
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        logger.error("settlement registry append-undo failed after a tip-checkpoint write error "
+                     "(a phantom settlement entry may remain — manual reconciliation needed): %s", exc)
+
+
 def _record_settled(party: str, amount: float, grant_id: str) -> None:
     """Append a hash-chained settlement entry (tamper-evident).
 
@@ -473,13 +493,25 @@ def _record_settled(party: str, amount: float, grant_id: str) -> None:
     entry_hash = hashlib.sha256(f"{prev}:{party}:{amount}:{grant_id}".encode()).hexdigest()
     rec = {"party": party, "amount": amount, "grant_id": grant_id,
            "prev_hash": prev, "entry_hash": entry_hash}
+    existed = _REGISTRY_PATH.exists()
+    size_before = _REGISTRY_PATH.stat().st_size if existed else 0
     try:
         _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_REGISTRY_PATH, "a", encoding="utf-8") as f:
             f.write(_json_dumps(rec) + "\n")
             f.flush()
             os.fsync(f.fileno())   # durability: a torn append reads as tampered -> fail-closed DoS
-        _write_tip(len(entries) + 1, entry_hash)   # HOLE F: advance the rollback checkpoint
+        try:
+            _write_tip(len(entries) + 1, entry_hash)   # HOLE F: advance the rollback checkpoint
+        except Exception:
+            # The entry is durably appended but the tip did NOT advance. verify_registry only fails
+            # closed on a log SHORTER than the tip, never longer, so a lingering entry counts as a
+            # settled amount (_load_registry sums it) even though settle() aborts here before any KRY
+            # moves — a phantom obligation that silently freezes the party's balance. Undo the append
+            # so the registry and the un-advanced tip stay consistent (mirrors _rollback_registry),
+            # then re-raise so the caller still fails closed with no receipt.
+            _undo_registry_append(existed, size_before)
+            raise
     except Exception as exc:
         raise SettlementPersistenceError(
             f"settlement registry write failed for {party}: {exc}"

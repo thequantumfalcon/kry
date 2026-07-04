@@ -531,7 +531,19 @@ def mint(
                     f.write(_json_dumps(asdict(receipt)) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
-                _write_mint_tip(count + 1, receipt.chain_hash)   # truncation/rollback checkpoint
+                try:
+                    _write_mint_tip(count + 1, receipt.chain_hash)   # truncation/rollback checkpoint
+                except Exception as exc:
+                    # The receipt is already durable and chain-valid; only the rollback checkpoint
+                    # failed to advance. Letting this propagate to the outer handler would return None
+                    # for a COMMITTED mint — the caller under-counts supply while verify_chain still
+                    # accepts the line (its truncation guard fires only on a log SHORTER than the tip).
+                    # Keep the durable receipt and log loudly; the stale tip self-heals on the next mint
+                    # (_load_chain_tip reads the log file, not the checkpoint). Mirrors
+                    # _rollback_registry's "log loudly rather than mask" discipline.
+                    logger.error("mint receipt %s durably written but tip checkpoint did not advance "
+                                 "(stale rollback checkpoint; self-heals on next mint): %s",
+                                 receipt.receipt_id, exc)
             # Refresh the in-memory cache to the just-written tip.
             _RECEIPT_COUNTER = count + 1
             _CHAIN_TIP = receipt.chain_hash
