@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
+from kry._locks import cross_process_lock
 from kry.kry_mint import MintReceipt, mint
 
 
@@ -53,42 +54,25 @@ def _kry_data_dir() -> Path:
 
 
 _PENDING_PATH = _kry_data_dir() / "kry_pending.json"
-_LOCK_PATH = _kry_data_dir() / "kry_pending.lock"
 _THREAD_LOCK = threading.Lock()
 
 # A displacement not confirmed within this window is assumed unaccepted and
 # expires (no mint). Generous enough for an async downstream consumer to act.
 _DEFAULT_TTL = float(os.environ.get("KRY_DISPLACEMENT_PENDING_TTL", "900"))  # 15 min
 
-try:
-    import fcntl as _fcntl
-
-    def _flock_ex(f) -> None:
-        _fcntl.flock(f.fileno(), _fcntl.LOCK_EX)
-
-    def _flock_un(f) -> None:
-        _fcntl.flock(f.fileno(), _fcntl.LOCK_UN)
-except ImportError:  # pragma: no cover - non-POSIX fallback
-    def _flock_ex(f) -> None:
-        pass
-
-    def _flock_un(f) -> None:
-        pass
-
-
 @contextmanager
 def _locked():
     """Serialize read-modify-write across threads AND processes — the bridge
-    records pendings while a separate consumer process confirms them."""
-    with _THREAD_LOCK:
-        _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-        f = open(_LOCK_PATH, "w", encoding="utf-8")
-        try:
-            _flock_ex(f)
-            yield
-        finally:
-            _flock_un(f)
-            f.close()
+    records pendings while a separate consumer process confirms them.
+
+    Uses the shared cross_process_lock so the cross-PROCESS guarantee holds on
+    Windows (msvcrt byte-range lock) as well as POSIX (flock). The previous local
+    fcntl-or-no-op fallback silently disabled locking off-POSIX, letting two
+    processes both load a pending record and each call mint() — the double-mint
+    this module exists to prevent."""
+    _PENDING_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _THREAD_LOCK, cross_process_lock(_PENDING_PATH):
+        yield
 
 
 def _load() -> dict:

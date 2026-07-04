@@ -722,6 +722,14 @@ def main(argv: list[str] | None = None) -> int:
     # on `v.get(...)`. The `{}` default only covers an ABSENT key, not a present non-dict value.
     _v = att.get("veracity")
     v = _v if isinstance(_v, dict) else {}
+    # HOLE #22 (cont.): veracity_floor is operator-declared and may be a non-numeric string in a
+    # malformed (but hash-consistent) attestation. verify_attestation already flags such an input
+    # INVALID, but the float(...) branch conditions below run in the DISPLAY block BEFORE the VERDICT
+    # print, so float("bad") would crash the stranger-facing CLI with a traceback instead of showing a
+    # clean INVALID. Coerce once with the same isinstance guard used for kry_minted above; the raw value
+    # is still echoed verbatim on the veracity_floor line, but a non-numeric floor counts as 0.0 here.
+    _floor_raw = v.get("veracity_floor", 0.0)
+    _floor = _floor_raw if isinstance(_floor_raw, (int, float)) and not isinstance(_floor_raw, bool) else 0.0
     # Display the verifier's OWN recomputed figures, not the operator-declared `receipts`/
     # `total_kry` fields — so a reader never mistakes an echoed claim for a verified number.
     _links = att.get("links") if isinstance(att.get("links"), list) else []
@@ -735,7 +743,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  veracity_floor:  {v.get('veracity_floor', 0.0)} "
           f"(fraction anchored by more than self-report — external OR operator-run; "
           f"witnesses the event, NOT the magnitude)")
-    if float(v.get("veracity_floor", 0.0) or 0.0) > 0.0:
+    if _floor > 0.0:
         # H2: this verifier confirms anchored tiers are CHAIN-BOUND and internally consistent, but it does
         # NOT re-run the underlying TEE/TLSN evidence verification (that happened at mint time).
         print("                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /")
@@ -744,7 +752,7 @@ def main(argv: list[str] | None = None) -> int:
           f"(magnitude recomputed from the public price table)")
     if anchor_line:
         print(f"  anchor check:    {anchor_line}")
-    elif float(v.get("veracity_floor", 0.0) or 0.0) > 0.0:
+    elif _floor > 0.0:
         # F1 (independent audit): a chain claiming ANY non-self_reported (anchored) value can be a
         # genesis RE-MINT — internally consistent but with forged tiers. A keyless SHA-256 chain
         # cannot tell an honest anchored chain from a re-minted one; only a pre-published anchor can.
