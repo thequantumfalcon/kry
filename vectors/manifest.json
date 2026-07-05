@@ -1,0 +1,96 @@
+{
+  "spec": "KRY-SPEC v1.0",
+  "count": 18,
+  "vectors": [
+    {
+      "id": "canon_f64",
+      "category": "primitives",
+      "verdict": null
+    },
+    {
+      "id": "canonical_json",
+      "category": "primitives",
+      "verdict": null
+    },
+    {
+      "id": "legal_multipliers",
+      "category": "primitives",
+      "verdict": null
+    },
+    {
+      "id": "single_self_reported",
+      "category": "savings/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "chain_three",
+      "category": "savings/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "magnitude_illegal_multiplier",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "event_type_relabel",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "version_downgrade",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "tier_forged",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "attestation_hash_blank",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipts_mismatch",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "parse_reject_nan",
+      "category": "savings/adversarial",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "single_self_reported",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "chain_two_witnessed",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "args_tampered",
+      "category": "action/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "forged_tier_no_witness",
+      "category": "action/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "reordered_links",
+      "category": "action/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "duplicate_receipt_id",
+      "category": "action/adversarial",
+      "verdict": "INVALID"
+    }
+  ]
+}

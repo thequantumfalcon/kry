@@ -1,0 +1,38 @@
+{
+  "id": "args_tampered",
+  "kind": "action_attestation",
+  "description": "args_commit changed after minting",
+  "input": {
+    "kind": "kry_action_attestation",
+    "action_hash_version": 1,
+    "links": [
+      {
+        "receipt_id": "ACT-00000000",
+        "tool": "read_file",
+        "args_commit": "a96efe4447d6f9d3c6c1d4f5051c69ea21d6e2d924cab9d9ff0a3d228c87ecb5",
+        "result_commit": "2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4",
+        "status": "ok",
+        "ts": 1700000000.0,
+        "agent_id": "agent-A",
+        "evidence_tier": "self_reported",
+        "server_evidence_commit": null,
+        "action_hash_version": 1,
+        "receipt_hash": "35b72e50fdd66eb49a33276d606ea45420c29edfa45d019e7c6df4bbac963196",
+        "chain_hash": "e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba"
+      }
+    ],
+    "chain_tip": "e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba",
+    "action_count": 1,
+    "veracity": {
+      "veracity_floor": 0.0
+    }
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "link 0 (ACT-00000000): receipt_hash mismatch \u2014 a field was tampered"
+    ],
+    "warnings": []
+  },
+  "rationale": "receipt_hash is over the payload incl. args_commit -> mismatch."
+}

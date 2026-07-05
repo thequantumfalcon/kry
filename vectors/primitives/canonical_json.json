@@ -1,0 +1,62 @@
+{
+  "id": "canonical_json",
+  "kind": "canonical_json",
+  "description": "Canonical JSON = json.dumps(sort_keys=True, separators=(',',':'), allow_nan=False, ensure_ascii=True): keys sorted at every level; no whitespace; non-ASCII escaped \\uXXXX; NaN/Infinity rejected.",
+  "cases": [
+    {
+      "label": "key_sort",
+      "input_object": {
+        "b": 1,
+        "a": 0,
+        "m": 2
+      },
+      "expected_bytes": "{\"a\":0,\"b\":1,\"m\":2}"
+    },
+    {
+      "label": "nested_sort",
+      "input_object": {
+        "z": [
+          3,
+          2,
+          1
+        ],
+        "a": {
+          "y": 1,
+          "x": 2
+        }
+      },
+      "expected_bytes": "{\"a\":{\"x\":2,\"y\":1},\"z\":[3,2,1]}"
+    },
+    {
+      "label": "unicode_escaped",
+      "input_object": {
+        "k": "caf\u00e9",
+        "emoji": "\ud83d\ude00"
+      },
+      "expected_bytes": "{\"emoji\":\"\\ud83d\\ude00\",\"k\":\"caf\\u00e9\"}"
+    },
+    {
+      "label": "number_null_bool",
+      "input_object": {
+        "n": 1.5,
+        "z": null,
+        "b": true
+      },
+      "expected_bytes": "{\"b\":true,\"n\":1.5,\"z\":null}"
+    },
+    {
+      "label": "empty_and_list",
+      "input_object": {
+        "list": [
+          1,
+          {
+            "b": 2,
+            "a": 1
+          }
+        ],
+        "obj": {}
+      },
+      "expected_bytes": "{\"list\":[1,{\"a\":1,\"b\":2}],\"obj\":{}}"
+    }
+  ]
+}

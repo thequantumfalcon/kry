@@ -1,0 +1,67 @@
+{
+  "id": "event_type_relabel",
+  "kind": "savings_attestation",
+  "description": "link0 event_type changed after minting",
+  "input": {
+    "receipts": 2,
+    "total_kry": 2000.0,
+    "usd_equivalent": 0.05,
+    "chain_head": "7c89aea1772ecb332681eb6760380e51d487307b183ba481b4a5ef1bcf0bab82",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 2
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "compression",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "baaa6e1d04098a1b9ab6e2e4e1c63cac86b272a4a8f240c3d39b2cccecdffb7d",
+        "chain_hash": "7c89aea1772ecb332681eb6760380e51d487307b183ba481b4a5ef1bcf0bab82",
+        "sealed_evidence": "5bc40d50825de711",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 2000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 2000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "270e3324a4dcfefea6b235f2965833a57df29ef1cd5fbac1724a0f764e682d87"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: chain link broken \u2014 receipt inserted/removed/altered",
+      "seq 1: earn_rate 1.0 != published 0.6 for 'compression' \u2014 non-standard rate",
+      "event_type_counts mismatch: declared {'cache_hit': 2}, links imply {'compression': 1, 'cache_hit': 1}"
+    ]
+  },
+  "rationale": "v7 binds event_type into the public block; a relabel makes chain_hash mismatch."
+}
