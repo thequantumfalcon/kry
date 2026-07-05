@@ -37,4 +37,4 @@ Full test suite after both fixes: **559 passed, 4 skipped.** The JS verifier was
 
 ## Honest scope
 
-SC2 (a second-language verifier, 0 divergences over ≥10⁶ fuzzed receipts) is met. Remaining Phase-1 items: a WASM/static browser verify page (the rest of SC6), and — if a toolchain lands — a Go/Rust static-binary third implementation. The fuzz seed is fixed for reproducibility; a CI job should run it (a fresh seed each run) as a standing gate.
+SC2 (a second-language verifier, 0 divergences over ≥10⁶ fuzzed receipts) is met. The verifier is now environment-agnostic (pure-JS SHA-256, number-preserving parser, no Node/DOM APIs), and the static browser verify page (`verifiers/web/index.html`, the same `verify.mjs` running client-side) is built — the SC6 browser path. Remaining: if a toolchain lands, a Go/Rust static-binary third implementation. The fuzz seed is fixed for reproducibility; a CI job should run it (a fresh seed each run) as a standing gate.
