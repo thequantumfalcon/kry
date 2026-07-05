@@ -113,6 +113,11 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
             errors.append(f"link {i}: not an object")
             return False, errors, warnings
         rid = link.get("receipt_id", f"#{i}")
+        if not isinstance(rid, str):
+            # Fail closed on a non-string receipt_id (SPEC §4.3): a list/dict is unhashable
+            # and previously crashed the dedup set; an int/other type is not a valid id.
+            errors.append(f"link {i}: receipt_id must be a string")
+            return False, errors, warnings
         if rid in seen_ids:
             errors.append(f"link {i} ({rid}): duplicate receipt_id")
             return False, errors, warnings
@@ -156,7 +161,11 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
         warnings.append(f"{coerced} link(s) claimed an anchored tier with NO witness — "
                         "coerced to self_reported (not credited to the floor)")
     derived_floor = round(anchored / total, 4) if total > 0 else 0.0
-    v = att.get("veracity") or {}
+    # A non-dict `veracity` (e.g. an int/string from a tampered attestation) is ignored, not
+    # crashed on — same isinstance-guard the savings verifier (kry_verify) uses. `... or {}`
+    # alone mishandled a TRUTHY non-dict (e.g. veracity=1 -> (1).get(...) AttributeError).
+    _v = att.get("veracity")
+    v = _v if isinstance(_v, dict) else {}
     claimed = v.get("veracity_floor")
     if isinstance(claimed, (int, float)):
         if abs(float(claimed) - derived_floor) > 0.01:
