@@ -1,0 +1,57 @@
+{
+  "id": "canon_f64",
+  "kind": "canon_f64",
+  "description": "number -> IEEE-754 big-endian double, hex (16 chars). int and float of equal value encode identically. Savings non-finite sentinel = 'nonfinite'; action non-finite sentinel = 'ffffffffffffffff'.",
+  "cases": [
+    {
+      "label": "zero",
+      "input_number": 0.0,
+      "expected_hex": "0000000000000000"
+    },
+    {
+      "label": "one_float",
+      "input_number": 1.0,
+      "expected_hex": "3ff0000000000000"
+    },
+    {
+      "label": "one_int",
+      "input_number": 1,
+      "expected_hex": "3ff0000000000000"
+    },
+    {
+      "label": "neg_one",
+      "input_number": -1.0,
+      "expected_hex": "bff0000000000000"
+    },
+    {
+      "label": "thousand",
+      "input_number": 1000.0,
+      "expected_hex": "408f400000000000"
+    },
+    {
+      "label": "tenth",
+      "input_number": 0.1,
+      "expected_hex": "3fb999999999999a"
+    },
+    {
+      "label": "small",
+      "input_number": 2.5e-08,
+      "expected_hex": "3e5ad7f29abcaf48"
+    },
+    {
+      "label": "big",
+      "input_number": 1e+308,
+      "expected_hex": "7fe1ccf385ebc8a0"
+    },
+    {
+      "label": "sentinel_savings_nonfinite",
+      "input_note": "NaN / Infinity / non-numeric in a savings block field",
+      "expected_hex": "nonfinite"
+    },
+    {
+      "label": "sentinel_action_nonfinite",
+      "input_note": "NaN / Infinity / non-numeric in an action payload ts",
+      "expected_hex": "ffffffffffffffff"
+    }
+  ]
+}

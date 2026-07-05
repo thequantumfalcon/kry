@@ -1,0 +1,4 @@
+# transient differential-fuzz working files (regenerated each run)
+.fuzzwork/
+.fuzz_batch.ndjson
+divergences/

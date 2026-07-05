@@ -1,0 +1,40 @@
+{
+  "id": "forged_tier_no_witness",
+  "kind": "action_attestation",
+  "description": "link claims 'attested' with no server_evidence_commit; declares floor 1.0",
+  "input": {
+    "kind": "kry_action_attestation",
+    "action_hash_version": 1,
+    "links": [
+      {
+        "receipt_id": "ACT-00000000",
+        "tool": "read_file",
+        "args_commit": "ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c",
+        "result_commit": "2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4",
+        "status": "ok",
+        "ts": 1700000000.0,
+        "agent_id": "agent-A",
+        "evidence_tier": "attested",
+        "server_evidence_commit": null,
+        "action_hash_version": 1,
+        "receipt_hash": "47cf84ec1c6e93d887906b3a265b83e19c413d183d4ca462d71a5873bff1c5dc",
+        "chain_hash": "a738b86e3f845f8df1f0fb2efc52187579c63cd6bbd7671f2b2bfbb578bd6116"
+      }
+    ],
+    "chain_tip": "a738b86e3f845f8df1f0fb2efc52187579c63cd6bbd7671f2b2bfbb578bd6116",
+    "action_count": 1,
+    "veracity": {
+      "veracity_floor": 1.0
+    }
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity_floor mismatch: claimed 1.0, re-derived 0.0"
+    ],
+    "warnings": [
+      "1 link(s) claimed an anchored tier with NO witness \u2014 coerced to self_reported (not credited to the floor)"
+    ]
+  },
+  "rationale": "Forged anchored tier is coerced to self_reported; re-derived floor 0.0 != 1.0."
+}
