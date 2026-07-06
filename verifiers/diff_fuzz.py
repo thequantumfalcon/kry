@@ -221,7 +221,7 @@ def main():
             pys.append(py_verdict(text))
         ndj.write_text("\n".join(texts) + "\n")
         res = subprocess.run(
-            ["node", str(ROOT / "verifiers" / "js" / "verify.mjs"), "--batch", str(ndj), str(MULT)],
+            ["node", str(ROOT / "verifiers" / "js" / "cli.mjs"), "--batch", str(ndj), str(MULT)],
             capture_output=True, text=True)
         js = res.stdout.strip("\n").split("\n")
         if len(js) != len(pys):
