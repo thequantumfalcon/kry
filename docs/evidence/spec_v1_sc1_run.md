@@ -4,7 +4,7 @@
 
 ## Method
 
-Two independent, fresh-context cold implementers (isolated Claude sessions) were each given a hard isolation contract: **read only `/SPEC.md` and `/vectors/**`; never read `src/`, `scripts/`, or `tests/`.** Each wrote a from-scratch stdlib-only Python verifier and ran it over the entire corpus (`vectors/manifest.json`). The corpus itself is generated from the reference implementation by `vectors/generate.py`, so every `expected` verdict / hash / byte-string is ground truth that cannot drift from the code.
+Two independent, fresh-context cold implementers (each a separate, isolated session with no shared state) were each given a hard isolation contract: **read only `/SPEC.md` and `/vectors/**`; never read `src/`, `scripts/`, or `tests/`.** Each wrote a from-scratch stdlib-only Python verifier and ran it over the entire corpus (`vectors/manifest.json`). The corpus itself is generated from the reference implementation by `vectors/generate.py`, so every `expected` verdict / hash / byte-string is ground truth that cannot drift from the code.
 
 Conformance bar: reproduce every primitive `expected_hex` (`canon_f64`) and `expected_bytes` (canonical JSON) exactly, and match every attestation vector's `expected.verdict` (`VALID` / `INVALID` / `PARSE_ERROR`). Reason strings were not required to match.
 
