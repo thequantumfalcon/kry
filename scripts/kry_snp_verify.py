@@ -42,7 +42,7 @@ report yields the same evidence binding, so the mint decay collapses the repeat 
 fresh measurement_id is the operator's per-run nonce). A verifier should additionally pin
 a fresh report_data nonce when challenging live; here the measurement_id carries that role.
 
-stdlib only, EXCEPT `cryptography` (optional extra: `pip install kry[tee]`) used
+stdlib only, EXCEPT `cryptography` (optional extra: `pip install "kry-attest[tee]"`) used
 solely inside verify_report for the signature + X.509 chain. Imports kry only to mint.
 
 ⚠ NOT YET PROVEN ON REAL HARDWARE. The Nitro tier shipped with a genuine-enclave
@@ -184,7 +184,7 @@ def verify_report(report: bytes, *, vcek_der: bytes, ask_der: bytes, ark_der: by
         from cryptography.exceptions import InvalidSignature
     except ImportError:
         errs.append("cryptographic verification requires the 'cryptography' package "
-                    "(pip install kry[tee]) — refusing to mint without verifying "
+                    "(pip install 'kry-attest[tee]') — refusing to mint without verifying "
                     "the report signature (fail-closed)")
         return result
 

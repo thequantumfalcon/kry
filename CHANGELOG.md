@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (packaging)
+
+- **PyPI distribution name: `kry` → `kry-attest`.** The PyPI name `kry` belongs to an
+  unrelated package ("Simple cryptography library"), so `pip install kry` fetches someone
+  else's code. The wheel now builds as `kry_attest-<version>-py3-none-any.whl`, and the
+  `[tee]` extra hints in the TEE/SNP verifiers say `pip install "kry-attest[tee]"`. The
+  import name (`import kry`) and every receipt/attestation wire format are unchanged.
+
+### Security (release path)
+
+- **Release workflow enforces signed-tag verification** (the operator item flagged in 0.1.0's
+  release-workflow hardening, now done): `release.yml` runs `git verify-tag` against
+  `.github/allowed_signers` before building, so a tag not signed by an allowed key fails the
+  release closed. The action-receipt layer is also now disclosed in `docs/CLAIMS_BOUNDARY.md`
+  (proven: tamper-evident content-free receipts; blocked: the T1 third-party-witness claim
+  until a real MCP-server signature).
+
+### Documentation
+
+- **Promotion-overlay trust boundary made explicit** — `docs/CLAIMS_BOUNDARY.md` and the README's
+  cross-language spec callout now state that the overlay (a `supersedes` link re-tiering an
+  earlier receipt) has no cross-implementation conformance vectors: an independent verifier must
+  reproduce the five SAFETY-CONTRACT invariants plus the outcome guard exactly, or fail closed on
+  any attestation containing a `supersedes` link. The conformance claim is blocked until vectors
+  exist.
+- **README claims right-sizing** — the `readiness: research_grade` chip now carries its evidence
+  scope inline (n=52 free-tier token-count reconciliation — grounds that the calls existed, not
+  that dollars were saved), and the *Honest limitations* section moved up next to the trust
+  ladder, gaining a bullet on cross-process locking over network filesystems (`flock`/NFS
+  unreliability on a shared data dir).
+
+## [0.1.0] - 2026-06-28
+
+Initial public release — signed tag `v0.1.0` at `28d98ae`. `kry` turns the usage logs you
+already have into a stranger-verifiable proof of what your caching and routing actually
+saved — zero runtime dependencies, pure Python stdlib. Every audit-round entry below IS
+included in this release: the entries accumulated under *Unreleased* while the release was
+prepared, and were folded into this section after tagging (the heading previously carried
+the 2026-06-17 date the version was first cut in `pyproject.toml`).
+
 ### Security (remediation — two independent deep audits, 2026-06-28)
 
 Two independent maximum-depth audits each surfaced a real issue the other (and six prior rounds)
@@ -128,7 +168,7 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   "magnitude is operator-asserted" labeling) is tracked, not yet bound. Regressions:
   `tests/test_audit_deep_external.py`.
 
-### Changed
+### Changed (license)
 
 - **License: PolyForm-Noncommercial-1.0.0 → Apache-2.0.** KRY is now permissively open source
   (OSI-approved, with an explicit patent grant + defensive-termination clause). Commercial use is
@@ -270,13 +310,7 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
 - **Robustness** — `wilson_interval` clamps out-of-range inputs instead of crashing on a corrupted
   store; `kry_pending` rejects `NaN`/`Infinity` JSON constants on load.
 
-## [0.1.0] - 2026-06-17
-
-Initial public release. `kry` turns the usage logs you already have into a
-stranger-verifiable proof of what your caching and routing actually saved —
-zero runtime dependencies, pure Python stdlib.
-
-### Added
+### Added (initial feature set)
 
 - **Core lifecycle** — earn → mint → attest → a stranger verifies → carbon, on real
   efficiency events (`kry_token`, `kry_mint`, `kry_attest`; `examples/try_kry.py`).

@@ -14,7 +14,7 @@
 
 It hash-chains your caching/routing savings and recomputes them against public model pricing, so the ledger is provably _intact and honestly priced_. How much you're trusting the operator that the savings actually _happened_ is a single explicit number — the `veracity_floor`. Proves integrity, not the savings themselves. No prompts exposed. Zero dependencies.
 
-`zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade`
+`zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade` <sub>(scope: **n=52** free-tier **token-count** reconciliation — grounds that the calls existed, not that dollars were saved · [details](#readiness-a-computed-grade-not-a-claim))</sub>
 
 ![kry running live — a real routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
@@ -166,12 +166,12 @@ below is organized so the answer is *computed and labeled*, never asserted.
 - [Quickstart](#quickstart)
 - [How it works](#how-it-works)
 - [Veracity: the trust ladder](#veracity-the-trust-ladder)
+- [Honest limitations](#honest-limitations-disclosed-not-hidden)
 - [Authenticity (optional): who signed this attestation](#authenticity-optional-who-signed-this-attestation)
 - [Magnitude: publicly-checkable arithmetic](#magnitude-publicly-checkable-arithmetic)
 - [Readiness: a computed grade, not a claim](#readiness-a-computed-grade-not-a-claim)
 - [Modules](#modules)
 - [Verifying as a stranger](#verifying-as-a-stranger)
-- [Honest limitations](#honest-limitations-disclosed-not-hidden)
 - [Repository layout](#repository-layout)
 - [Legal posture](#legal-posture)
 - [Documentation](#documentation)
@@ -335,6 +335,37 @@ classified by *how the event was witnessed*, weakest to strongest:
 
 ---
 
+## Honest limitations (disclosed, not hidden)
+
+These are **permanent, by-design scope boundaries** — declared as `not_guaranteed` in the
+capability matrix, not defects:
+
+- **Per-event counterfactual proof** — a single cache hit cannot be externally witnessed;
+ the holdout gives a *statistical* answer, never a per-event one.
+- **Source-truth of self-report** — a determined operator can still author conserved T0
+ events for savings that didn't occur, and (controlling the runtime) re-derive the whole
+ chain from genesis with upgraded tiers; `verify_chain` proves integrity, not veracity. The
+ attestation *says so* (`veracity_floor = 0.0`), which is the contribution; publishing a
+ `kry_chain_anchor` makes a retroactive re-mint detectable, but neither prevents it.
+- **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
+ not solve identity.
+- **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
+ HOST (multi-process: the ceiling is re-checked at _commit_ under a cross-process lock), and a
+ _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe is
+ cross-NODE: two nodes settling the same balance against unmerged registries aren't caught until
+ merge. Named now, ranked fix documented (lease/nonce/TTL first).
+- **Cross-process locking assumes a local filesystem** — the mint/settlement/action writers
+ serialize via `fcntl`/`msvcrt` file locks, and `flock` over NFS (or an SMB/synced share) is
+ unreliable: on a networked data dir the cross-process guarantee can silently degrade. Keep
+ writers on one host with a local data dir; for multi-node, prefer per-node state + chain
+ reconciliation over one shared mutable file (`src/kry/_locks.py` documents this; a platform
+ with neither lock primitive warns once and falls back to in-process locks only).
+- **Real-world validation** — every result here is on synthetic or internal data until a
+ real provider export is reconciled. "Tested on synthetic data" ≠ "validated on real
+ traffic," and this README will not blur the two.
+
+---
+
 ## Authenticity (optional): who signed this attestation
 
 Integrity proves the ledger is untampered; veracity proves the events happened. Neither
@@ -380,6 +411,13 @@ of forgery the chain alone misses (the **F2** check).
 > reconstructs. Legacy **v4/v5/v6** receipts keep their original encoding and remain fully verifiable —
 > the change is additive and version-dispatched, so existing receipts, anchors, and the evidence bundle
 > are byte-unchanged.
+>
+> **The promotion overlay is NOT yet part of this cross-language contract.** Re-tiering via a
+> `supersedes` link is enforced here under five invariants plus an outcome guard (the SAFETY
+> CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings landed in
+> exactly this mechanism), but no conformance vectors exist for it. An independent verifier must
+> either reproduce those rules exactly or **fail closed on any attestation containing a
+> `supersedes` link** — silently ignoring promotions would mis-state `veracity_floor`.
 
 ---
 
@@ -489,31 +527,6 @@ python3 scripts/kry_doctor.py --artifact packet/artifact.json
 
 `kry_verify.py` imports no part of the package — it re-implements the checks from the
 spec, so passing it is meaningful precisely because it doesn't trust the producer's code.
-
----
-
-## Honest limitations (disclosed, not hidden)
-
-These are **permanent, by-design scope boundaries** — declared as `not_guaranteed` in the
-capability matrix, not defects:
-
-- **Per-event counterfactual proof** — a single cache hit cannot be externally witnessed;
- the holdout gives a *statistical* answer, never a per-event one.
-- **Source-truth of self-report** — a determined operator can still author conserved T0
- events for savings that didn't occur, and (controlling the runtime) re-derive the whole
- chain from genesis with upgraded tiers; `verify_chain` proves integrity, not veracity. The
- attestation *says so* (`veracity_floor = 0.0`), which is the contribution; publishing a
- `kry_chain_anchor` makes a retroactive re-mint detectable, but neither prevents it.
-- **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
- not solve identity.
-- **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
- HOST (multi-process: the ceiling is re-checked at _commit_ under a cross-process lock), and a
- _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe is
- cross-NODE: two nodes settling the same balance against unmerged registries aren't caught until
- merge. Named now, ranked fix documented (lease/nonce/TTL first).
-- **Real-world validation** — every result here is on synthetic or internal data until a
- real provider export is reconciled. "Tested on synthetic data" ≠ "validated on real
- traffic," and this README will not blur the two.
 
 ---
 

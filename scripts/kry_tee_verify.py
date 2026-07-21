@@ -36,7 +36,7 @@ JSON into the attestation document's `user_data` field:
     {"measurement_id": "...", "tokens_saved": <float>, "avoided_model": "...",
      "served_model": "..."(optional), "event_type": "..."(optional)}
 
-stdlib only, EXCEPT `cryptography` (optional extra: `pip install kry[tee]`) used
+stdlib only, EXCEPT `cryptography` (optional extra: `pip install "kry-attest[tee]"`) used
 solely inside verify_attestation for the asymmetric signature + X.509 chain. Imports kry
 only to mint (the mint log never leaves the machine).
 
@@ -313,7 +313,7 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
         from cryptography.exceptions import InvalidSignature
     except ImportError:
         errs.append("cryptographic verification requires the 'cryptography' package "
-                    "(pip install kry[tee]) — refusing to mint without verifying "
+                    "(pip install 'kry-attest[tee]') — refusing to mint without verifying "
                     "the attestation signature (fail-closed)")
         return result
 

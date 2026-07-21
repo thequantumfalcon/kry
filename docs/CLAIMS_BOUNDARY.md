@@ -29,6 +29,13 @@ boundary until real external evidence changes it.
  automated regression coverage (`tests/test_action.py`, `tests/test_action_concurrency.py`, incl. a
  cross-process no-fork test). It proves an action log is intact, ordered, and append-only — **not**
  that an action's real-world effect occurred.
+- The **promotion overlay** (a `supersedes` link re-tiering an earlier receipt) is enforced and
+ regression-tested **in this implementation only**, under five invariants plus an outcome guard
+ (the SAFETY CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings
+ landed in exactly this mechanism — see the CHANGELOG). No cross-implementation conformance
+ vectors exist for it: an independent (non-Python) verifier must either reproduce all five
+ invariants and the outcome guard exactly, or **fail closed on any attestation containing a
+ `supersedes` link**.
 
 ## Blocked Until External Evidence Exists
 
@@ -41,6 +48,8 @@ boundary until real external evidence changes it.
 - Action-layer T1 (`server_witnessed`) third-party-witness claim: the witness is operator-supplied
  until `kry_action` is wired to a real MCP-server signature, so read its `veracity_floor` as
  operator-asserted until then (the verifier already coerces a witness-less anchored tier to T0).
+- Cross-implementation promotion-overlay conformance claim: blocked until published conformance
+ vectors exercise the overlay's five invariants + outcome guard.
 
 Required evidence:
 
