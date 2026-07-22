@@ -5,7 +5,7 @@
 //   node cli.mjs --batch <ndjson> [mult.json]    # one verdict per line (differential fuzz)
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { verdict, canon, canonF64, parse, Num, setMultipliers, SENT_SAVINGS } from "./verify.mjs";
+import { verdict, verdictWithAnchor, canon, canonF64, parse, Num, setMultipliers, SENT_SAVINGS } from "./verify.mjs";
 
 function runVectors(dir) {
   const man = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
@@ -41,7 +41,9 @@ function runVectors(dir) {
       const m = raw.match(/"input":\s*([\s\S]*?),\n\s*"expected"/);
       inputText = m ? m[1] : JSON.stringify(spec.input);
     }
-    const got = verdict(inputText);
+    const got = spec.input_anchor !== undefined
+      ? verdictWithAnchor(inputText, spec.input_anchor)     // SPEC 3.8 anchor-profile vectors
+      : verdict(inputText);
     if (got === exp) pass++;
     else { fail++; fails.push(`${v.category}/${v.id}: got ${got}, expected ${exp}`); }
   }
@@ -67,9 +69,11 @@ if (arg === "--vectors") {
   }
   process.stdout.write(out.join("\n") + "\n");
 } else if (arg) {
-  const v = verdict(readFileSync(arg, "utf8"));
+  const text = readFileSync(arg, "utf8");
+  const anchorPath = process.argv[3];             // SPEC 3.8: optional published-anchor JSON
+  const v = anchorPath ? verdictWithAnchor(text, JSON.parse(readFileSync(anchorPath, "utf8"))) : verdict(text);
   console.log("VERDICT: " + v);
   process.exit(v === "VALID" ? 0 : 1);
 } else {
-  console.log("usage: node cli.mjs <attestation.json> | --vectors <dir> | --batch <ndjson> [mult.json]");
+  console.log("usage: node cli.mjs <attestation.json> [anchor.json] | --vectors <dir> | --batch <ndjson> [mult.json]");
 }

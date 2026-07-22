@@ -29,6 +29,7 @@ primitives/     canon_f64.json, canonical_json.json      — encoding, exact-byt
 savings/valid/        *.json  (verdict VALID)            — real built attestations
 savings/adversarial/  *.json  (INVALID / PARSE_ERROR)    — one fault each
 savings/overlay/      *.json  (VALID / INVALID)          — §3.7 overlay PROFILE only (see below)
+savings/anchor/       *.json  (VALID / INVALID)          — §3.8 anchor PROFILE only (input_anchor)
 action/valid/         *.json  (VALID)
 action/adversarial/   *.json  (INVALID)
 manifest.json   — every vector id, category, expected verdict
@@ -61,6 +62,11 @@ category (its VALID vector would refuse). The bundled `verifiers/js` implements 
   `receipts` mismatch, raw `NaN` parse-reject.
 - **savings/overlay (profile):** one VALID real promotion; adversarial — forward-reference
   capture, positive-value promoter, duplicate hash-bound id, double-claim.
+- **savings/anchor (profile):** each vector carries `input_anchor` (a published
+  `kry_chain_anchor/v1`) alongside `input`; the verdict is the standard verdict AND the §3.8
+  anchor check. One anchored-valid; adversarial — trailing truncation (VALID standalone —
+  only the anchor sees it) and retroactive re-mint. Skip this category if your verifier
+  doesn't take an anchor input.
 - **action:** valid single + witnessed chain; adversarial — tampered `args_commit`, forged
   anchored tier with no witness, reordered links, duplicate `receipt_id`.
 

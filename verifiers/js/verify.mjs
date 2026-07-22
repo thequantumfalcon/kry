@@ -365,6 +365,33 @@ function verdict(rawText) {
   } catch { return "INVALID"; }   // fail closed on any unexpected shape (SPEC §1)
 }
 
+// SPEC 3.8 anchor profile: a stranger's re-mint/truncation check against a PUBLISHED
+// {count, tip} chain-head anchor obtained out-of-band. Only meaningful if the anchor came
+// from the operator's external publication - one handed over at verify time proves nothing.
+function anchorErrors(att, anchor) {
+  if (typeof anchor !== "object" || anchor === null || Array.isArray(anchor) || anchor.schema !== "kry_chain_anchor/v1") return ["anchor must be a kry_chain_anchor/v1 object"];
+  const { count, tip } = anchor;
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) return ["anchor.count must be a non-negative integer"];
+  if (typeof tip !== "string" || tip.length !== 64) return ["anchor.tip must be a 64-char hex chain hash"];
+  if (count === 0) return tip === "0".repeat(64) ? [] : ["anchor.count 0 but tip is not genesis"];
+  const links = get(att, "links", []);
+  if (!Array.isArray(links)) return ["attestation has no links to check against the anchor"];
+  const match = links.find((ln) => ln instanceof Map && numval(get(ln, "seq"), -1) === count);
+  if (!match) return [`no link at seq ${count} - chain shorter than the published anchor (rollback/re-mint/truncation)`];
+  if (get(match, "chain_hash") !== tip) return [`chain hash at seq ${count} does not match the published anchor - retroactive re-mint detected`];
+  return [];
+}
+
+function verdictWithAnchor(rawText, anchor) {
+  let att;
+  try { att = parse(rawText); } catch { return "PARSE_ERROR"; }
+  try {
+    const errs = verifySavings(att);
+    errs.push(...anchorErrors(att, anchor));
+    return errs.length === 0 ? "VALID" : "INVALID";
+  } catch { return "INVALID"; }   // fail closed on any unexpected shape (SPEC §1)
+}
+
 // ── exports ───────────────────────────────────────────────────────────────────
 function setMultipliers(arr) { MULTIPLIERS = arr; }   // published price-multiplier set (SPEC §3.4.1)
-export { verdict, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS };
+export { verdict, verdictWithAnchor, anchorErrors, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS };

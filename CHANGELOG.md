@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added (SPEC v1.2 — the chain-head anchor profile)
+
+- **SPEC §3.8: published-anchor verification becomes the second optional profile.** A
+  verifier claiming it takes the published `kry_chain_anchor/v1` `{count, tip}` as a second
+  input and rejects a chain shorter than the anchor (trailing truncation / rollback) or one
+  whose hash at `seq == count` mismatches (retroactive re-mint). New vector category
+  `vectors/savings/anchor/` (anchored-valid; truncation — which verifies VALID standalone,
+  pinning that chain-walking alone cannot see a dropped tail; re-mint), each carrying
+  `input_anchor` alongside `input`, expected verdicts generated from the reference.
+  `verifiers/js` implements the profile (`verdictWithAnchor` / `anchorErrors`;
+  `cli.mjs <attestation.json> [anchor.json]`); corpus 36/36, both implementations agree.
+  This closes the last item v1.0's §3.7 had deferred; `docs/SPEC_DEVELOPMENT.md` moves v1.2
+  to shipped with no further revision scheduled.
 
 ## [0.1.1] - 2026-07-21
 
