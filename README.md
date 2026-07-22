@@ -415,9 +415,10 @@ of forgery the chain alone misses (the **F2** check).
 > **The promotion overlay is NOT yet part of this cross-language contract.** Re-tiering via a
 > `supersedes` link is enforced here under five invariants plus an outcome guard (the SAFETY
 > CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings landed in
-> exactly this mechanism), but no conformance vectors exist for it. An independent verifier must
-> either reproduce those rules exactly or **fail closed on any attestation containing a
-> `supersedes` link** — silently ignoring promotions would mis-state `veracity_floor`.
+> exactly this mechanism), and no vector in the v1.0 corpus exercises it (SPEC §3.7). An
+> independent verifier must either reproduce those rules exactly or **fail closed on any
+> attestation containing a `supersedes` link** — silently ignoring promotions would mis-state
+> `veracity_floor`. The bundled [`verifiers/js`](verifiers/js/) fails closed.
 
 ---
 
@@ -485,6 +486,14 @@ All under `src/kry/` — ~6,100 LOC, stdlib only.
 The point of KRY is that **someone who does not trust you can check the claim** with
 nothing but the Python standard library and the published attestation.
 
+You don't even need Python: [`SPEC.md`](SPEC.md) is the normative wire format,
+[`vectors/`](vectors/) is its conformance corpus (exact-bytes primitives plus
+valid/adversarial attestations, generated from the reference so they cannot drift), and
+[`verifiers/js/`](verifiers/js/) is an independent, dependency-free JS verifier
+(`node verifiers/js/cli.mjs attestation.json`, or `--vectors vectors` to run the corpus)
+with a static browser page at [`verifiers/web/`](verifiers/web/). CI re-runs the JS
+verifier against the corpus and a regenerate-and-diff drift guard on every push.
+
 ```bash
 python3 scripts/kry_verify.py attestation.json
 # integrity (hash chain) + conservation + magnitude (F2) + veracity surface
@@ -537,6 +546,8 @@ src/kry/ the package (stdlib only) — see Modules
 scripts/ kry_verify · kry_chain_anchor (re-mint/rollback evidence) · kry_reconcile (F1) · kry_or_fetch · kry_savings_report · kry_verified_artifact · kry_finops_report · kry_doctor
 examples/ try_kry.py (30s demo) · gen_dataset.py (synthetic logs) · sample_usage_log.jsonl
 tests/ unit, adversarial regressions (test_hardening), at-scale + fuzz (test_stress)
+vectors/ KRY-SPEC conformance corpus, generated from the reference (vectors/generate.py)
+verifiers/ independent JS verifier + corpus runner (js/) · static browser verify page (web/)
 docs/ SPEC · VERACITY_BINDING · COUNTERFACTUAL_HOLDOUT · BIOMIMICRY · SANCTIONS · READINESS · ...
 kry_data/ runtime ledgers (gitignored — never committed)
 ```
@@ -570,6 +581,7 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 
 | Doc | What it covers |
 |---|---|
+| [SPEC.md](SPEC.md) | **KRY-SPEC v1.0** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
 | [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier |
 | [KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md) | integrity vs veracity, the tier ladder, F1/F2 |
 | [KRY_COUNTERFACTUAL_HOLDOUT.md](docs/KRY_COUNTERFACTUAL_HOLDOUT.md) | measuring the counterfactual (randomized holdout + Wilson CI) |

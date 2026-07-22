@@ -86,3 +86,20 @@ jobs:
         with:
           name: release-verify-full
           path: release-verify-full.json
+
+  conformance-vectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+      - name: JS verifier vs the conformance corpus (SPEC v1.0)
+        run: node verifiers/js/cli.mjs --vectors vectors
+      - name: Corpus drift guard — regenerate from the reference and diff
+        run: |
+          PYTHONPATH=src python3 vectors/generate.py
+          git diff --exit-code vectors/
