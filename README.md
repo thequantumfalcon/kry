@@ -18,7 +18,7 @@ It hash-chains your caching/routing savings and recomputes them against public m
 
 ![kry running live — a real routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
-<sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇 Or **try to forge a receipt yourself**: the [browser verifier](verifiers/web/) has live tamper, truncation, and re-mint demos.</sub>
+<sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇 Or **try to forge a receipt yourself**: the [live browser verifier](https://thequantumfalcon.github.io/kry/) has tamper, truncation, and re-mint demos — nothing uploads, the verifier runs in your browser.</sub>
 
 </div>
 
@@ -493,7 +493,9 @@ You don't even need Python: [`SPEC.md`](SPEC.md) is the normative wire format,
 valid/adversarial attestations, generated from the reference so they cannot drift), and
 [`verifiers/js/`](verifiers/js/) is an independent, dependency-free JS verifier
 (`node verifiers/js/cli.mjs attestation.json`, or `--vectors vectors` to run the corpus)
-with a static browser page at [`verifiers/web/`](verifiers/web/). CI re-runs the JS
+with a static browser page at [`verifiers/web/`](verifiers/web/) — hosted live (with
+tamper/truncation/re-mint demos) at
+[thequantumfalcon.github.io/kry](https://thequantumfalcon.github.io/kry/). CI re-runs the JS
 verifier against the corpus and a regenerate-and-diff drift guard on every push.
 
 ```bash
