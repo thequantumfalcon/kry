@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and caught only by the published anchor (SPEC §3.8), with the story narrated in-page.
   Stale v1.0 reference updated to the 36-vector v1.2 corpus. README links the playground
   from the demo caption; docs table gains the LiteLLM cookbook row.
+- **GitHub Pages deployment of the verify surface** (`.github/workflows/pages.yml`) — the
+  browser verifier/playground, the JS verifier it imports, the live conformance corpus the
+  demos fetch, and SPEC.md, staged into `_site` and published on every push to main
+  (digest-pinned actions, harden-runner, minimal permissions). The site is the verify
+  surface only, not a repo mirror.
 
 ## [0.1.2] - 2026-07-21
 
