@@ -4,6 +4,12 @@ This file states what the repository is allowed to cause a reader to believe.
 It is stricter than marketing language and should be treated as the release
 boundary until real external evidence changes it.
 
+**Separation invariant:** the thing evaluated must be external to the logic
+evaluating it — a verifier must not trust the producer's code. This is why
+`scripts/kry_verify.py` imports nothing from the package and `verifiers/js`
+reads only `SPEC.md` + `vectors/`. An analysis that builds its own test
+subject is void.
+
 ## Proven In This Repository
 
 - The package installs from a tracked checkout with no runtime dependencies.
@@ -29,13 +35,14 @@ boundary until real external evidence changes it.
  automated regression coverage (`tests/test_action.py`, `tests/test_action_concurrency.py`, incl. a
  cross-process no-fork test). It proves an action log is intact, ordered, and append-only — **not**
  that an action's real-world effect occurred.
-- The **promotion overlay** (a `supersedes` link re-tiering an earlier receipt) is enforced and
- regression-tested **in this implementation only**, under five invariants plus an outcome guard
- (the SAFETY CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings
- landed in exactly this mechanism — see the CHANGELOG). No vector in the v1.0 conformance
- corpus (`vectors/`) exercises it (SPEC §3.7): an independent (non-Python) verifier must
- either reproduce all five invariants and the outcome guard exactly, or **fail closed on any
- attestation containing a `supersedes` link** (the bundled `verifiers/js` fails closed).
+- The **promotion overlay** (a `supersedes` link re-tiering an earlier receipt) is an optional,
+ normatively-specified conformance **profile** (SPEC §3.7, v1.1) enforced under five invariants
+ plus an outcome guard (the SAFETY CONTRACT on `kry_mint._apply_promotion_overlay`; four prior
+ HIGH-severity findings landed in exactly this mechanism — see the CHANGELOG), pinned by its
+ own vector category (`vectors/savings/overlay/`: one valid promotion, four adversarial). The
+ Python reference and the bundled `verifiers/js` both implement the profile and agree on the
+ full corpus. A verifier that does not claim the profile must **fail closed on any attestation
+ containing a `supersedes` link**.
 
 ## Blocked Until External Evidence Exists
 
@@ -48,8 +55,6 @@ boundary until real external evidence changes it.
 - Action-layer T1 (`server_witnessed`) third-party-witness claim: the witness is operator-supplied
  until `kry_action` is wired to a real MCP-server signature, so read its `veracity_floor` as
  operator-asserted until then (the verifier already coerces a witness-less anchored tier to T0).
-- Cross-implementation promotion-overlay conformance claim: blocked until published conformance
- vectors exercise the overlay's five invariants + outcome guard.
 
 Required evidence:
 

@@ -1,0 +1,84 @@
+{
+  "id": "promotion_double_claim",
+  "kind": "savings_attestation",
+  "description": "the same promotion appears twice and the declared veracity claims the target's value moved twice",
+  "input": {
+    "receipts": 3,
+    "total_kry": 500.0,
+    "usd_equivalent": 0.0125,
+    "chain_head": "b15a4d98935919dca11eef6451717ea854f37f862f3d3ff0148e7af9c91997ce",
+    "chain_valid": true,
+    "event_type_counts": {
+      "displacement": 1,
+      "tier_promotion": 2
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "displacement",
+        "kry_minted": 500.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "c5d6b36edcdf9126079832f56bcb2feaa541ba25314903326a4b0651d6afd55b",
+        "chain_hash": "ede7a9c799f4d54e7418a61debb22b965e455bbfa9e49c87ef5cbb502589cfa4",
+        "sealed_evidence": "82e34d29912264b7",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "tier_promotion",
+        "kry_minted": 0.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "8ddef6a5549ace120924476b054a2612d7efe41d2ffac1a978bc9905b9bd0db3",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 0.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000002"
+      },
+      {
+        "seq": 2,
+        "event_type": "tier_promotion",
+        "kry_minted": 0.0,
+        "ts": 1700000003.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "b15a4d98935919dca11eef6451717ea854f37f862f3d3ff0148e7af9c91997ce",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 0.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "tlsn_attested": 1000.0
+      },
+      "anchored_kry": 1000.0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "e57b4fcb2b59bdf7b675dda45c6824b000d28fae3dd9b80e0bba9189dc2e1e75"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 2: duplicate receipt_id 'KRY-00000002' among hash-bound receipts",
+      "veracity by_tier mismatch: declared {'tlsn_attested': 1000.0}, links imply {'self_reported': 0.0, 'tlsn_attested': 500.0}",
+      "anchored_kry mismatch"
+    ]
+  },
+  "rationale": "Invariant 5 (CONSUMED ONCE): the target is consumed on first use, so the second promotion is a no-op and the declared double move mismatches."
+}

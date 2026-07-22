@@ -1,6 +1,6 @@
 {
-  "spec": "KRY-SPEC v1.0",
-  "count": 18,
+  "spec": "KRY-SPEC v1.1",
+  "count": 23,
   "vectors": [
     {
       "id": "canon_f64",
@@ -61,6 +61,31 @@
       "id": "parse_reject_nan",
       "category": "savings/adversarial",
       "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "promotion_legit",
+      "category": "savings/overlay",
+      "verdict": "VALID"
+    },
+    {
+      "id": "promotion_forward_reference",
+      "category": "savings/overlay",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_positive_value_promoter",
+      "category": "savings/overlay",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_duplicate_receipt_id",
+      "category": "savings/overlay",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_double_claim",
+      "category": "savings/overlay",
+      "verdict": "INVALID"
     },
     {
       "id": "single_self_reported",

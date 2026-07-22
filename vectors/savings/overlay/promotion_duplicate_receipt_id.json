@@ -1,0 +1,71 @@
+{
+  "id": "promotion_duplicate_receipt_id",
+  "kind": "savings_attestation",
+  "description": "two hash-bound (v6+) links share a receipt_id",
+  "input": {
+    "receipts": 2,
+    "total_kry": 500.0,
+    "usd_equivalent": 0.0125,
+    "chain_head": "a272bfcd85ba307f0ae1ce45cb3ede50621b8680244ea8fa7ed8cb7249c5b2c6",
+    "chain_valid": true,
+    "event_type_counts": {
+      "displacement": 1,
+      "tier_promotion": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "displacement",
+        "kry_minted": 500.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "c5d6b36edcdf9126079832f56bcb2feaa541ba25314903326a4b0651d6afd55b",
+        "chain_hash": "ede7a9c799f4d54e7418a61debb22b965e455bbfa9e49c87ef5cbb502589cfa4",
+        "sealed_evidence": "82e34d29912264b7",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "tier_promotion",
+        "kry_minted": 0.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "a272bfcd85ba307f0ae1ce45cb3ede50621b8680244ea8fa7ed8cb7249c5b2c6",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 0.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000001"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 0.0,
+        "tlsn_attested": 500.0
+      },
+      "anchored_kry": 500.0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "20947f923ebb31a24d1b9709d987c14df80a232901fda0ad6732769a1d2c6c80"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 2: duplicate receipt_id 'KRY-00000001' among hash-bound receipts",
+      "veracity by_tier mismatch: declared {'self_reported': 0.0, 'tlsn_attested': 500.0}, links imply {'self_reported': 500.0, 'tlsn_attested': 0.0}",
+      "anchored_kry mismatch",
+      "self_reported_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.0000 \u2014 trust surface misstated"
+    ]
+  },
+  "rationale": "Invariant 2 (UNIQUE target): duplicate hash-bound ids make the overlay lookup ambiguous and are rejected outright."
+}

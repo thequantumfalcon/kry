@@ -29,6 +29,12 @@ rules below exist to protect that.
 6. **No AI attribution in any artifact.** No `Co-Authored-By`, no "Generated with …", no AI credit
  in commits, docs, or comments. This is enforced by `.githooks/` and
  `.github/workflows/no-ai-attribution.yml` — it will block a violating commit.
+7. **Evidence discipline: seal → transcribe → interpret.** An evidence doc (`docs/evidence/*`)
+ cites the sha256 of the raw run artifact it interprets, recorded *before* analysis; a "Literal
+ note" section states what the artifact says (counts, ranges — no verdict) before any
+ interpretation sentence; and when a headline claim changes scope ("saves X" → "saves X under
+ Y"), the old→new wording is logged verbatim where the claim lives. (Norms adapted from the
+ author's Regurgitate protocol — kept as prose discipline, not enforcement machinery.)
 
 ## Development setup
 

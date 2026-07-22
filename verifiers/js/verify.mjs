@@ -210,7 +210,9 @@ function verifySavings(att) {
 
   let prev = "0".repeat(64), prevVer = 0, total = 0;
   const counts = {}, byTier = {};
-  for (const link of links) {
+  const kryByReceipt = new Map();   // receipt_id -> [tier, kry, pos] (SPEC 3.7 overlay profile)
+  const promotions = [];            // [supersedes, tier, pos]
+  for (const [pos, link] of links.entries()) {
     const seq = get(link, "seq"), rh = get(link, "receipt_hash"), ch = get(link, "chain_hash");
     const et = get(link, "event_type"), km = get(link, "kry_minted");
     if (!(seq instanceof Num) || !Number.isInteger(numval(seq)) || numval(seq) < 0) errs.push("bad seq");
@@ -227,10 +229,17 @@ function verifySavings(att) {
     let tier = get(link, "evidence_tier", "self_reported");
     if (typeof tier !== "string") { errs.push("tier not string"); tier = "self_reported"; }
     if (hv < 4 && tier !== "self_reported") { errs.push("pre-v4 anchored tier"); tier = "self_reported"; }
-    // SPEC 3.7: the promotion overlay is informative in v1.0 and this verifier does not
-    // implement it — fail closed rather than compute an overlay-free veracity_floor.
+    // SPEC 3.7 overlay profile: only a HASH-BOUND (v6+) receipt_id may anchor a promotion
+    // (a v4/v5 id is mutable); duplicate hash-bound ids make the lookup ambiguous - reject.
+    const rid = get(link, "receipt_id");
+    if (typeof rid === "string" && rid && hv >= 6) {
+      if (kryByReceipt.has(rid)) errs.push(`seq ${numval(seq)}: duplicate receipt_id among hash-bound receipts`);
+      kryByReceipt.set(rid, [tier, numval(km), pos]);
+    }
+    // A promotion is a ZERO-value tlsn/tee link with supersedes; a positive-value link keeps
+    // its own value only and cannot re-tier the target too (invariant 4).
     const supLink = get(link, "supersedes", null);
-    if (supLink !== null && supLink !== undefined) errs.push(`seq ${numval(seq)}: supersedes present - promotion overlay not implemented (fail closed, SPEC 3.7)`);
+    if ((tier === "tlsn_attested" || tier === "tee_attested") && typeof supLink === "string" && supLink && numval(km) <= 0) promotions.push([supLink, tier, pos]);
     total += numval(km);
     counts[et] = (counts[et] || 0) + 1;
     byTier[tier] = (byTier[tier] || 0) + numval(km);
@@ -246,6 +255,20 @@ function verifySavings(att) {
   // veracity (a non-object veracity, e.g. null, is treated as empty — matches the reference)
   const _ver = get(att, "veracity");
   const ver = _ver instanceof Map ? _ver : new Map();
+  // SPEC 3.7 overlay profile: a zero-value tlsn/tee promotion re-tiers its (earlier,
+  // hash-bound, positive-value) superseded receipt's value; each target is consumed once.
+  for (const [srcId, toTier, promoPos] of promotions) {
+    const src = kryByReceipt.get(srcId);
+    if (!src) continue;
+    const [srcTier, srcKry, srcPos] = src;
+    if (srcPos >= promoPos) continue;   // invariant 3: forward-reference capture - refuse
+    if (srcKry <= 0) continue;          // invariant 4: only positive-value targets move
+    byTier[srcTier] = (byTier[srcTier] || 0) - srcKry;
+    byTier[toTier] = (byTier[toTier] || 0) + srcKry;
+    kryByReceipt.delete(srcId);         // invariant 5: consumed - promoted at most once
+  }
+  // OUTCOME GUARD: the overlay is a pure transfer, so no tier may go negative afterwards.
+  if (Object.values(byTier).some((v) => v < -0.01)) errs.push("by_tier negative after promotion overlay");
   const anchored = r4(Object.entries(byTier).filter(([t]) => ANCHORED_SAVINGS.has(t)).reduce((a, [, v]) => a + v, 0));
   const selfRep = r4(byTier["self_reported"] || 0);
   if (Math.abs(numval(get(ver, "anchored_kry", 0), 0) - anchored) > 1e-4) errs.push("anchored_kry mismatch");
