@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify a kry receipt</title>
+<style>
+  :root { color-scheme: light dark; --bg:#fff; --fg:#111; --sub:#555; --line:#ddd; --card:#f7f7f8;
+          --ok:#0a7d32; --okbg:#e7f6ec; --bad:#b3261e; --badbg:#fcebea; --btn:#111; --btnfg:#fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0e0f11; --fg:#e8e8ea; --sub:#9aa0a6; --line:#2a2c30; --card:#17181b;
+            --ok:#4ade80; --okbg:#0f2417; --bad:#f87171; --badbg:#2a1414; --btn:#e8e8ea; --btnfg:#0e0f11; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 20px 64px; }
+  h1 { font-size:1.5rem; margin:0 0 6px; }
+  .sub { color:var(--sub); margin:0 0 20px; }
+  .sub a { color:inherit; }
+  textarea { width:100%; height:340px; padding:12px; border:1px solid var(--line); border-radius:10px;
+             background:var(--card); color:var(--fg); font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+             resize:vertical; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  button { border:1px solid var(--btn); background:var(--btn); color:var(--btnfg); padding:9px 16px;
+           border-radius:8px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--fg); border-color:var(--line); }
+  .out { margin-top:6px; padding:14px 16px; border-radius:10px; font-size:15px; min-height:1.2em;
+         border:1px solid transparent; white-space:pre-wrap; }
+  .out.ok  { color:var(--ok);  background:var(--okbg);  border-color:var(--ok); }
+  .out.bad { color:var(--bad); background:var(--badbg); border-color:var(--bad); }
+  footer { color:var(--sub); font-size:12.5px; margin-top:28px; border-top:1px solid var(--line); padding-top:14px; }
+  code { background:var(--card); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Verify a kry receipt</h1>
+  <p class="sub">Checks a kry attestation <strong>entirely in your browser</strong> — nothing is
+  uploaded, there is no server to trust. The verifier is a single file,
+  <a href="../js/verify.mjs">verify.mjs</a> (view its source — it is the same implementation that
+  passes a 1,000,000-case differential fuzz against the reference, per
+  <a href="https://github.com/thequantumfalcon/kry/blob/main/SPEC.md">KRY-SPEC v1.0</a>).</p>
+
+  <textarea id="in" spellcheck="false" aria-label="receipt JSON"></textarea>
+  <div class="row">
+    <button id="go">Verify</button>
+    <button id="sample" class="ghost">Load valid sample</button>
+    <button id="tamper" class="ghost">Tamper &amp; re-check</button>
+  </div>
+  <div id="out" class="out" role="status"></div>
+
+  <footer>
+    A <span class="out ok" style="padding:0 4px">VALID</span> verdict means the receipt's hash chain,
+    magnitude arithmetic, tier schema and self-hash all re-derive correctly — i.e. no field was altered.
+    It does <em>not</em> attest that the savings were real; that is the receipt's <code>veracity_floor</code>
+    and evidence tier to disclose, not this checker to certify.
+  </footer>
+</main>
+
+<script type="module">
+import { verdict, setMultipliers } from "../js/verify.mjs";
+
+// Published price-multiplier set (SPEC §3.4.1), inlined so this page is self-contained.
+setMultipliers([0.0, 0.002, 0.006, 0.02, 0.022, 0.022000000000000002, 0.024, 0.026, 0.028, 0.044,
+  0.044000000000000004, 0.05, 0.1, 0.25, 0.256, 0.276, 0.278, 0.3, 0.35, 0.356, 0.376, 0.378, 0.4,
+  0.6, 0.7, 0.95, 0.956, 0.976, 0.978, 1.0]);
+
+const SAMPLE = `{
+  "receipts": 1,
+  "total_kry": 1000.0,
+  "usd_equivalent": 0.025,
+  "chain_head": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+  "chain_valid": true,
+  "event_type_counts": { "cache_hit": 1 },
+  "links": [
+    {
+      "seq": 1,
+      "event_type": "cache_hit",
+      "kry_minted": 1000.0,
+      "ts": 1700000001.0,
+      "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+      "chain_hash": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+      "sealed_evidence": "92de6c1eae168d73",
+      "evidence_tier": "self_reported",
+      "tokens_saved": 1000.0,
+      "earn_rate": 1.0,
+      "metered_tokens": null,
+      "hash_version": 7,
+      "supersedes": null,
+      "receipt_id": "KRY-00000001"
+    }
+  ],
+  "veracity": {
+    "by_tier": { "self_reported": 1000.0 },
+    "anchored_kry": 0,
+    "self_reported_kry": 1000.0,
+    "veracity_floor": 0.0
+  },
+  "attestation_hash": "2ffdd71bae3fc6d24075fbe8f5abf42276ae2cfab60ddcba4d20fb8781d61df1"
+}`;
+
+const $ = (id) => document.getElementById(id);
+function show(v) {
+  const o = $("out");
+  o.className = "out " + (v === "VALID" ? "ok" : "bad");
+  o.textContent =
+    v === "VALID" ? "✓ VALID — chain, magnitude, tiers and self-hash all re-derive." :
+    v === "PARSE_ERROR" ? "✗ PARSE_ERROR — not standard JSON (NaN/Infinity or malformed)." :
+    "✗ INVALID — a check failed (tampered field, broken chain, or bad magnitude).";
+}
+$("in").value = SAMPLE;
+$("go").onclick = () => show(verdict($("in").value));
+$("sample").onclick = () => { $("in").value = SAMPLE; const o = $("out"); o.className = "out"; o.textContent = ""; };
+$("tamper").onclick = () => {
+  // flip one hex char inside the first 64-char hash to demonstrate tamper-evidence
+  const t = $("in").value.replace(/([0-9a-f]{63})([0-9a-f])/, (_m, a, b) => a + (b === "0" ? "1" : "0"));
+  $("in").value = t;
+  show(verdict(t));
+};
+show(verdict(SAMPLE));
+</script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "id": "chain_two_witnessed",
+  "kind": "action_attestation",
+  "description": "self_reported then server_witnessed (witness commit present); floor 0.5",
+  "input": {
+    "kind": "kry_action_attestation",
+    "action_hash_version": 1,
+    "links": [
+      {
+        "receipt_id": "ACT-00000000",
+        "tool": "read_file",
+        "args_commit": "ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c",
+        "result_commit": "2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4",
+        "status": "ok",
+        "ts": 1700000000.0,
+        "agent_id": "agent-A",
+        "evidence_tier": "self_reported",
+        "server_evidence_commit": null,
+        "action_hash_version": 1,
+        "receipt_hash": "35b72e50fdd66eb49a33276d606ea45420c29edfa45d019e7c6df4bbac963196",
+        "chain_hash": "e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba"
+      },
+      {
+        "receipt_id": "ACT-00000001",
+        "tool": "read_file",
+        "args_commit": "ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c",
+        "result_commit": "2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4",
+        "status": "ok",
+        "ts": 1700000001.0,
+        "agent_id": "agent-A",
+        "evidence_tier": "server_witnessed",
+        "server_evidence_commit": "7db7ede43ce366fff5bf6f46462027fa42639b67787e6878e1e265d47ed2a3af",
+        "action_hash_version": 1,
+        "receipt_hash": "b51ec00eb61f7f7e3739d6dcc6a2735f593212adcda986b26ecc8d401f889872",
+        "chain_hash": "dc502391cff21e0dca202d28a382bb8664d0e224fa24032dab859051b71224d0"
+      }
+    ],
+    "chain_tip": "dc502391cff21e0dca202d28a382bb8664d0e224fa24032dab859051b71224d0",
+    "action_count": 2,
+    "veracity": {
+      "veracity_floor": 0.5
+    }
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": [],
+    "warnings": [],
+    "chain_tip": "dc502391cff21e0dca202d28a382bb8664d0e224fa24032dab859051b71224d0"
+  },
+  "rationale": "One of two actions is anchored -> veracity_floor 0.5."
+}

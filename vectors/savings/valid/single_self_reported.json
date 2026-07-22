@@ -1,0 +1,48 @@
+{
+  "id": "single_self_reported",
+  "kind": "savings_attestation",
+  "description": "one self_reported cache_hit link",
+  "input": {
+    "receipts": 1,
+    "total_kry": 1000.0,
+    "usd_equivalent": 0.025,
+    "chain_head": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 1000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 1000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "2ffdd71bae3fc6d24075fbe8f5abf42276ae2cfab60ddcba4d20fb8781d61df1"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": [],
+    "chain_tip": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27"
+  },
+  "rationale": "Well-formed: chain recomputes, totals match, magnitude is a published multiplier."
+}

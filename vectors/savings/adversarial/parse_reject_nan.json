@@ -1,0 +1,13 @@
+{
+  "id": "parse_reject_nan",
+  "kind": "raw_json",
+  "description": "raw attestation text embedding the JSON constant NaN",
+  "input_raw_text": "{\"receipts\":1,\"links\":[{\"seq\":0,\"kry_minted\":NaN}]}",
+  "expected": {
+    "verdict": "PARSE_ERROR",
+    "reasons": [
+      "non-standard JSON constant rejected: NaN"
+    ]
+  },
+  "rationale": "A conforming parser MUST reject NaN/Infinity (not standard JSON)."
+}
