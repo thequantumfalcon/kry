@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.2] - 2026-07-21
+
 ### Added (SPEC v1.2 — the chain-head anchor profile)
 
 - **SPEC §3.8: published-anchor verification becomes the second optional profile.** A
@@ -418,6 +422,7 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/thequantumfalcon/kry/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/thequantumfalcon/kry/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thequantumfalcon/kry/releases/tag/v0.1.0

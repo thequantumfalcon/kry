@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "kry-attest"   # PyPI distribution name ("kry" is an unrelated PyPI package); import name stays `kry`
-version = "0.1.1"
+version = "0.1.2"
 description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
 keywords = [
     "llm", "llmops", "llm-cost-optimization", "inference-cost", "model-routing",
