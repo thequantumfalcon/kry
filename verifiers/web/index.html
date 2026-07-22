@@ -24,10 +24,20 @@
   button { border:1px solid var(--btn); background:var(--btn); color:var(--btnfg); padding:9px 16px;
            border-radius:8px; font-size:14px; cursor:pointer; }
   button.ghost { background:transparent; color:var(--fg); border-color:var(--line); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
   .out { margin-top:6px; padding:14px 16px; border-radius:10px; font-size:15px; min-height:1.2em;
          border:1px solid transparent; white-space:pre-wrap; }
   .out.ok  { color:var(--ok);  background:var(--okbg);  border-color:var(--ok); }
   .out.bad { color:var(--bad); background:var(--badbg); border-color:var(--bad); }
+  .reasons { margin:8px 0 0; padding-left:20px; font-size:13.5px; color:var(--sub); }
+  .reasons li { margin:2px 0; }
+  .meter { margin-top:14px; }
+  .meter .bar { height:10px; border-radius:6px; background:var(--card); border:1px solid var(--line); overflow:hidden; }
+  .meter .fill { height:100%; background:var(--ok); width:0; transition:width .3s; }
+  .meter .lbl { font-size:12.5px; color:var(--sub); margin-top:4px; }
+  .anchor { font-size:12.5px; color:var(--sub); margin:2px 0 0; }
+  .anchor code { background:var(--card); padding:1px 5px; border-radius:4px; }
+  .story { margin-top:10px; padding:10px 14px; border-left:3px solid var(--line); color:var(--sub); font-size:13.5px; }
   footer { color:var(--sub); font-size:12.5px; margin-top:28px; border-top:1px solid var(--line); padding-top:14px; }
   code { background:var(--card); padding:1px 5px; border-radius:4px; }
 </style>
@@ -38,8 +48,8 @@
   <p class="sub">Checks a kry attestation <strong>entirely in your browser</strong> — nothing is
   uploaded, there is no server to trust. The verifier is a single file,
   <a href="../js/verify.mjs">verify.mjs</a> (view its source — it is the same implementation that
-  passes a 1,000,000-case differential fuzz against the reference, per
-  <a href="https://github.com/thequantumfalcon/kry/blob/main/SPEC.md">KRY-SPEC v1.0</a>).</p>
+  passes the 36-vector <a href="https://github.com/thequantumfalcon/kry/blob/main/SPEC.md">KRY-SPEC
+  v1.2</a> conformance corpus and a 1,000,000-case differential fuzz against the reference).</p>
 
   <textarea id="in" spellcheck="false" aria-label="receipt JSON"></textarea>
   <div class="row">
@@ -47,18 +57,34 @@
     <button id="sample" class="ghost">Load valid sample</button>
     <button id="tamper" class="ghost">Tamper &amp; re-check</button>
   </div>
+  <div class="row">
+    <button id="trunc" class="ghost">Truncation demo</button>
+    <button id="remint" class="ghost">Re-mint demo</button>
+    <button id="anchorcheck" disabled>Check against published anchor</button>
+  </div>
+  <div id="anchorline" class="anchor"></div>
+  <div id="story" class="story" hidden></div>
   <div id="out" class="out" role="status"></div>
+  <ul id="reasons" class="reasons"></ul>
+  <div class="meter" id="meter" hidden>
+    <div class="bar"><div class="fill" id="meterfill"></div></div>
+    <div class="lbl" id="meterlbl"></div>
+  </div>
 
   <footer>
     A <span class="out ok" style="padding:0 4px">VALID</span> verdict means the receipt's hash chain,
     magnitude arithmetic, tier schema and self-hash all re-derive correctly — i.e. no field was altered.
     It does <em>not</em> attest that the savings were real; that is the receipt's <code>veracity_floor</code>
-    and evidence tier to disclose, not this checker to certify.
+    and evidence tier to disclose, not this checker to certify. The two demos load real conformance
+    vectors (served from <code>vectors/</code> — run <code>python3 -m http.server</code> at the repo root):
+    a <em>truncated</em> chain verifies VALID standalone, because a prefix of a valid chain is itself a
+    valid chain — only the operator's <em>published</em> chain-head anchor catches the dropped tail
+    (SPEC §3.8). Same for a chain silently re-derived from genesis.
   </footer>
 </main>
 
 <script type="module">
-import { verdict, setMultipliers } from "../js/verify.mjs";
+import { explain, setMultipliers } from "../js/verify.mjs";
 
 // Published price-multiplier set (SPEC §3.4.1), inlined so this page is self-contained.
 setMultipliers([0.0, 0.002, 0.006, 0.02, 0.022, 0.022000000000000002, 0.024, 0.026, 0.028, 0.044,
@@ -100,24 +126,88 @@ const SAMPLE = `{
 }`;
 
 const $ = (id) => document.getElementById(id);
-function show(v) {
+let anchor = null;   // SPEC 3.8 published anchor, loaded by the demos
+
+function meter(text) {
+  const m = $("meter");
+  try {
+    const floor = JSON.parse(text)?.veracity?.veracity_floor;
+    if (typeof floor === "number" && floor >= 0 && floor <= 1) {
+      $("meterfill").style.width = (floor * 100).toFixed(1) + "%";
+      $("meterlbl").textContent = `veracity_floor ${floor} — fraction backed by more than ` +
+        `self-report (declared; the verifier re-derives it). 0.0 = fully operator-trusted, and says so.`;
+      m.hidden = false;
+      return;
+    }
+  } catch { /* unparseable — no meter */ }
+  m.hidden = true;
+}
+
+function show(res, note) {
   const o = $("out");
+  const v = res.verdict;
   o.className = "out " + (v === "VALID" ? "ok" : "bad");
   o.textContent =
-    v === "VALID" ? "✓ VALID — chain, magnitude, tiers and self-hash all re-derive." :
-    v === "PARSE_ERROR" ? "✗ PARSE_ERROR — not standard JSON (NaN/Infinity or malformed)." :
-    "✗ INVALID — a check failed (tampered field, broken chain, or bad magnitude).";
+    (v === "VALID" ? "✓ VALID — chain, magnitude, tiers and self-hash all re-derive." :
+     v === "PARSE_ERROR" ? "✗ PARSE_ERROR — not standard JSON (NaN/Infinity or malformed)." :
+     "✗ INVALID — a check failed.") + (note ? "  " + note : "");
+  const ul = $("reasons");
+  ul.replaceChildren(...(res.reasons || []).slice(0, 8).map((r) => {
+    const li = document.createElement("li"); li.textContent = r; return li;
+  }));
+  meter($("in").value);
 }
+
+function setAnchor(a, label) {
+  anchor = a;
+  $("anchorcheck").disabled = !a;
+  $("anchorline").textContent = a
+    ? `published anchor loaded (${label}): count=${a.count} tip=${String(a.tip).slice(0, 16)}…`
+    : "";
+}
+
+function story(text) { const s = $("story"); s.hidden = !text; s.textContent = text || ""; }
+
+async function loadDemo(vectorPath, label, storyText) {
+  try {
+    const raw = await (await fetch(vectorPath)).text();
+    // Seed the textarea with the RAW input text — re-serializing would change number
+    // spellings and (correctly) break the self-hash. Same extraction as cli.mjs.
+    const m = raw.match(/"input":\s*([\s\S]*?),\n\s*"expected"/);
+    if (!m) throw new Error("vector shape");
+    $("in").value = m[1];
+    setAnchor(JSON.parse(raw).input_anchor, label);
+    story(storyText);
+    show(explain($("in").value));
+  } catch {
+    story("Demo vectors not reachable — serve the repo root (python3 -m http.server) and open " +
+          "this page via http://localhost:8000/verifiers/web/.");
+  }
+}
+
 $("in").value = SAMPLE;
-$("go").onclick = () => show(verdict($("in").value));
-$("sample").onclick = () => { $("in").value = SAMPLE; const o = $("out"); o.className = "out"; o.textContent = ""; };
+$("go").onclick = () => show(explain($("in").value));
+$("sample").onclick = () => {
+  $("in").value = SAMPLE; setAnchor(null); story("");
+  const o = $("out"); o.className = "out"; o.textContent = ""; $("reasons").replaceChildren(); meter(SAMPLE);
+};
 $("tamper").onclick = () => {
   // flip one hex char inside the first 64-char hash to demonstrate tamper-evidence
   const t = $("in").value.replace(/([0-9a-f]{63})([0-9a-f])/, (_m, a, b) => a + (b === "0" ? "1" : "0"));
   $("in").value = t;
-  show(verdict(t));
+  show(explain(t));
 };
-show(verdict(SAMPLE));
+$("trunc").onclick = () => loadDemo("../../vectors/savings/anchor/anchor_truncation_detected.json",
+  "truncation demo",
+  "This chain had its last receipt DROPPED and the envelope recomputed. Click Verify: it is VALID — " +
+  "a prefix of a valid chain is itself a valid chain, so no offline check can see the missing tail. " +
+  "Now click 'Check against published anchor'.");
+$("remint").onclick = () => loadDemo("../../vectors/savings/anchor/anchor_remint_detected.json",
+  "re-mint demo",
+  "This chain was silently RE-DERIVED from genesis with different contents — internally it is " +
+  "perfectly VALID. Click Verify, then 'Check against published anchor' to catch the retroactive re-mint.");
+$("anchorcheck").onclick = () => show(explain($("in").value, anchor), "(checked against the published anchor)");
+show(explain(SAMPLE));
 </script>
 </body>
 </html>

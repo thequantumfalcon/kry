@@ -392,6 +392,19 @@ function verdictWithAnchor(rawText, anchor) {
   } catch { return "INVALID"; }   // fail closed on any unexpected shape (SPEC §1)
 }
 
+// Full explanation for interactive surfaces (the browser playground): verdict + reasons.
+// Same checks as verdict()/verdictWithAnchor(); anchor is optional.
+function explain(rawText, anchor) {
+  let att;
+  try { att = parse(rawText); } catch { return { verdict: "PARSE_ERROR", reasons: ["input is not standards-compliant JSON (NaN/Infinity rejected)"] }; }
+  try {
+    const kind = att instanceof Map ? get(att, "kind") : undefined;
+    const errs = kind === "kry_action_attestation" ? verifyAction(att) : verifySavings(att);
+    if (anchor !== undefined && anchor !== null) errs.push(...anchorErrors(att, anchor));
+    return { verdict: errs.length === 0 ? "VALID" : "INVALID", reasons: errs };
+  } catch { return { verdict: "INVALID", reasons: ["unexpected shape (fail closed, SPEC 1)"] }; }
+}
+
 // ── exports ───────────────────────────────────────────────────────────────────
 function setMultipliers(arr) { MULTIPLIERS = arr; }   // published price-multiplier set (SPEC §3.4.1)
-export { verdict, verdictWithAnchor, anchorErrors, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS };
+export { verdict, verdictWithAnchor, anchorErrors, explain, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS };
