@@ -1,0 +1,85 @@
+{
+  "id": "anchored_valid",
+  "kind": "savings_attestation",
+  "description": "three-link chain checked against its own published chain-head anchor",
+  "input_anchor": {
+    "schema": "kry_chain_anchor/v1",
+    "count": 3,
+    "tip": "8ec6a2c1360553ce25ff80dd55b8518e01c8fe2d8d96fdbea12139767665503d"
+  },
+  "input": {
+    "receipts": 3,
+    "total_kry": 3000.0,
+    "usd_equivalent": 0.075,
+    "chain_head": "8ec6a2c1360553ce25ff80dd55b8518e01c8fe2d8d96fdbea12139767665503d",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 3
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "baaa6e1d04098a1b9ab6e2e4e1c63cac86b272a4a8f240c3d39b2cccecdffb7d",
+        "chain_hash": "7c89aea1772ecb332681eb6760380e51d487307b183ba481b4a5ef1bcf0bab82",
+        "sealed_evidence": "5bc40d50825de711",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      },
+      {
+        "seq": 3,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000003.0,
+        "receipt_hash": "50c9460fd5d0afecefb1a762e3254087a220eaf6253ab307d40c5862a17af69d",
+        "chain_hash": "8ec6a2c1360553ce25ff80dd55b8518e01c8fe2d8d96fdbea12139767665503d",
+        "sealed_evidence": "7175feb6632581ac",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000003"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 3000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 3000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "d9d1e4a3cd28b07f3758535217f0012f5a493553698a61a4fdd6394cace57259"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": [],
+    "chain_tip": "8ec6a2c1360553ce25ff80dd55b8518e01c8fe2d8d96fdbea12139767665503d"
+  },
+  "rationale": "Anchor profile (SPEC 3.8): the link at seq==count carries chain_hash==tip, so the anchored prefix is intact."
+}

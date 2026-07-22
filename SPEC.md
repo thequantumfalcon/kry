@@ -201,7 +201,34 @@ After the scan, in link order, for each collected promotion: look up `supersedes
 
 A verifier that does NOT claim this profile MUST fail closed (INVALID) on any savings attestation containing a link with a non-null `supersedes` — an overlay-free floor computed from such an attestation can silently disagree with the reference. Profile vectors live in `vectors/savings/overlay/`; only profile-claiming verifiers run that category (see `vectors/README.md`).
 
-Published-anchor re-mint/truncation detection remains deferred to a later revision.
+Published-anchor re-mint/truncation detection is its own profile — §3.8.
+
+### 3.8 Chain-head anchor profile (optional, normative when claimed)
+
+`verify` (§3.4) proves a chain is internally consistent; it cannot tell an honest chain from
+one the operator re-derived from genesis, and it cannot see **trailing truncation** — a prefix
+of a valid chain is itself a valid chain. The **chain-head anchor** closes both gaps: a
+content-free commitment the operator PUBLISHED externally (append-only medium, out-of-band):
+
+```json
+{ "schema": "kry_chain_anchor/v1", "count": <int >= 0>, "tip": <64-char hex chain_hash> }
+```
+
+A verifier claiming this profile takes the anchor as a **second input** and, in addition to
+the §3.4 verdict, MUST check: a malformed anchor (wrong `schema`, non-integer/negative
+`count`, `tip` not a 64-char string) is INVALID; if `count == 0`, `tip` must equal the genesis
+value (§3.3), else INVALID; otherwise the attestation must contain a link whose `seq` equals
+`count` — **no such link means the chain is shorter than the published anchor
+(rollback/re-mint/truncation): INVALID** — and that link's `chain_hash` must equal `tip` —
+**a mismatch is a retroactive re-mint: INVALID**.
+
+Trust caveat (normative to *state*, impossible to check): the anchor is only as strong as its
+external publication. An anchor handed over by the operator at verify time proves nothing.
+
+Vectors: `vectors/savings/anchor/` (each carries `input_anchor` alongside `input`; the
+verdict is the §3.4 verdict AND the anchor check). A verifier that does not claim this
+profile simply cannot offer the re-mint/truncation check — there is no fail-closed
+obligation, because the anchor is an extra input, not an attestation field.
 
 ---
 
@@ -275,5 +302,6 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **v1.2 (2026-07-21):** §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor becomes an optional profile with vectors (`vectors/savings/anchor/` — anchored-valid, trailing-truncation detected, retroactive re-mint detected; the truncation vector verifies VALID standalone, pinning that chain-walking alone cannot see a dropped tail). Anchor vectors carry `input_anchor` as a second verifier input. Additive: every v1.0/v1.1 vector and verdict unchanged.
 - **v1.1 (2026-07-21):** §3.7 promotion overlay promoted from informative to an optional, normatively-specified **profile** with its own vector category (`vectors/savings/overlay/` — one VALID promotion, four adversarial: forward-reference, positive-value promoter, duplicate hash-bound id, double-claim). Non-profile verifiers MUST fail closed on a non-null `supersedes`. Published-anchor semantics remain deferred. Additive: every v1.0 vector and verdict is unchanged.
 - **v1.0 (2026-07-04):** first normative spec. Covers canonical JSON, `canon_f64`, savings v4–v7 chain + magnitude + tier-schema + veracity + envelope verdict, and the action profile. Promotion-overlay/anchor semantics deferred to a later revision (§3.7).

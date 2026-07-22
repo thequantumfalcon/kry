@@ -27,29 +27,14 @@ claimed today) — this file is about what the *wire contract* becomes next.
 |---|---|---|
 | v1.0 | 2026-07-04 | First normative spec: canonicalization, `canon_f64`, savings v4–v7 chain + magnitude + tier schema + veracity + verdict, action profile. Overlay + anchor deferred. |
 | v1.1 | 2026-07-21 | §3.7 promotion overlay: informative → optional **profile**, five invariants + outcome guard, `vectors/savings/overlay/` (1 valid, 4 adversarial). Non-profile verifiers fail closed on `supersedes`. Both bundled implementations pass 33/33. |
+| v1.2 | 2026-07-21 | §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor as a second optional profile — `vectors/savings/anchor/` (anchored-valid; trailing truncation, which verifies VALID standalone and only the anchor catches; retroactive re-mint). Anchor vectors carry `input_anchor` as a second verifier input; `verifiers/js/cli.mjs` takes an anchor path. Both implementations pass 36/36. (The truncation hole was independently confirmed by the same design appearing in the author's `nomos-kernel` ledger — sidecar head file, "a prefix of a valid chain is valid" rationale.) |
 
-## Next revision candidate (v1.2): the anchor profile
+## Next revision
 
-**What:** make published chain-head-anchor verification (`{count, tip}` from
-`kry_mint.export_chain_anchor` / `scripts/kry_chain_anchor.py`) a second optional profile,
-with vectors for the two attacks it exists to catch: **retroactive re-mint** (same count,
-different tip) and **trailing truncation** (shorter count — a prefix of a valid chain is
-itself a valid chain, so chain-walking alone can never see it).
-
-**Why:** this is the documented external root of trust for the whole system, and it is the
-one §3.7-deferred item still uncovered by vectors. The truncation case is the sharpest gap:
-an operator can drop the tail receipts that record a regression and still verify clean
-against every current vector. (The same design appears independently in the author's
-`nomos-kernel` ledger — sidecar head file + "a prefix of a valid chain is valid" rationale —
-which is confirmation the hole is real, not an import of new machinery: kry already has the
-anchor mechanism; the delta is spec text, vectors, and an anchor input for `verifiers/js`.)
-
-**Acceptance criteria:** anchor input added to `verifiers/js/cli.mjs` (second file argument);
-vectors: anchored-valid, re-mint-detected, truncation-detected; both implementations agree;
-SPEC §3.7 note removed ("anchor semantics deferred") and a new §3.8 profile section added.
-
-**Status:** proposed. Small-to-medium effort; no wire-format change (the anchor is already a
-shipped, content-free artifact).
+No revision is currently scheduled. §3.7 and §3.8 closed both items v1.0 deferred; the
+remaining candidates below are **design decisions awaiting a real external driver** (an
+independent implementer or user asking for them) — per the ground rules, none should be
+promoted to spec text just because the machinery is easy.
 
 ## Attestation-surface candidates (design decisions — not started)
 

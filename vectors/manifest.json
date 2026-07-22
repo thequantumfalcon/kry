@@ -1,6 +1,6 @@
 {
-  "spec": "KRY-SPEC v1.1",
-  "count": 23,
+  "spec": "KRY-SPEC v1.2",
+  "count": 26,
   "vectors": [
     {
       "id": "canon_f64",
@@ -85,6 +85,21 @@
     {
       "id": "promotion_double_claim",
       "category": "savings/overlay",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "anchored_valid",
+      "category": "savings/anchor",
+      "verdict": "VALID"
+    },
+    {
+      "id": "anchor_truncation_detected",
+      "category": "savings/anchor",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "anchor_remint_detected",
+      "category": "savings/anchor",
       "verdict": "INVALID"
     },
     {

@@ -1,0 +1,86 @@
+{
+  "id": "anchor_remint_detected",
+  "kind": "savings_attestation",
+  "description": "an internally-valid chain re-derived from genesis (different contents, same length) checked against the ORIGINAL published anchor",
+  "input_anchor": {
+    "schema": "kry_chain_anchor/v1",
+    "count": 3,
+    "tip": "8ec6a2c1360553ce25ff80dd55b8518e01c8fe2d8d96fdbea12139767665503d"
+  },
+  "input": {
+    "receipts": 3,
+    "total_kry": 6000.0,
+    "usd_equivalent": 0.15,
+    "chain_head": "22ab415c725fb5872198a868019ea41d07eca96dc35e221c593d8ee583316c1b",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 3
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 2000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "4f070528ccdaa3f4fd764c5a41aae8af1768d89ebfe760256f8bca5e4758b7e0",
+        "chain_hash": "32e8a0078c95c88c67b453472d52f311a24a505b7d25953530ba85fdd1b0549e",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 2000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 2000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "b891cc680530d480c486add2892589961358dd9a86f7be96b314e000fc9dfee4",
+        "chain_hash": "d9e782ebce664bdbe7ffb172c0529bf107e0c971cb6c3146ce4b820c01651182",
+        "sealed_evidence": "5bc40d50825de711",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 2000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      },
+      {
+        "seq": 3,
+        "event_type": "cache_hit",
+        "kry_minted": 2000.0,
+        "ts": 1700000003.0,
+        "receipt_hash": "b8a76d9a4d03e3456a56db927586df7acad2b3a0a4de49a0246398ceaa28da4b",
+        "chain_hash": "22ab415c725fb5872198a868019ea41d07eca96dc35e221c593d8ee583316c1b",
+        "sealed_evidence": "7175feb6632581ac",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 2000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000003"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 6000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 6000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "6d5427205653887c7afb24767bd1e8a56a46f6b4c17420cfeb4a47c58b88cbff"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "chain hash at seq 3 does not match the published anchor \u2014 retroactive re-mint detected"
+    ]
+  },
+  "rationale": "Keyless SHA-256 lets the operator rebuild the chain; the out-of-band published anchor is what makes a retroactive re-mint detectable \u2014 the chain hash at seq==count no longer matches the published tip."
+}

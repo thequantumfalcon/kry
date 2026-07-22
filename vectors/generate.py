@@ -427,6 +427,68 @@ def gen_overlay() -> None:
                      "second promotion is a no-op and the declared double move mismatches."})
 
 
+# ── 2c. Chain-head anchor profile vectors (SPEC §3.8) ─────────────────────────
+
+def verdict_savings_anchored(att, anchor) -> dict:
+    ok, errors = kv.verify_attestation(att)
+    ok2, errors2 = kv.verify_attestation_against_anchor(att, anchor)
+    return {"verdict": "VALID" if ok and ok2 else "INVALID", "reasons": errors + errors2}
+
+
+def gen_anchor() -> None:
+    # NOTE: "input_anchor" is placed BEFORE "input" in each vector dict — the JS corpus
+    # runner re-extracts the exact input text with a regex that ends at `"expected"`.
+    att = build([{**CACHE, "detail": f"q{i}", "evidence": f"u{i}"} for i in range(3)])
+    anchor = km.export_chain_anchor()             # the authentic published head: {count: 3, tip}
+    assert anchor["count"] == 3 and anchor["tip"] == att["chain_head"]
+    exp = verdict_savings_anchored(att, anchor)
+    assert exp["verdict"] == "VALID", exp
+    write("savings/anchor", "anchored_valid", {
+        "kind": "savings_attestation",
+        "description": "three-link chain checked against its own published chain-head anchor",
+        "input_anchor": anchor,
+        "input": att, "expected": {**exp, "chain_tip": att["chain_head"]},
+        "rationale": "Anchor profile (SPEC 3.8): the link at seq==count carries chain_hash==tip, "
+                     "so the anchored prefix is intact."})
+
+    # adversarial: trailing truncation — drop the last link, recompute a SELF-CONSISTENT
+    # envelope. The standalone walk verifies VALID (a prefix of a valid chain is itself a
+    # valid chain); only the published anchor can see the missing tail.
+    t = copy.deepcopy(att)
+    t["links"] = t["links"][:2]
+    t = rechain(t)
+    assert verdict_savings(t)["verdict"] == "VALID", "truncated prefix must verify standalone"
+    exp = verdict_savings_anchored(t, anchor)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("shorter than the published anchor" in r for r in exp["reasons"]), exp
+    write("savings/anchor", "anchor_truncation_detected", {
+        "kind": "savings_attestation",
+        "description": "the anchored chain's last link is dropped and the envelope recomputed; "
+                       "standalone verification is VALID, the anchor check is not",
+        "input_anchor": anchor,
+        "input": t, "expected": exp,
+        "rationale": "A prefix of a valid chain is itself a valid chain — chain-walking alone "
+                     "cannot see trailing truncation. The anchor's count has no matching link."})
+
+    # adversarial: retroactive re-mint — a fresh, internally-valid chain of the same length
+    # rebuilt from genesis with different contents; the anchored tip no longer matches.
+    r = build([{**CACHE, "tokens_saved": 2000, "detail": f"q{i}", "evidence": f"u{i}"}
+               for i in range(3)])
+    assert verdict_savings(r)["verdict"] == "VALID", "re-minted chain must verify standalone"
+    exp = verdict_savings_anchored(r, anchor)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("retroactive re-mint detected" in r2 for r2 in exp["reasons"]), exp
+    write("savings/anchor", "anchor_remint_detected", {
+        "kind": "savings_attestation",
+        "description": "an internally-valid chain re-derived from genesis (different contents, "
+                       "same length) checked against the ORIGINAL published anchor",
+        "input_anchor": anchor,
+        "input": r, "expected": exp,
+        "rationale": "Keyless SHA-256 lets the operator rebuild the chain; the out-of-band "
+                     "published anchor is what makes a retroactive re-mint detectable — the "
+                     "chain hash at seq==count no longer matches the published tip."})
+
+
 def gen_action() -> None:
     a0, t0 = act_link(0, GENESIS)
     att = act_att([a0], 0.0)
@@ -492,11 +554,12 @@ def main() -> None:
     gen_primitives()
     gen_savings()
     gen_overlay()
+    gen_anchor()
     gen_action()
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(
-        {"spec": "KRY-SPEC v1.1", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
+        {"spec": "KRY-SPEC v1.2", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
     print(f"wrote {len(manifest)} vectors + manifest.json")
     for m in manifest:
         print(f"  {m['category']:22} {m['id']:30} -> {m['verdict']}")
