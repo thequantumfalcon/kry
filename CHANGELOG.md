@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added (distribution surface)
+
+- **LiteLLM integration** (`scripts/kry_litellm_callback.py` + `docs/KRY_LITELLM.md`) — a
+  CustomLogger that mints a kry `cache_hit` receipt per LiteLLM response-cache hit
+  (`tokens_saved` = the cached response's total tokens; the LiteLLM call id as the
+  evidence key, minted once per process). Honest boundary stated everywhere: receipts are
+  T0 `self_reported` (the floor stays 0.0 — the gateway is the operator), `cache_hit` is
+  LiteLLM's response cache not provider prompt-caching, `response_cost` is recorded as a
+  price-table estimate only. Dict-based and stdlib-only (litellm imported lazily); fails
+  closed on malformed events and never raises into the serving path. 7 tests.
+- **Browser verifier → tamper playground** (`verifiers/web/index.html`) — the verify page
+  now shows the failing reasons (new `explain()` export in `verify.mjs`), renders the
+  declared `veracity_floor` as a labeled meter, and adds two anchor demos that load real
+  conformance vectors live: a truncated chain and a genesis re-mint, each VALID standalone
+  and caught only by the published anchor (SPEC §3.8), with the story narrated in-page.
+  Stale v1.0 reference updated to the 36-vector v1.2 corpus. README links the playground
+  from the demo caption; docs table gains the LiteLLM cookbook row.
 
 ## [0.1.2] - 2026-07-21
 

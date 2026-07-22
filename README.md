@@ -18,7 +18,7 @@ It hash-chains your caching/routing savings and recomputes them against public m
 
 ![kry running live — a real routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
-<sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇</sub>
+<sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇 Or **try to forge a receipt yourself**: the [browser verifier](verifiers/web/) has live tamper, truncation, and re-mint demos.</sub>
 
 </div>
 
@@ -545,7 +545,7 @@ spec, so passing it is meaningful precisely because it doesn't trust the produce
 
 ```text
 src/kry/ the package (stdlib only) — see Modules
-scripts/ kry_verify · kry_chain_anchor (re-mint/rollback evidence) · kry_reconcile (F1) · kry_or_fetch · kry_savings_report · kry_verified_artifact · kry_finops_report · kry_doctor
+scripts/ kry_verify · kry_chain_anchor (re-mint/rollback evidence) · kry_reconcile (F1) · kry_or_fetch · kry_savings_report · kry_verified_artifact · kry_finops_report · kry_doctor · kry_litellm_callback (proxy integration)
 examples/ try_kry.py (30s demo) · gen_dataset.py (synthetic logs) · sample_usage_log.jsonl
 tests/ unit, adversarial regressions (test_hardening), at-scale + fuzz (test_stress)
 vectors/ KRY-SPEC conformance corpus, generated from the reference (vectors/generate.py)
@@ -583,7 +583,8 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 
 | Doc | What it covers |
 |---|---|
-| [SPEC.md](SPEC.md) | **KRY-SPEC v1.0** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
+| [SPEC.md](SPEC.md) | **KRY-SPEC v1.2** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
+| [KRY_LITELLM.md](docs/KRY_LITELLM.md) | LiteLLM proxy integration — attest response-cache savings (honest T0 labeling) |
 | [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier |
 | [KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md) | integrity vs veracity, the tier ladder, F1/F2 |
 | [KRY_COUNTERFACTUAL_HOLDOUT.md](docs/KRY_COUNTERFACTUAL_HOLDOUT.md) | measuring the counterfactual (randomized holdout + Wilson CI) |
