@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (spec + independent verification surface)
+
+- **KRY-SPEC v1.0** (`SPEC.md`, 2026-07-04) — the first normative wire-format spec: canonical
+  JSON, `canon_f64`, the savings v4–v7 chain + magnitude + tier-schema + veracity + envelope
+  verdict, and the action profile. Promotion-overlay/anchor semantics explicitly deferred
+  (§3.7). Ships with a conformance-vector corpus (`vectors/` — exact-bytes primitives plus
+  valid/adversarial savings and action attestations, generated from the reference by
+  `vectors/generate.py` so they cannot drift).
+- **Independent JS verifier + browser page** — `verifiers/js/` (dependency-free Node ESM, with
+  a corpus runner: `node verifiers/js/cli.mjs --vectors vectors`) and a static browser verify
+  page (`verifiers/web/`).
+- **CI job `conformance-vectors`** — runs the JS verifier over the corpus plus a drift guard
+  (regenerate from the reference, `git diff --exit-code`) on every push/PR; the independent
+  verifier and the corpus were previously not exercised in CI at all.
+
+### Fixed (audit hardening — five findings, severity re-rated on reproduction)
+
+- Settlement: `_record_settled` undoes the registry append if the tip-checkpoint write fails,
+  so no phantom settlement can linger (fail-safe). Mint: a tip-write failure after a durable,
+  chain-valid receipt keeps and returns the receipt instead of under-reporting the mint (the
+  stale tip self-heals on the next mint). `kry_verify`: a malformed declared `veracity_floor`
+  prints a clean `VERDICT: INVALID`, not a traceback. `kry_baseline`: adopts the repo-wide
+  strict-JSON boundary (reject NaN/Infinity) and validates `observe_treated(n)`.
+  `kry_pending`: uses the shared cross-process lock (which has an msvcrt path), closing a
+  Windows double-mint window.
+
+### Security (JS verifier fails closed on the overlay)
+
+- `verifiers/js` now rejects any savings link carrying a non-null `supersedes` with an
+  explicit reason, instead of silently computing an overlay-free `veracity_floor` (the
+  promotion overlay is informative in SPEC v1.0 §3.7 and this verifier does not implement
+  it). Closes a split-verdict window: an attestation declaring the overlay-free floor
+  previously passed this verifier while the reference implementation re-tiered.
+
 ### Changed (packaging)
 
 - **PyPI distribution name: `kry` → `kry-attest`.** The PyPI name `kry` belongs to an
@@ -28,10 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Promotion-overlay trust boundary made explicit** — `docs/CLAIMS_BOUNDARY.md` and the README's
   cross-language spec callout now state that the overlay (a `supersedes` link re-tiering an
-  earlier receipt) has no cross-implementation conformance vectors: an independent verifier must
-  reproduce the five SAFETY-CONTRACT invariants plus the outcome guard exactly, or fail closed on
-  any attestation containing a `supersedes` link. The conformance claim is blocked until vectors
-  exist.
+  earlier receipt) is not exercised by any vector in the v1.0 conformance corpus: an independent
+  verifier must reproduce the five SAFETY-CONTRACT invariants plus the outcome guard exactly, or
+  fail closed on any attestation containing a `supersedes` link. The overlay conformance claim
+  stays blocked until such vectors exist.
+- Evidence docs: SC1 cold-implementer wording generalized.
 - **README claims right-sizing** — the `readiness: research_grade` chip now carries its evidence
   scope inline (n=52 free-tier token-count reconciliation — grounds that the calls existed, not
   that dollars were saved), and the *Honest limitations* section moved up next to the trust

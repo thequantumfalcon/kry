@@ -227,6 +227,10 @@ function verifySavings(att) {
     let tier = get(link, "evidence_tier", "self_reported");
     if (typeof tier !== "string") { errs.push("tier not string"); tier = "self_reported"; }
     if (hv < 4 && tier !== "self_reported") { errs.push("pre-v4 anchored tier"); tier = "self_reported"; }
+    // SPEC 3.7: the promotion overlay is informative in v1.0 and this verifier does not
+    // implement it — fail closed rather than compute an overlay-free veracity_floor.
+    const supLink = get(link, "supersedes", null);
+    if (supLink !== null && supLink !== undefined) errs.push(`seq ${numval(seq)}: supersedes present - promotion overlay not implemented (fail closed, SPEC 3.7)`);
     total += numval(km);
     counts[et] = (counts[et] || 0) + 1;
     byTier[tier] = (byTier[tier] || 0) + numval(km);

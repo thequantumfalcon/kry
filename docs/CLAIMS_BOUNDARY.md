@@ -32,10 +32,10 @@ boundary until real external evidence changes it.
 - The **promotion overlay** (a `supersedes` link re-tiering an earlier receipt) is enforced and
  regression-tested **in this implementation only**, under five invariants plus an outcome guard
  (the SAFETY CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings
- landed in exactly this mechanism — see the CHANGELOG). No cross-implementation conformance
- vectors exist for it: an independent (non-Python) verifier must either reproduce all five
- invariants and the outcome guard exactly, or **fail closed on any attestation containing a
- `supersedes` link**.
+ landed in exactly this mechanism — see the CHANGELOG). No vector in the v1.0 conformance
+ corpus (`vectors/`) exercises it (SPEC §3.7): an independent (non-Python) verifier must
+ either reproduce all five invariants and the outcome guard exactly, or **fail closed on any
+ attestation containing a `supersedes` link** (the bundled `verifiers/js` fails closed).
 
 ## Blocked Until External Evidence Exists
 
