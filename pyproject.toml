@@ -4,7 +4,7 @@ build-backend = "build_backend"
 backend-path = ["."]
 
 [project]
-name = "kry"
+name = "kry-attest"   # PyPI distribution name ("kry" is an unrelated PyPI package); import name stays `kry`
 version = "0.1.0"
 description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
 keywords = [
