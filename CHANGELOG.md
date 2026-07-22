@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.1] - 2026-07-21
+
 ### Added (SPEC v1.1 — the promotion-overlay profile)
 
 - **SPEC §3.7: informative → optional, normatively-specified profile.** The overlay's five
@@ -402,5 +406,6 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/thequantumfalcon/kry/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thequantumfalcon/kry/releases/tag/v0.1.0
