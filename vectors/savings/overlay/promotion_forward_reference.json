@@ -1,0 +1,70 @@
+{
+  "id": "promotion_forward_reference",
+  "kind": "savings_attestation",
+  "description": "the promotion appears BEFORE the receipt it supersedes; declared veracity still claims the promoted floor",
+  "input": {
+    "receipts": 2,
+    "total_kry": 500.0,
+    "usd_equivalent": 0.0125,
+    "chain_head": "af1756e65f4cfb052efd9d983ecbe884b521fbd7ab1833cb32cc3667816ea27a",
+    "chain_valid": true,
+    "event_type_counts": {
+      "tier_promotion": 1,
+      "displacement": 1
+    },
+    "links": [
+      {
+        "seq": 0,
+        "event_type": "tier_promotion",
+        "kry_minted": 0.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "a442d88f1bd6fa3aab25f88a7ffbe8f81b462ba53cae4f4a20ff5fbe7cd11acc",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 0.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000002"
+      },
+      {
+        "seq": 1,
+        "event_type": "displacement",
+        "kry_minted": 500.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "c5d6b36edcdf9126079832f56bcb2feaa541ba25314903326a4b0651d6afd55b",
+        "chain_hash": "af1756e65f4cfb052efd9d983ecbe884b521fbd7ab1833cb32cc3667816ea27a",
+        "sealed_evidence": "82e34d29912264b7",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 0.0,
+        "tlsn_attested": 500.0
+      },
+      "anchored_kry": 500.0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "4c29a938b41497973778dfc378f93546b2b92e3f0127fc217695a4a39f0fa1a4"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity by_tier mismatch: declared {'self_reported': 0.0, 'tlsn_attested': 500.0}, links imply {'tlsn_attested': 0.0, 'self_reported': 500.0}",
+      "anchored_kry mismatch",
+      "self_reported_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.0000 \u2014 trust surface misstated"
+    ]
+  },
+  "rationale": "Invariant 3 (PRIOR target): a promotion may re-tier only a receipt seen earlier in the scan; a forward reference is refused, so the declared (promoted) veracity mismatches the derived one."
+}

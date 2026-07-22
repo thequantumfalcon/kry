@@ -1,0 +1,69 @@
+{
+  "id": "promotion_positive_value_promoter",
+  "kind": "savings_attestation",
+  "description": "a POSITIVE-value tlsn link also carries supersedes and the declared veracity claims the target's value moved on top of its own (floor 1.0)",
+  "input": {
+    "receipts": 2,
+    "total_kry": 1000.0,
+    "usd_equivalent": 0.025,
+    "chain_head": "ad8765f0ecf36aacff192efbc4f18af8a674c30dfcad242e69c8f5f7eaffa9b0",
+    "chain_valid": true,
+    "event_type_counts": {
+      "displacement": 1,
+      "tier_promotion": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "displacement",
+        "kry_minted": 500.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "c5d6b36edcdf9126079832f56bcb2feaa541ba25314903326a4b0651d6afd55b",
+        "chain_hash": "ede7a9c799f4d54e7418a61debb22b965e455bbfa9e49c87ef5cbb502589cfa4",
+        "sealed_evidence": "82e34d29912264b7",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "tier_promotion",
+        "kry_minted": 500.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "ad8765f0ecf36aacff192efbc4f18af8a674c30dfcad242e69c8f5f7eaffa9b0",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "tlsn_attested": 1000.0
+      },
+      "anchored_kry": 1000.0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "e0847a6b57b70c51429c570bd7046db6851650fd8d629d42d4976c3f58b4d73f"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity by_tier mismatch: declared {'tlsn_attested': 1000.0}, links imply {'self_reported': 500.0, 'tlsn_attested': 500.0}",
+      "anchored_kry mismatch",
+      "self_reported_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.5000 \u2014 trust surface misstated"
+    ]
+  },
+  "rationale": "Invariant 4 (zero-value promoter): a positive-value link keeps its own value only and is NOT a promotion; the declared double-count mismatches."
+}

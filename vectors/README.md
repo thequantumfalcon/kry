@@ -28,6 +28,7 @@ canonicalization matches; the attestation vectors then test the verdict logic on
 primitives/     canon_f64.json, canonical_json.json      — encoding, exact-bytes
 savings/valid/        *.json  (verdict VALID)            — real built attestations
 savings/adversarial/  *.json  (INVALID / PARSE_ERROR)    — one fault each
+savings/overlay/      *.json  (VALID / INVALID)          — §3.7 overlay PROFILE only (see below)
 action/valid/         *.json  (VALID)
 action/adversarial/   *.json  (INVALID)
 manifest.json   — every vector id, category, expected verdict
@@ -42,13 +43,24 @@ Each attestation vector file:
   "rationale": "why this verdict" }
 ```
 
-## Coverage (17 vectors)
+## The overlay profile category
+
+`savings/overlay/` exercises the SPEC §3.7 **promotion-overlay profile** (optional): one VALID
+real promotion plus four adversarial cases (forward-reference capture, positive-value promoter,
+duplicate hash-bound `receipt_id`, double-claim). Verdict-match these vectors **only if your
+verifier claims the profile**. A verifier that does not implement the profile MUST instead fail
+closed on any savings attestation containing a non-null `supersedes` — and must then skip this
+category (its VALID vector would refuse). The bundled `verifiers/js` implements the profile.
+
+## Coverage (see `manifest.json` for the authoritative count)
 
 - **primitives:** float→IEEE-754-hex (incl. `1` vs `1.0`, non-finite sentinels), canonical
   JSON (key sort at depth, `\uXXXX` escaping, `NaN` rejection).
 - **savings:** valid single + 3-link chains; adversarial — illegal magnitude multiplier,
   v7 `event_type` relabel, `hash_version` downgrade, forged tier, blanked `attestation_hash`,
   `receipts` mismatch, raw `NaN` parse-reject.
+- **savings/overlay (profile):** one VALID real promotion; adversarial — forward-reference
+  capture, positive-value promoter, duplicate hash-bound id, double-claim.
 - **action:** valid single + witnessed chain; adversarial — tampered `args_commit`, forged
   anchored tier with no witness, reordered links, duplicate `receipt_id`.
 

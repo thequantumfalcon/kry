@@ -311,6 +311,122 @@ def verdict_action(att) -> dict:
     return {"verdict": "VALID" if ok else "INVALID", "reasons": errors, "warnings": warnings}
 
 
+# ── 2b. Promotion-overlay profile vectors (SPEC §3.7) ─────────────────────────
+
+def build_promoted() -> dict:
+    """Mint a displacement, then a REAL zero-value tlsn promotion of it (via the
+    shipping promote_to_tlsn path), and return the public attestation — declared
+    veracity carries the overlaid by_tier/floor the profile must reproduce."""
+    log = reset_mint_state()
+    _clock[0] += 1.0
+    r = km.mint("displacement", 1000, "served via cheap leg /openrouter:gen-vec-p1",
+                evidence="u-promo", avoided_model="gh/claude-opus-4.8")
+    assert r is not None
+    _clock[0] += 1.0
+    p = km.promote_to_tlsn("gen-vec-p1", "tlsn:conformance-vector-evidence", "T2 vector")
+    assert p is not None
+    return json.loads(ka.build_attestation(log).to_public_json())
+
+
+def gen_overlay() -> None:
+    att = build_promoted()
+    promo_idx = next(i for i, ln in enumerate(att["links"]) if ln.get("supersedes"))
+    target_idx = next(i for i, ln in enumerate(att["links"])
+                      if ln.get("receipt_id") == att["links"][promo_idx]["supersedes"])
+    moved = att["links"][target_idx]["kry_minted"]
+    exp = verdict_savings(att)
+    assert exp["verdict"] == "VALID", exp
+    assert att["veracity"]["veracity_floor"] > 0, att["veracity"]   # the overlay moved value
+    write("savings/overlay", "promotion_legit", {
+        "kind": "savings_attestation",
+        "description": "a zero-value tlsn_attested promotion supersedes an EARLIER hash-bound "
+                       "(v6+) displacement receipt; declared veracity carries the overlaid "
+                       "by_tier and floor",
+        "input": att, "expected": {**exp, "chain_tip": att["chain_head"]},
+        "rationale": "Overlay profile (SPEC 3.7): all five invariants hold, so the target's "
+                     "value re-tiers to tlsn_attested and the declared floor matches."})
+
+    # adversarial: forward-reference capture — the promotion PRECEDES its target in the scan
+    a = copy.deepcopy(att)
+    a["links"] = [a["links"][promo_idx], a["links"][target_idx]]
+    a["links"][0]["seq"] = 0
+    a["links"][1]["seq"] = 1                      # seq is not hash-bound; keep it clean so the
+    declared = copy.deepcopy(att["veracity"])     # ONLY fault is the overlay order rule
+    a = rechain(a)
+    a["veracity"] = declared
+    reseal(a)
+    exp = verdict_savings(a)
+    assert exp["verdict"] == "INVALID", exp
+    write("savings/overlay", "promotion_forward_reference", {
+        "kind": "savings_attestation",
+        "description": "the promotion appears BEFORE the receipt it supersedes; declared "
+                       "veracity still claims the promoted floor",
+        "input": a, "expected": exp,
+        "rationale": "Invariant 3 (PRIOR target): a promotion may re-tier only a receipt seen "
+                     "earlier in the scan; a forward reference is refused, so the declared "
+                     "(promoted) veracity mismatches the derived one."})
+
+    # adversarial: positive-value promoter — the tlsn link mints its OWN value AND supersedes
+    b = copy.deepcopy(att)
+    t = b["links"][target_idx]
+    pl = b["links"][promo_idx]
+    pl["tokens_saved"] = t["tokens_saved"]
+    pl["earn_rate"] = t["earn_rate"]
+    pl["kry_minted"] = t["kry_minted"]            # legal magnitude, copied from a real link
+    b = rechain(b)
+    b["veracity"] = {"by_tier": {"tlsn_attested": round(2 * moved, 4)},
+                     "anchored_kry": round(2 * moved, 4), "self_reported_kry": 0.0,
+                     "veracity_floor": 1.0}       # the forged floor-1.0 double-count claim
+    reseal(b)
+    exp = verdict_savings(b)
+    assert exp["verdict"] == "INVALID", exp
+    write("savings/overlay", "promotion_positive_value_promoter", {
+        "kind": "savings_attestation",
+        "description": "a POSITIVE-value tlsn link also carries supersedes and the declared "
+                       "veracity claims the target's value moved on top of its own (floor 1.0)",
+        "input": b, "expected": exp,
+        "rationale": "Invariant 4 (zero-value promoter): a positive-value link keeps its own "
+                     "value only and is NOT a promotion; the declared double-count mismatches."})
+
+    # adversarial: duplicate hash-bound receipt_id (ambiguous overlay lookup)
+    c = copy.deepcopy(att)
+    c["links"][promo_idx]["receipt_id"] = c["links"][target_idx]["receipt_id"]
+    declared = copy.deepcopy(att["veracity"])
+    c = rechain(c)
+    c["veracity"] = declared
+    reseal(c)
+    exp = verdict_savings(c)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("duplicate receipt_id" in r for r in exp["reasons"]), exp
+    write("savings/overlay", "promotion_duplicate_receipt_id", {
+        "kind": "savings_attestation",
+        "description": "two hash-bound (v6+) links share a receipt_id",
+        "input": c, "expected": exp,
+        "rationale": "Invariant 2 (UNIQUE target): duplicate hash-bound ids make the overlay "
+                     "lookup ambiguous and are rejected outright."})
+
+    # adversarial: double promotion claiming a double move
+    d = copy.deepcopy(att)
+    dup = copy.deepcopy(d["links"][promo_idx])
+    dup["ts"] = dup["ts"] + 1.0
+    dup["seq"] = len(d["links"])
+    d["links"].append(dup)
+    d = rechain(d)
+    d["veracity"] = {"by_tier": {"tlsn_attested": round(2 * moved, 4)},
+                     "anchored_kry": round(2 * moved, 4), "self_reported_kry": 0.0,
+                     "veracity_floor": 1.0}       # claims the target moved TWICE
+    reseal(d)
+    exp = verdict_savings(d)
+    assert exp["verdict"] == "INVALID", exp
+    write("savings/overlay", "promotion_double_claim", {
+        "kind": "savings_attestation",
+        "description": "the same promotion appears twice and the declared veracity claims the "
+                       "target's value moved twice",
+        "input": d, "expected": exp,
+        "rationale": "Invariant 5 (CONSUMED ONCE): the target is consumed on first use, so the "
+                     "second promotion is a no-op and the declared double move mismatches."})
+
+
 def gen_action() -> None:
     a0, t0 = act_link(0, GENESIS)
     att = act_att([a0], 0.0)
@@ -375,11 +491,12 @@ def main() -> None:
         stale.unlink()
     gen_primitives()
     gen_savings()
+    gen_overlay()
     gen_action()
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(
-        {"spec": "KRY-SPEC v1.0", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
+        {"spec": "KRY-SPEC v1.1", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
     print(f"wrote {len(manifest)} vectors + manifest.json")
     for m in manifest:
         print(f"  {m['category']:22} {m['id']:30} -> {m['verdict']}")

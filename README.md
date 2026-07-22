@@ -412,13 +412,15 @@ of forgery the chain alone misses (the **F2** check).
 > the change is additive and version-dispatched, so existing receipts, anchors, and the evidence bundle
 > are byte-unchanged.
 >
-> **The promotion overlay is NOT yet part of this cross-language contract.** Re-tiering via a
-> `supersedes` link is enforced here under five invariants plus an outcome guard (the SAFETY
+> **The promotion overlay is an optional conformance profile (SPEC §3.7, v1.1).** Re-tiering
+> via a `supersedes` link is enforced under five invariants plus an outcome guard (the SAFETY
 > CONTRACT on `kry_mint._apply_promotion_overlay`; four prior HIGH-severity findings landed in
-> exactly this mechanism), and no vector in the v1.0 corpus exercises it (SPEC §3.7). An
-> independent verifier must either reproduce those rules exactly or **fail closed on any
-> attestation containing a `supersedes` link** — silently ignoring promotions would mis-state
-> `veracity_floor`. The bundled [`verifiers/js`](verifiers/js/) fails closed.
+> exactly this mechanism), now pinned by a dedicated vector category
+> ([`vectors/savings/overlay/`](vectors/savings/overlay/) — one valid promotion, four
+> adversarial). An independent verifier either implements the profile exactly — the bundled
+> [`verifiers/js`](verifiers/js/) does, and agrees with the reference on the full corpus — or
+> **fails closed on any attestation containing a `supersedes` link**; silently ignoring
+> promotions would mis-state `veracity_floor`.
 
 ---
 

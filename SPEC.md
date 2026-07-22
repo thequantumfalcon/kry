@@ -114,7 +114,7 @@ Each link is a JSON object. Fields consumed by verification:
 | `kry_minted` | number ≥ 0 | credit minted |
 | `earn_rate` | number ≥ 0 | rate applied |
 | `receipt_id` | string | bound at v6+ |
-| `supersedes` | string (optional) | promotion target; bound only when present (informative in v1.0 — §3.7) |
+| `supersedes` | string (optional) | promotion target; bound only when present (overlay profile — §3.7) |
 | `receipt_hash` | non-empty string | opaque; the private preimage seals evidence and is NOT recomputed by a verifier |
 | `chain_hash` | non-empty string | §3.3 |
 | `sealed_evidence` | string | opaque; not verified |
@@ -188,9 +188,20 @@ If `evidence_tier == "provider_metered"`: `ts` MUST be a numeric value ≥ 0, an
 
 `hash_version` is an integer. A verifier that does not understand a link's `hash_version` MUST fail closed (INVALID), never guess. Versions are additive and monotonic within a chain (§3.4 step 2). This spec defines v4–v7; v5+ is the language-neutral (`canon_f64`) form and is what the corpus uses.
 
-### 3.7 Informative (not required for v1.0 conformance)
+### 3.7 Promotion-overlay profile (optional, normative when claimed)
 
-The promotion overlay (`supersedes` re-tiering, v6+ `receipt_id` uniqueness among hash-bound receipts, published-anchor re-mint detection) refines the anchored fraction for T2 promotions. No vector in the v1.0 corpus exercises it; a v1.0-conformant verifier need not implement it. It will be normative in a later spec revision with its own vectors.
+A **promotion** re-tiers value that was already minted: a ZERO-value `tlsn_attested` or `tee_attested` link whose `supersedes` names an EARLIER receipt's `receipt_id` moves that receipt's value onto the promoting tier. (The T2 attestation strengthens HOW a saving was witnessed; it does not create a new saving, so the promoting link itself carries no value.)
+
+The overlay is an optional conformance **profile**. A verifier claiming it MUST, during the §3.4 scan:
+
+1. Build a map `receipt_id → (tier, kry_minted, position)` over links whose `receipt_id` is a non-empty **string** and whose `hash_version >= 6` (a v4/v5 id is not hash-bound and MUST NOT enter the map). A duplicate hash-bound id is an ERROR (INVALID) — the lookup would be ambiguous.
+2. Collect a promotion `(supersedes, tier, position)` for every link with `evidence_tier ∈ {tlsn_attested, tee_attested}`, a non-empty **string** `supersedes`, and `kry_minted <= 0`. A positive-value link is NOT a promotion — it keeps its own value only.
+
+After the scan, in link order, for each collected promotion: look up `supersedes` in the map; skip if absent; skip unless the target's position is **strictly earlier** than the promotion's (a forward reference is a capture attack); skip unless the target's value is positive; otherwise subtract the value from the target's tier, add it to the promoting tier, and **delete** the map entry (a receipt is promoted at most once). Afterwards no tier total may be below `-0.01` (**outcome guard** — the overlay is a pure transfer; a negative tier is an ERROR). The §3.5 comparison then runs against the **overlaid** totals.
+
+A verifier that does NOT claim this profile MUST fail closed (INVALID) on any savings attestation containing a link with a non-null `supersedes` — an overlay-free floor computed from such an attestation can silently disagree with the reference. Profile vectors live in `vectors/savings/overlay/`; only profile-claiming verifiers run that category (see `vectors/README.md`).
+
+Published-anchor re-mint/truncation detection remains deferred to a later revision.
 
 ---
 
@@ -264,4 +275,5 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **v1.1 (2026-07-21):** §3.7 promotion overlay promoted from informative to an optional, normatively-specified **profile** with its own vector category (`vectors/savings/overlay/` — one VALID promotion, four adversarial: forward-reference, positive-value promoter, duplicate hash-bound id, double-claim). Non-profile verifiers MUST fail closed on a non-null `supersedes`. Published-anchor semantics remain deferred. Additive: every v1.0 vector and verdict is unchanged.
 - **v1.0 (2026-07-04):** first normative spec. Covers canonical JSON, `canon_f64`, savings v4–v7 chain + magnitude + tier-schema + veracity + envelope verdict, and the action profile. Promotion-overlay/anchor semantics deferred to a later revision (§3.7).

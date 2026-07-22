@@ -1,0 +1,66 @@
+{
+  "id": "promotion_legit",
+  "kind": "savings_attestation",
+  "description": "a zero-value tlsn_attested promotion supersedes an EARLIER hash-bound (v6+) displacement receipt; declared veracity carries the overlaid by_tier and floor",
+  "input": {
+    "receipts": 2,
+    "total_kry": 500.0,
+    "usd_equivalent": 0.0125,
+    "chain_head": "8ddef6a5549ace120924476b054a2612d7efe41d2ffac1a978bc9905b9bd0db3",
+    "chain_valid": true,
+    "event_type_counts": {
+      "displacement": 1,
+      "tier_promotion": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "displacement",
+        "kry_minted": 500.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "c5d6b36edcdf9126079832f56bcb2feaa541ba25314903326a4b0651d6afd55b",
+        "chain_hash": "ede7a9c799f4d54e7418a61debb22b965e455bbfa9e49c87ef5cbb502589cfa4",
+        "sealed_evidence": "82e34d29912264b7",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "tier_promotion",
+        "kry_minted": 0.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "43ed00cd11a697e58fc3a95eed5e69239d3d06ef51129cac0444279a4f20e133",
+        "chain_hash": "8ddef6a5549ace120924476b054a2612d7efe41d2ffac1a978bc9905b9bd0db3",
+        "sealed_evidence": "793f2d2935276702",
+        "evidence_tier": "tlsn_attested",
+        "tokens_saved": 0.0,
+        "earn_rate": 0.5,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": "KRY-00000001",
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 0.0,
+        "tlsn_attested": 500.0
+      },
+      "anchored_kry": 500.0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "5fc62d9f313aaacfd68cf0673e119a66175ee41ce93ac6ea59f3732ca4bc12f7"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": [],
+    "chain_tip": "8ddef6a5549ace120924476b054a2612d7efe41d2ffac1a978bc9905b9bd0db3"
+  },
+  "rationale": "Overlay profile (SPEC 3.7): all five invariants hold, so the target's value re-tiers to tlsn_attested and the declared floor matches."
+}

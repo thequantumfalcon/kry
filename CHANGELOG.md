@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (SPEC v1.1 — the promotion-overlay profile)
+
+- **SPEC §3.7: informative → optional, normatively-specified profile.** The overlay's five
+  invariants + outcome guard are now spec text with their own vector category
+  (`vectors/savings/overlay/`: one VALID real promotion built via `promote_to_tlsn`; four
+  adversarial — forward-reference capture, positive-value promoter, duplicate hash-bound
+  `receipt_id`, double-claim; expected verdicts generated from the reference). A verifier
+  either claims the profile and matches these vectors, or MUST fail closed on any attestation
+  containing a non-null `supersedes`. `verifiers/js` now **implements the profile** (replacing
+  its interim fail-closed refusal) and agrees with the Python reference on the full corpus.
+  The CLAIMS_BOUNDARY overlay-conformance block is lifted accordingly; published-anchor
+  semantics remain deferred (see below).
+- **`docs/SPEC_DEVELOPMENT.md` — the spec development sheet.** Shipped revisions, the ground
+  rules every spec change must clear, the v1.2 anchor-profile candidate (re-mint + trailing-
+  truncation vectors — the one §3.7-deferred item still uncovered), four attestation-surface
+  candidates (veracity-floor reasons enumeration, optional falsifier field, per-field
+  provenance kinds, minimum-n reporting), adopted process disciplines, and the
+  considered-and-rejected list.
+
+### Changed (contribution + claims process)
+
+- CONTRIBUTING rule 7 — evidence discipline (seal the artifact's sha256 before analysis;
+  literal note before interpretation; verbatim claim-mutation log), adapted from the author's
+  Regurgitate protocol as prose norms, not machinery. CLAIMS_BOUNDARY now states the
+  **separation invariant** (the thing evaluated must be external to the logic evaluating it).
+
 ### Added (spec + independent verification surface)
 
 - **KRY-SPEC v1.0** (`SPEC.md`, 2026-07-04) — the first normative wire-format spec: canonical
