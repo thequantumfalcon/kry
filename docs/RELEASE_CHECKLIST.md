@@ -39,7 +39,7 @@ blocked until real evidence exists.
 ## Not Shipped As External Validation
 
 - No external verified-savings claim is shipped from the bundled sample data.
-- No `production_ready` or A+ claim is shipped for external use.
+- No `production_ready` claim is shipped for external use.
 - No tradeable token, exchange, securities, carbon-credit, or legal approval claim
  is shipped.
 - No buyer reliance claim is shipped without outside review, buyer feedback, legal

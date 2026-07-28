@@ -13,7 +13,7 @@ evidence until the result template is filled with real node artifacts.
 counterfactual veracity — impossible for any software; `veracity_floor` is the honest
 label — or (b) that an *external party relies* on the number / dollar value at real
 scale. Those need a real client. The lab makes you **credible to** a client; it isn't a
-substitute for one. Label the result `production_ready (lab-validated)`, never bare "A+".
+substitute for one. Label the result `production_ready (lab-validated)`, never bare `production_ready`.
 
 Everything is **stdlib + Ollama** (one-line install) **+ two smart plugs**. The router's
 logic is unit-tested; only the live Ollama HTTP call needs validating on your box (run

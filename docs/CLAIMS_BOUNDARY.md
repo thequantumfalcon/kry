@@ -47,7 +47,7 @@ subject is void.
 ## Blocked Until External Evidence Exists
 
 - External verified-savings claim.
-- `production_ready` / A+ readiness.
+- `production_ready` readiness.
 - Real-corpus validation (independent real-world corpus + counterparty, for the savings claim).
 - Outside-review-complete claim.
 - Buyer reliance or materiality claim.

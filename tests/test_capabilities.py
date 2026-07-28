@@ -1,8 +1,8 @@
-"""KRY capability audit + readiness — the pre-dated A+ rubric, made falsifiable.
+"""KRY capability audit + readiness — the pre-dated rubric, made falsifiable.
 
 Mirrors the readiness model: every 'implemented' capability must resolve to real
 code + tests (audit_clean), impossible things must NOT be marked implemented, and the
-top label ('production_ready' = A+) is unreachable without external real-world evidence.
+top label 'production_ready' is unreachable without external real-world evidence.
 """
 from __future__ import annotations
 
@@ -42,13 +42,13 @@ def test_today_is_internally_consistent_not_higher():
     assert any("real-world" in reason.lower() for reason in r.reasons)
 
 
-def test_a_plus_requires_external_evidence_code_alone_cannot_reach_it():
+def test_production_ready_requires_external_evidence_code_alone_cannot_reach_it():
     # synthetic-only, even with a clean audit, never reaches the top
     assert cap.readiness_label(replay_pass_rate=1.0).label != "production_ready"
-    # add an independent oracle -> research_grade (still not A+)
+    # add an independent oracle -> research_grade (still not production_ready)
     assert cap.readiness_label(replay_pass_rate=1.0, independent_agreement=0.9,
                                real_corpus_validated=False).label == "research_grade"
-    # add a real-world corpus + clean audit -> production_ready (A+)
+    # add a real-world corpus + clean audit -> production_ready
     assert cap.readiness_label(replay_pass_rate=1.0, independent_agreement=0.9,
                                real_corpus_validated=True, audit_clean=True).label == "production_ready"
 

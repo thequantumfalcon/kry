@@ -1,4 +1,4 @@
-# KRY → A+ (`production_ready`): the researched path to real traffic at scale + a real counterparty
+# KRY → `production_ready`: the researched path to real traffic at scale + a real counterparty
 
 **Date:** 2026-06-11 · **Status of KRY:** committed `research_grade` (2026-06-10) · **This doc:** the
 external path to the one rung left, grounded in KRY's own Step-2 falsifier and the verified-savings
@@ -10,17 +10,17 @@ artifact gate, synthesized from eight primary-source research strands.
 
 ---
 
-## 0. The frame: A+ is not a code problem
+## 0. The frame: `production_ready` is not a code problem
 
 `readiness_label()` already computes `research_grade`. The grader **refuses to let more code buy the top
-rung** (`tests/test_capabilities.py::test_a_plus_requires_external_evidence_code_alone_cannot_reach_it`).
-A+/`production_ready` is **defined, falsifiable, and external** — and KRY *already built the machinery that
+rung** (`tests/test_capabilities.py::test_production_ready_requires_external_evidence_code_alone_cannot_reach_it`).
+`production_ready` is **defined, falsifiable, and external** — and KRY *already built the machinery that
 consumes the external evidence*:
 
 - **The falsifier (KRY_READINESS.md, Step 2):** run **real traffic** (not synthetic) through
  `scripts/kry_savings_report.py` **+ a live 2% holdout for a bounded window**, and have the resulting
  attestation **checked by a third party with `scripts/kry_verify.py`**.
-- **The gate that grades it (`scripts/kry_verified_artifact.py`):** four gates that map one-to-one onto A+.
+- **The gate that grades it (`scripts/kry_verified_artifact.py`):** four gates that map one-to-one onto `production_ready`.
  - **Product gate** — usage log has records, savings positive, attestation verifies, totals match.
  - **Science gate** — corpus operator-declared *real*, hash-bound corpus manifest, **pre-registered**
  `kry_validation_plan/v1`, provider export + provenance manifest attached, provider oracle non-vacuous,
@@ -30,7 +30,7 @@ consumes the external evidence*:
  - **Kill gate** — fails on bad attestation, no savings, reconciliation discrepancy, agreement below bar;
  and it **refuses the bundled synthetic sample** (you cannot fake a real corpus).
 
-So A+ reduces to two external ingredients the gate is waiting for: **(1) real traffic at scale** (fills the
+So `production_ready` reduces to two external ingredients the gate is waiting for: **(1) real traffic at scale** (fills the
 science gate) and **(2) a real counterparty who runs `kry_verify` and signs the external-review evidence**
 (flips `external_counterparty_exists` → `True`, `ship_scope` → `external_verified_savings_candidate`,
 readiness → `production_ready`). Everything below is how to get those two things.
@@ -74,7 +74,7 @@ prove it to close deals is a strong fit.** The second class has a commercial wou
 
 In every row, the trade is the same shape: **KRY gives** an independent, stranger-verifiable,
 invoice-reconciled receipt that converts a self-measured number into a provable one; **the partner gives
-KRY** real traffic at scale **+** the third-party counterparty/sign-off that is literally KRY's missing A+
+KRY** real traffic at scale **+** the third-party counterparty/sign-off that is literally KRY's missing `production_ready`
 ingredient.
 
 | # | Partner | What KRY gives them | What they give KRY | Evidence they want it | Integration surface | Strength |
@@ -97,7 +97,7 @@ ingredient.
 It maximizes both halves at once. **KRY → Martian:** its entire pitch is a number it *cannot independently
 prove*; at enterprise scale, procurement and finance will not accept a vendor's own dashboard — KRY's
 invoice-reconciled, stranger-verifiable receipt is a *deal-closing* asset. **Martian → KRY:** it supplies
-the exact two things between `research_grade` and A+ — a **real-world corpus at enterprise scale** and a
+the exact two things between `research_grade` and `production_ready` — a **real-world corpus at enterprise scale** and a
 **named commercial counterparty**. It beats OpenRouter (the obvious incumbent, #4) because OpenRouter is an
 *oracle without a commercial wound* — it has nothing to prove — whereas Martian has the wound, the scale,
 and the counterparty in one partner.
@@ -146,7 +146,7 @@ WildChat and LMSYS are **already spent** (KRY has `holdout_validated` on organic
  around LiteLLM (Helicone is now maintenance-mode post-acquisition).
 3. **Grant-funded OSS traffic** instrumented through LiteLLM — **Claude for Open Source** (launched Feb 2026,
  ~$1,200 × 10,000 OSS-maintainer spots) or OpenAI Researcher Access. This is the most credible path to
- *stranger-owned* live paid traffic — which is exactly the A+ counterparty axis.
+ *stranger-owned* live paid traffic — which is exactly the `production_ready` counterparty axis.
  *Caveat [V]:* OpenRouter's Data/Rankings product and LMArena are real live traffic but **aggregate-only /
  cost-less** — useful for market-sizing baselines, not for a per-request holdout.
 
@@ -227,7 +227,7 @@ KRY lacks — a confirming external counterparty — and it is free and open tod
 
 ---
 
-## 7. The staged path to A+
+## 7. The staged path to `production_ready`
 
 Each stage states its verification, in KRY's own step→verify idiom.
 
@@ -259,13 +259,13 @@ Each stage states its verification, in KRY's own step→verify idiom.
  spend or ≥ $5k/mo), **legal_review** (`approved_with_limits`, tradeable-token disclaimed).
  *Verify:* `kry_verified_artifact.py --verify-artifact` →
  `ship_scope = external_verified_savings_candidate`, `external_verified_savings = true`; `readiness_label()`
- → **`production_ready` / A+.**
+ → **`production_ready`.**
 
 ---
 
-## 8. The Minimal-Viable A+ Falsifier (exactly what counts)
+## 8. The Minimal-Viable `production_ready` Falsifier (exactly what counts)
 
-Grounded in Step 2 **+** the verified-artifact gate, the smallest thing that legitimately earns A+:
+Grounded in Step 2 **+** the verified-artifact gate, the smallest thing that legitimately earns `production_ready`:
 
 - **Counterparty:** ONE external org (not the operator); a stranger-recruited partner beats a network favor.
 - **Scope:** a single real production workload (or a defined slice) with a **randomized 2% holdout**, on
@@ -277,7 +277,7 @@ Grounded in Step 2 **+** the verified-artifact gate, the smallest thing that leg
 - **Sign-off:** a named **platform/FinOps owner** attests, and returns the outside_review + buyer_feedback +
  legal_review JSON the external-review gate requires.
 
-**Pass** → the gate computes `external_verified_savings_candidate` / `production_ready`; A+ is *earned*, not
+**Pass** → the gate computes `external_verified_savings_candidate` / `production_ready`; `production_ready` is *earned*, not
 asserted. **Fail is information, not a setback** — if real accepted displacements don't reconcile, or the
 real-world holdout rate falls outside the synthetic expectation, the model was overfit to synthetic data, and
 *that negative is the contribution.*
@@ -311,7 +311,7 @@ real-world holdout rate falls outside the synthetic expectation, the model was o
  authenticated readout the *account owner controls*. `provider_metered` is a **corroboration tier, not a
  proof tier**; do not label it "stranger-verifiable" on its own. **The actual top-tier proof path is the
  one KRY already owns: TLS-notary / T2** (`kry_tlsn_*`) — converting the un-signed readout into something a
- stranger verifies without the provider's cooperation. A+ via the artifact gate is reachable *without* T2,
+ stranger verifies without the provider's cooperation. `production_ready` via the artifact gate is reachable *without* T2,
  but the strongest possible receipt needs it.
 - **Router-vendor adoption is an inference, not a fact** [inf]. They verifiably *need* to prove savings;
  whether they outsource it to KRY vs. build their own (still operator-asserted) dashboard is the discovery

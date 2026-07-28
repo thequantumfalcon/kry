@@ -18,10 +18,10 @@ Two pieces:
      - internally_consistent: the SYNTHETIC test suite passes (self-consistency only).
      - research_grade: + agreement >= 0.80 with an INDEPENDENT (non-self-referential)
        oracle — for KRY, the provider's OWN billing via F1 reconciliation.
-     - production_ready ("A+"): + validation on an independent REAL-WORLD corpus
+     - production_ready: + validation on an independent REAL-WORLD corpus
        (real traffic) AND a clean capability audit.
      The top label STRUCTURALLY requires external evidence — code alone cannot reach
-     it, by design. That is the honest answer to "how do we get to A+".
+     it, by design. That is the honest answer to "how do we reach production_ready".
 """
 from __future__ import annotations
 
@@ -169,7 +169,7 @@ def readiness_label(*, replay_pass_rate: float,
                     independent_agreement: Optional[float] = None,
                     real_corpus_validated: bool = False,
                     audit_clean: Optional[bool] = None) -> ReadinessReport:
-    """KRY's readiness on the readiness ladder. Top label ('production_ready' = A+) requires
+    """KRY's readiness on the readiness ladder. The top label 'production_ready' requires
     external evidence (independent agreement + a real-world corpus), by design."""
     if audit_clean is None:
         audit_clean = verify_capabilities()["static_claims_resolve"]
