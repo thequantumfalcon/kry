@@ -1,0 +1,28 @@
+{"prompt": "How many legs does a spider have?", "cheap_output": "8", "gold": "8", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does a hexagon have?", "cheap_output": "6", "gold": "6", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many days are in a week?", "cheap_output": "7", "gold": "7", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does a pentagon have?", "cheap_output": "5", "gold": "5", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 8 plus 3?", "cheap_output": "11", "gold": "11", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 6 times 2?", "cheap_output": "12", "gold": "12", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 7 times 4?", "cheap_output": "28", "gold": "28", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 5 plus 4?", "cheap_output": "9", "gold": "9", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 8 minus 4?", "cheap_output": "4", "gold": "4", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "What is 6 plus 5?", "cheap_output": "11", "gold": "11", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many legs does a spider have, plus how many sides does a triangle have?", "cheap_output": "11", "gold": "11", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does a hexagon have, times 2?", "cheap_output": "12", "gold": "12", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many legs does a spider have, plus 5?", "cheap_output": "13", "gold": "13", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many days are in a week, times how many sides does a square have?", "cheap_output": "28", "gold": "28", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does a pentagon have, plus how many sides does a square have?", "cheap_output": "9", "gold": "9", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does an octagon have, plus how many sides does a triangle have?", "cheap_output": "11", "gold": "11", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many legs does a spider have, times how many sides does a square have?", "cheap_output": "32", "gold": "32", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many days are in a week, plus how many sides does a hexagon have?", "cheap_output": "13", "gold": "13", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does a hexagon have, plus how many sides does a pentagon have?", "cheap_output": "11", "gold": "11", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "How many sides does an octagon have, times 2?", "cheap_output": "16", "gold": "16", "adequate": true, "source": "compute_wall:fast"}
+{"prompt": "Take how many legs a spider has plus how many sides a triangle has, then multiply by two?", "cheap_output": "20", "gold": "22", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many days are in a week times how many sides a square has, then subtract how many sides a triangle has?", "cheap_output": "20", "gold": "25", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many sides a hexagon has times how many sides a pentagon has, then add how many legs a spider has?", "cheap_output": "78", "gold": "38", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many legs a spider has plus how many sides a hexagon has, then multiply by how many sides a triangle has?", "cheap_output": "144", "gold": "42", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many sides an octagon has plus how many sides a square has, then multiply by two?", "cheap_output": "32", "gold": "24", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many days are in a week plus how many sides a pentagon has, then multiply by how many sides a square has?", "cheap_output": "60", "gold": "48", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many legs a spider has times how many sides a triangle has, then subtract how many days are in a week?", "cheap_output": "19", "gold": "17", "adequate": false, "source": "compute_wall:fast"}
+{"prompt": "Take how many sides a hexagon has plus how many sides a square has, then multiply by how many sides a pentagon has?", "cheap_output": "70", "gold": "50", "adequate": false, "source": "compute_wall:fast"}

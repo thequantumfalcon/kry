@@ -592,6 +592,8 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 | [KRY_COUNTERFACTUAL_HOLDOUT.md](docs/KRY_COUNTERFACTUAL_HOLDOUT.md) | measuring the counterfactual (randomized holdout + Wilson CI) |
 | [KRY_BIOMIMICRY.md](docs/KRY_BIOMIMICRY.md) | how nature verifies unobservable claims (sanctions, costly signalling, ESS) |
 | [KRY_READINESS.md](docs/KRY_READINESS.md) | the pre-dated A+ rubric + the two external steps to reach it |
+| [KRY_ADEQUACY_GATE_SPEC.md](docs/KRY_ADEQUACY_GATE_SPEC.md) | the acceptance gate measured — 0% correctness specificity, and why that is the keystone |
+| [KRY_CORRECTNESS_LAYER_SPEC.md](docs/KRY_CORRECTNESS_LAYER_SPEC.md) | the fix the measurement pointed at — cost-gated escalation on the high-risk class only |
 | [KRY_VERIFIED_SAVINGS_ARTIFACT.md](docs/KRY_VERIFIED_SAVINGS_ARTIFACT.md) | the smallest packet + explicit product/science/review/kill gates |
 | [RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | what ships, what is optional, what remains externally blocked |
 | [CLAIMS_BOUNDARY.md](docs/CLAIMS_BOUNDARY.md) | what is proven, blocked, forbidden, and optional |
