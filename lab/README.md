@@ -83,4 +83,4 @@ prevents it. This empirically closes the biggest open limitation, on real machin
  avoided/displaced call would have hit a **paid** provider. Wire one real provider key
  for the dollar number; energy/efficiency/distributed-correctness are real without it.
 - Lab traffic is real but it is **your** traffic. The lab removes the technical doubt;
- an external user's corpus is the remaining flavour of unqualified A+.
+ an external user's corpus is the remaining flavour of unqualified `production_ready`.

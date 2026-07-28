@@ -1,6 +1,6 @@
 // KRY verifier — independent second implementation (JavaScript / Node/Deno).
 //
-// Written to KRY-SPEC v1.0 (../../SPEC.md); verifies both the savings and action
+// Written to KRY-SPEC v1.2 (../../SPEC.md); verifies both the savings and action
 // attestation profiles and is checked against the shared conformance corpus
 // (../../vectors/) — the SC2 implementation-independence gate.
 //

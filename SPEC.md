@@ -1,6 +1,6 @@
-# KRY-SPEC v1.0 — Receipt & Attestation Verification
+# KRY-SPEC v1.2 — Receipt & Attestation Verification
 
-**Status:** normative, versioned. **Date:** 2026-07-04. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
+**Status:** normative, versioned. **Version:** v1.2 (2026-07-21); first published v1.0 (2026-07-04) — see Annex C. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
 **Reference implementation:** `src/kry/` + `scripts/kry_verify.py` + `scripts/kry_action_verify.py`.
 **Conformance corpus:** `vectors/` (generated from the reference code by `vectors/generate.py`).
 

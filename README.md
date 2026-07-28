@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE.md)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.11-blue.svg)](https://www.python.org/)
 
-### don't trust your LLM savings dashboard. verify it. 🧾
+### Don't trust your LLM savings dashboard. Verify it. 🧾
 
 **kry turns the usage logs you already have into a tamper-evident savings receipt a stranger can verify offline — no trust in you required.**
 
@@ -430,18 +430,18 @@ KRY grades itself against an **external, pre-dated rubric** (a prior epistemic-r
 narrates it.
 
 ```text
-prototype < prototype_plus < internally_consistent < research_grade < production_ready (A+)
+prototype < prototype_plus < internally_consistent < research_grade < production_ready
 ```
 
 | Level | Evidence required | KRY today |
 |---|---|---|
 | `internally_consistent` | the synthetic suite is fully green | ✅ cleared |
 | `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — `confirm()` 50/50 within TTL; fresh corpus 52/52 @ 1.00 (note ↓). _Scope: **token-count** reconciliation of **n=52 free-tier** (`:free`, $0) self-traffic against the provider's records — it grounds that the calls existed, **not** that dollars were saved._ |
-| `production_ready` (**A+**) | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
+| `production_ready` | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
 
 **The top label structurally requires external evidence** — the grader refuses to let
 *more code* buy a grade only *real data* can earn (enforced by
-`tests/test_capabilities.py`). The two steps to A+ are both external and both already
+`tests/test_capabilities.py`). The two steps to `production_ready` are both external and both already
 have tooling: run real `provider_metered`/holdout traffic, then
 `kry_or_fetch.py` → `kry_reconcile.py` (Step 1), then a live holdout through
 `kry_savings_report.py` (Step 2). See [docs/KRY_READINESS.md](docs/KRY_READINESS.md).
@@ -457,7 +457,7 @@ have tooling: run real `provider_metered`/holdout traffic, then
 > (2026-06-10):** the host system wired `confirm()` to the general gate, **confirmed 50/50 within TTL** (the
 > stall broken), and the fresh corpus reconciled **52/52 at agreement 1.00 → `research_grade`** — graded
 > the `--since` fresh-run window; the all-time ~0.12 is purely OpenRouter-purged legacy gen-ids
-> (un-fetchable, **not** refuted). A+ still needs **live** real-world traffic + a real counterparty.
+> (un-fetchable, **not** refuted). `production_ready` still needs **live** real-world traffic + a real counterparty.
 > Evidence: [docs/evidence/](docs/evidence/) · [research-grade anchor](docs/KRY_RESEARCH_GRADE_ANCHOR.md) ·
 > [first anchor](docs/KRY_FIRST_REAL_ANCHOR.md) · [savings](docs/KRY_SAVINGS_ANALYSIS.md).
 
@@ -591,7 +591,7 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 | [KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md) | integrity vs veracity, the tier ladder, F1/F2 |
 | [KRY_COUNTERFACTUAL_HOLDOUT.md](docs/KRY_COUNTERFACTUAL_HOLDOUT.md) | measuring the counterfactual (randomized holdout + Wilson CI) |
 | [KRY_BIOMIMICRY.md](docs/KRY_BIOMIMICRY.md) | how nature verifies unobservable claims (sanctions, costly signalling, ESS) |
-| [KRY_READINESS.md](docs/KRY_READINESS.md) | the pre-dated A+ rubric + the two external steps to reach it |
+| [KRY_READINESS.md](docs/KRY_READINESS.md) | the pre-dated readiness rubric + the two external steps to reach it |
 | [KRY_ADEQUACY_GATE_SPEC.md](docs/KRY_ADEQUACY_GATE_SPEC.md) | the acceptance gate measured — 0% correctness specificity, and why that is the keystone |
 | [KRY_CORRECTNESS_LAYER_SPEC.md](docs/KRY_CORRECTNESS_LAYER_SPEC.md) | the fix the measurement pointed at — cost-gated escalation on the high-risk class only |
 | [KRY_VERIFIED_SAVINGS_ARTIFACT.md](docs/KRY_VERIFIED_SAVINGS_ARTIFACT.md) | the smallest packet + explicit product/science/review/kill gates |

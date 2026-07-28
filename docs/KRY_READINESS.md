@@ -1,4 +1,4 @@
-# KRY Readiness — the pre-dated A+ rubric (and how to actually get there)
+# KRY Readiness — the pre-dated rubric (and how to actually get there)
 
 A prior audit found the real bug behind the
 "perfect → A+ → problems" drift: **"A+" was never *defined*.** It had no independent,
@@ -12,18 +12,18 @@ not asserted.
 ## The ladder (weakest → strongest evidence)
 
 ```
-prototype < prototype_plus < internally_consistent < research_grade < production_ready(=A+)
+prototype < prototype_plus < internally_consistent < research_grade < production_ready
 ```
 
 | Level | Evidence required | KRY status |
 |---|---|---|
 | internally_consistent | the **synthetic** test suite is fully green | ✅ cleared |
 | research_grade | + agreement **≥ 0.80** with an **independent, non-self-referential** oracle | ✅ **REACHED 2026-06-10** (durable anchor: confirm() 50/50, fresh 52/52 @ 1.00) |
-| production_ready (**A+**) | + validation on an **independent real-world corpus** (real traffic) **+ clean capability audit** | ❌ needs real traffic + counterparty |
+| production_ready | + validation on an **independent real-world corpus** (real traffic) **+ clean capability audit** | ❌ needs real traffic + counterparty |
 
 **The top label structurally requires external evidence.** That is not pessimism — it
 is the grader refusing to let *more code* buy a grade only *real data* can earn
-(`tests/test_capabilities.py::test_a_plus_requires_external_evidence_code_alone_cannot_reach_it`).
+(`tests/test_capabilities.py::test_production_ready_requires_external_evidence_code_alone_cannot_reach_it`).
 
 ## Where KRY is right now (computed)
 
@@ -57,10 +57,10 @@ stdlib label. If their dependencies are missing, those tests must skip or fail c
 they do not turn synthetic self-consistency into real-world validation.
 
 Step 1 (an independent oracle agreeing ≥ 0.80) is now **DONE** — see the durable anchor above. The
-**one remaining gap to A+ is external**:
+**one remaining gap to `production_ready` is external**:
 - *not validated on an independent REAL-WORLD corpus (real traffic) + a real counterparty*
 
-## The two steps to A+ — each a Minimal Viable Falsifier
+## The two steps to `production_ready` — each a Minimal Viable Falsifier
 
 ### Step 1 → `research_grade`: an independent oracle agrees ≥ 0.80 — ✅ DONE (2026-06-10)
 KRY's savings/holdout numbers are computed by KRY's own math — grading them with KRY
@@ -92,7 +92,7 @@ python3 scripts/kry_research_grade.py kry_data/kry_mint_log.jsonl --fetch # need
  with the provider's truth, and the holdout/pricing needs correction. *That negative
  is the contribution* — it's real information, not a setback.
 
-### Step 2 → `production_ready` (A+): an independent real-world corpus
+### Step 2 → `production_ready`: an independent real-world corpus
 Run **real traffic** (not `examples/gen_dataset.py` synthetic) through the savings
 report + a live 2% holdout for a bounded window, and have the resulting attestation
 checked by a third party with `scripts/kry_verify.py`.
@@ -104,7 +104,7 @@ checked by a third party with `scripts/kry_verify.py`.
  or a real log breaks the report → the model was overfit to synthetic data. Again, the
  negative is the finding.
 
-## What A+ does NOT require (scope ≠ validation)
+## What `production_ready` does NOT require (scope ≠ validation)
 
 Four capabilities are **permanently out of scope for any software** and are shipped as
 **disclosures**, not defects (a datasheet, not a TODO):
@@ -116,7 +116,7 @@ Four capabilities are **permanently out of scope for any software** and are ship
 - `sybil_resistant_identity` — the sanction penalty is only real with costly identity.
 - `real_world_validated_savings` — closed by Step 2 above, not by code.
 
-Blocking A+ on these would conflate *scope* with *validation*. A+ requires the audit to
+Blocking `production_ready` on these would conflate *scope* with *validation*. It requires the audit to
 be clean and the real-corpus bar met — **with the out-of-scope items honestly disclosed**.
 
 ## The honest bottom line
@@ -129,6 +129,6 @@ OpenRouter's own records at agreement 1.00 ≥ the 0.80 bar** ([`KRY_RESEARCH_GR
 That is the independent, non-self-referential oracle the rung requires, earned per this pre-dated
 rubric — not a self-graded claim. *Honest disclosure:* the grade is on the fresh-run window (`--since`,
 the documented path); the all-time agreement is ~0.12 only because 14 legacy gen-ids are
-OpenRouter-purged (un-fetchable, **not** refuted). **A+/`production_ready` is the one remaining rung**
+OpenRouter-purged (un-fetchable, **not** refuted). **`production_ready` is the one remaining rung**
 and is **defined, falsifiable, and external** — it needs an independent real-world corpus (real traffic)
 plus a real counterparty; no code round can move it.
