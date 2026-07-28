@@ -5,7 +5,10 @@ surface against stale verification instructions and over-strong proof language.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -330,3 +333,36 @@ def test_public_docs_describe_t1_metered_token_binding():
     assert "T1 `metered_tokens`" in artifact
     assert "stdlib attestation verifier rejects" in artifact
     assert "must be JSON integers, not strings, booleans, or floats" in veracity
+
+
+def test_tracked_files_do_not_leak_private_host_identifiers():
+    """The system that integrates KRY is private; its internal names must not ship here.
+
+    The shared harnesses already say "the host system" instead of naming it, and the ported
+    acceptance-gate specs follow the same convention. This guards that convention against
+    future re-imports from private notes. Markers are split across adjacent string literals so
+    this guard does not trip on its own source (same idiom as scripts/check_attribution.py).
+    """
+    markers = (
+        "kary" "os",
+        "displacement" ".py",
+        "KARY" "OS_",
+        "wall_" "breaker",
+        "wall_" "budget_floor",
+    )
+    text_suffixes = {".md", ".py", ".json", ".jsonl", ".yml", ".yaml", ".sh", ".toml", ".txt", ".mjs", ".html"}
+    try:
+        tracked = subprocess.check_output(["git", "ls-files"], cwd=ROOT, stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError):  # pragma: no cover - git absent
+        pytest.skip("git unavailable; leak guard needs the tracked file list")
+    findings = []
+    for line in tracked.decode().splitlines():
+        path = ROOT / line
+        if path.suffix not in text_suffixes or not path.is_file():
+            continue
+        try:
+            body = path.read_text(encoding="utf-8").lower()
+        except UnicodeDecodeError:
+            continue
+        findings += [f"{line}: {m}" for m in markers if m.lower() in body]
+    assert not findings, "private host identifiers leaked into tracked files: " + "; ".join(findings)

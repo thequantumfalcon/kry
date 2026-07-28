@@ -55,6 +55,14 @@ subject is void.
 - Action-layer T1 (`server_witnessed`) third-party-witness claim: the witness is operator-supplied
  until `kry_action` is wired to a real MCP-server signature, so read its `veracity_floor` as
  operator-asserted until then (the verifier already coerces a witness-less anchored tier to T0).
+- Correctness-anchored accepted-savings: the acceptance gate that decides a cheap output was
+ adequate is **measured at 0% correctness specificity** (CI 0–28%) — it reads output *form*, not
+ correctness, so it keeps fluent-but-wrong output. A correctness layer exists but is default-off
+ and validated only on a small frozen set (100% specificity at 62% true-accept / 45% escalation).
+ Receipt integrity is unaffected: this bounds whether an accepted event *merited* minting, not
+ whether the receipt is intact. Unblocking external verified-savings therefore requires the gate's
+ specificity re-measured on the counterparty's own traffic, not just a provider export.
+ See `docs/KRY_ADEQUACY_GATE_SPEC.md` and `docs/KRY_CORRECTNESS_LAYER_SPEC.md`.
 
 Required evidence:
 
