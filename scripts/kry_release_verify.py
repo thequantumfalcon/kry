@@ -10,11 +10,25 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEV_REQUIREMENTS = ("pytest==9.1.1", "ruff==0.15.21")  # A1-4: MUST match pyproject [project.optional-dependencies].dev
+
+
+def _dev_requirements() -> tuple[str, ...]:
+    """A1-4: read the dev pins from pyproject instead of duplicating them.
+
+    A hand-copied duplicate drifts (it had already drifted once, to 9.1.0/0.15.17) and it breaks
+    every dependabot bump, which edits pyproject only. pyproject is the single source of truth.
+    """
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        pins = tomllib.load(handle)["project"]["optional-dependencies"]["dev"]
+    return tuple(pins)
+
+
+DEV_REQUIREMENTS = _dev_requirements()
 
 
 def _reject_json_constant(value: str):

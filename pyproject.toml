@@ -21,15 +21,24 @@ dependencies = []   # zero-dependency, pure stdlib
 # verify an AWS Nitro attestation's ECDSA-P384 signature + X.509 chain (the tee_attested
 # tier). Without it, tee verification fails closed; the rest of KRY is unaffected.
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "ruff==0.15.21"]
+dev = ["pytest==9.1.1", "ruff==0.16.0"]
 tee = ["cryptography>=49.0.0"]
 pqc = ["liboqs-python>=0.15.0"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
+[tool.ruff.lint]
+# Pinned EXPLICITLY rather than inherited from ruff's default `select`. Ruff 0.16 widened that
+# default from 59 to 413 rules, which silently turned a clean tree into 703 findings on a pin
+# bump. A lint gate whose meaning moves with the linter version is a reproducibility bug in a
+# repo that sells reproducibility — so the contract is written down here. This set IS ruff's
+# pre-0.16 default: the bug-catching F-codes plus the E-codes that survive a formatter.
+# Widening it is a deliberate, reviewable change, not a side effect of dependabot.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.ruff.lint.per-file-ignores]
-# The core library (src/) is held to ruff's full default rules and stays clean.
+# The core library (src/) is held to the full rule set selected above and stays clean.
 # The research/proof scripts and example shims are deliberately written in a compact
 # one-liner idiom (grouped imports, semicolon-joined statements, inline lambdas in
 # __main__ self-test mocks). Relax ONLY those style codes there — the bug-catching

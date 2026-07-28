@@ -12,7 +12,11 @@ import scripts.kry_release_verify as release_verify
 def test_release_verifier_pins_test_and_lint_tools():
     # A1-4: the privileged release verifier's dev pins MUST match pyproject (they had drifted to
     # 9.1.0/0.15.17 while pyproject moved to 9.1.1/0.15.18 — a stale duplicate is worse than none).
-    assert release_verify.DEV_REQUIREMENTS == ("pytest==9.1.1", "ruff==0.15.21")
+    # The pins are now READ from pyproject, so assert the shape, not the versions: hardcoding a
+    # version here would just recreate the duplicate this test exists to catch.
+    tools = {pin.split("==")[0] for pin in release_verify.DEV_REQUIREMENTS}
+    assert tools == {"pytest", "ruff"}
+    assert all("==" in pin for pin in release_verify.DEV_REQUIREMENTS)   # exact pins, never ranges
 
 
 def test_release_verifier_scrubs_python_path_overrides(monkeypatch):
