@@ -1,0 +1,19 @@
+# Categorized auto-generated release notes. Categories are driven by PR labels, so the labels
+# below must exist in the repo or a PR simply falls through to "Other Changes".
+# The curated CHANGELOG.md stays hand-written — this only shapes the GitHub Release body.
+changelog:
+  exclude:
+    labels: [ignore-for-release]
+  categories:
+    - title: Breaking Changes
+      labels: [breaking]
+    - title: Security
+      labels: [security]
+    - title: Spec Changes
+      labels: [spec]
+    - title: New Features
+      labels: [enhancement]
+    - title: Bug Fixes
+      labels: [bug]
+    - title: Other Changes
+      labels: ["*"]

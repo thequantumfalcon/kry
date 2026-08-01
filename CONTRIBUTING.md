@@ -57,6 +57,24 @@ Optional crypto tiers: `pip install -e ".[tee]"` (adds `cryptography` for the `t
  release-gate verifier.
 - Confirm before destructive or shared-state actions (force-push, history rewrite, releases).
 
+## AI-assisted contributions
+
+Using AI tools is fine — this repository is itself heavily agent-assisted, and
+[`AGENTS.md`](AGENTS.md) documents the conventions an agent must follow. Two conditions:
+
+- **You must fully understand every line you submit** and be able to explain it without AI
+  assistance. "The model wrote it" is not an answer to a review comment.
+- **Disclose significant AI use** in the PR description.
+
+Low-effort, unverified AI output will be closed without review. That is not hostility to the tools;
+it is the same standard the project applies to itself. kry exists to argue that a number you cannot
+independently check is not evidence, and a patch whose author cannot defend it is the same failure
+in a different medium.
+
+Rule 7's evidence discipline (seal → transcribe → interpret) applies to AI-produced analysis exactly
+as it does to a benchmark run: transcribe what the artifact literally says before writing a sentence
+about what it shows.
+
 ## Reporting bugs & vulnerabilities
 
 - Bugs → an Issue using the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml).
