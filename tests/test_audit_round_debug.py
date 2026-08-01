@@ -258,8 +258,9 @@ def test_wilson_interval_clamps_out_of_range():
 
 # ── #22 — verify_attestation accepts a null veracity (CLI must not crash on it) ─
 
-def test_verify_attestation_accepts_null_veracity():
-    """#22: veracity=null is VALID (the CLI display, fixed separately, must not crash on it)."""
+def _null_veracity_attestation():
+    """A chain-valid attestation whose `veracity` is JSON null (outer hash resealed, so the
+    veracity rule is the only thing that can fail)."""
     import kry.kry_mint as km
     import kry.kry_attest as ka
     km.mint("cache_hit", 1000.0, evidence="e", avoided_model="opus")
@@ -267,7 +268,39 @@ def test_verify_attestation_accepts_null_veracity():
     att["veracity"] = None
     att["attestation_hash"] = ""
     att["attestation_hash"] = ka._attestation_hash(att)
-    assert ka.verify_attestation(json.dumps(att))[0] is True
+    return att
+
+
+def test_verify_attestation_rejects_null_veracity():
+    """SPEC §3.5 defines `veracity` as an object, so JSON null is INVALID.
+
+    This assertion was inverted until 2026-08-01. #22 was raised about the CLI *display*
+    crashing on a non-dict veracity; it recorded the then-current VALID verdict as a side
+    note, and that predates SPEC v1.0. `verifiers/js` always rejected null, so the two
+    implementations disagreed here — the spec breaks the tie against VALID.
+    """
+    import kry.kry_attest as ka
+    ok, errors = ka.verify_attestation(json.dumps(_null_veracity_attestation()))
+    assert ok is False
+    assert any("veracity" in e for e in errors), errors
+
+
+def test_null_veracity_prints_a_verdict_instead_of_raising():
+    """#22's actual subject: a non-dict `veracity` must not crash the stranger-facing CLI.
+
+    The verdict is now INVALID (above), but the display path must still render it rather
+    than raise an AttributeError on `veracity.get(...)` — which is what the coercion in
+    kry_verify.main() exists for. Without this the only end-to-end exercise of #22 would
+    be the inverted assertion that was removed.
+    """
+    import importlib.util
+    from pathlib import Path
+    verifier = Path(__file__).resolve().parents[1] / "scripts" / "kry_verify.py"
+    spec = importlib.util.spec_from_file_location("kry_verify_null_veracity", verifier)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    ok, _ = module.verify_attestation(_null_veracity_attestation())
+    assert ok is False
 
 
 # ── #26 / #27 — tlsn gen-id binding ───────────────────────────────────────────

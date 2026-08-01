@@ -46,6 +46,15 @@ import sys
 
 _GENESIS = "0" * 64
 
+# SPEC §3.5 (P-TOL): the ONE absolute tolerance for every §3.1/§3.5 derived-vs-declared numeric
+# comparison, shared verbatim by verifiers/js/verify.mjs and kry.kry_attest. Those values are all
+# SPEC-mandated to be round(x,4) or round(x,6), so the smallest REAL discrepancy is 1e-6; 1e-9 sits
+# three decades below that and three decades above IEEE-754 accumulation noise at corpus scale, so
+# it rejects every misstatement while absorbing last-ulp float noise. It does NOT apply to the
+# constants SPEC states separately: §3.4.1's 1e-6 rate / 1e-3 multiplier, §3.7's -0.01 outcome
+# guard, §4's 0.01 action floor.
+_COMPARE_EPS = 1e-9
+
 # ── Public reference constants (F2: publicly-checkable magnitude) ─────────────
 # These MIRROR the published kry package constants (kry_mint._EARN_RATES, the
 # per-model $/M price table in kry_token, the frontier baseline) as of
@@ -289,6 +298,11 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
             f"links contain {len(links)}")
     if attestation.get("chain_valid") is not True:
         errors.append("chain_valid is not true")
+    # SPEC §3.1: these envelope fields MUST be PRESENT. A wholly absent key is not a silent
+    # default — an absent total_kry is not a declared 0.0, an absent veracity is not "no claim".
+    for field in ("total_kry", "usd_equivalent", "veracity"):
+        if field not in attestation:
+            errors.append(f"{field} missing — SPEC §3.1 requires it")
 
     prev = _GENESIS
     prev_version = 0
@@ -315,8 +329,14 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         # v4 binds the public economic block into chain_hash (forged tier/payout/rate breaks the chain
         # on the public surface); legacy (<4) links use the prev:receipt formula.
         hv = link.get("hash_version", 1)
-        if isinstance(hv, bool) or not isinstance(hv, int):
-            hv = 1
+        # SPEC §3.6 (fail closed): this verifier defines the v4..v7 block shapes plus the legacy
+        # <=3 formula. An unrecognized version must be INVALID — never hashed with the newest
+        # shape we happen to know, which would verify a v8 link against a v7-shaped block.
+        if isinstance(hv, bool) or not isinstance(hv, int) or hv > 7:
+            errors.append(f"seq {seq}: unrecognized hash_version {link.get('hash_version')!r} — "
+                          f"this verifier understands 7 and below (fail closed)")
+            prev = chain_hash
+            continue
         # Monotonic version: a v4 link can't be followed by a legacy one (partial-tail downgrade).
         if hv < prev_version:
             errors.append(f"seq {seq}: hash_version {hv} < previous {prev_version} — "
@@ -373,28 +393,37 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     except ValueError as exc:
         errors.append(str(exc))
         total_kry = 0.0
-    if abs(running_kry - total_kry) > 0.01:
+    # SPEC §3.1: total_kry MUST equal round(Σ kry_minted, 4) — compare against the SAME rounding
+    # the spec mandates, at the one _COMPARE_EPS tolerance (P-TOL).
+    derived_total = round(running_kry, 4)
+    if abs(derived_total - total_kry) > _COMPARE_EPS:
         errors.append(
             f"total_kry mismatch: declared {attestation.get('total_kry')}, "
-            f"chain sums to {running_kry:.4f}")
+            f"chain sums to {derived_total}")
 
-    # Head anchor must match the last link.
-    if links and attestation.get("chain_head") != links[-1].get("chain_hash"):
-        errors.append("chain_head does not match last link")
+    # Head anchor must match the last link. SPEC §3.1: an EMPTY chain is checked too — its head
+    # must be the genesis value, so a declared (or absent) head cannot ride along unverified.
+    if links:
+        if attestation.get("chain_head") != links[-1].get("chain_hash"):
+            errors.append("chain_head does not match last link")
+    elif attestation.get("chain_head") != _GENESIS:
+        errors.append("chain_head must be the genesis value for an empty chain")
     if not isinstance(attestation.get("event_type_counts"), dict):
         errors.append("event_type_counts must be a JSON object")
     elif attestation.get("event_type_counts") != dict(type_counts):
         errors.append(
             f"event_type_counts mismatch: declared {attestation.get('event_type_counts')}, "
             f"links imply {dict(type_counts)}")
-    expected_usd = round(running_kry * (_FRONTIER_USD_PER_M / 1_000_000), 6)
+    # SPEC §3.1: usd_equivalent MUST equal round(total_kry * 0.000025, 6) — over the ROUNDED
+    # total_kry, so a cold implementer derives the same number from the spec text alone.
+    expected_usd = round(derived_total * (_FRONTIER_USD_PER_M / 1_000_000), 6)
     try:
         usd_equivalent = _finite_number(attestation.get("usd_equivalent", 0.0),
                                         "usd_equivalent", nonnegative=True)
     except ValueError as exc:
         errors.append(str(exc))
         usd_equivalent = 0.0
-    if abs(usd_equivalent - expected_usd) > 1e-6:
+    if abs(usd_equivalent - expected_usd) > _COMPARE_EPS:
         errors.append(
             f"usd_equivalent mismatch: declared {attestation.get('usd_equivalent')}, "
             f"links imply {expected_usd}")
@@ -437,10 +466,29 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
 
     # Trust surface must be honest: declared floor must match the per-link tiers.
     v = attestation.get("veracity")
+    # SPEC §3.1 lists `veracity` as required and §3.5 defines it as an OBJECT, so a key that is
+    # PRESENT but null / a number / a string / a list is INVALID — a non-object cannot carry the
+    # trust surface, and treating it as "no claim" would let an operator drop the floor silently.
+    if "veracity" in attestation and not isinstance(v, dict):
+        errors.append("veracity must be a JSON object — SPEC §3.5")
+    # SPEC §3.5 requires all four fields. A missing sub-key used to SKIP the whole block below
+    # (by_tier) or silently read as 0.0 (the numbers), so an operator could drop the trust surface
+    # and still verify — while verifiers/js rejected the same input. Require them explicitly.
+    # `externally_anchored_kry` stays accepted as the pre-rename alias for `anchored_kry`.
+    if isinstance(v, dict):
+        for _field in ("by_tier", "self_reported_kry", "veracity_floor"):
+            if _field not in v:
+                errors.append(f"veracity.{_field} missing — SPEC §3.5 requires it")
+        if "anchored_kry" not in v and "externally_anchored_kry" not in v:
+            errors.append("veracity.anchored_kry missing — SPEC §3.5 requires it")
     if isinstance(v, dict) and v.get("by_tier") is not None:
         # S3: anchored = only KNOWN anchored tiers, not "anything that isn't self_reported".
         anchored = sum(val for t, val in tier_kry.items() if t in _ANCHORED_TIERS)
-        derived = (anchored / running_kry) if running_kry > 0 else 0.0
+        # SPEC §3.5: every one of these is a round(...,4) value derived from the ROUNDED
+        # anchored/total, so the comparisons below are against the same rounding (P-TOL).
+        derived_anchored = round(anchored, 4)
+        derived_self = round(tier_kry.get("self_reported", 0.0), 4)
+        derived = round(derived_anchored / derived_total, 4) if derived_total > 0 else 0.0
         by_tier = {t: round(val, 4) for t, val in tier_kry.items()}
         claimed_by_tier = v.get("by_tier")
         if not isinstance(claimed_by_tier, dict):
@@ -455,7 +503,14 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                     _finite_number(value, f"veracity.by_tier.{tier}", nonnegative=True)
                 except ValueError as exc:
                     errors.append(str(exc))
-        if claimed_by_tier != by_tier:
+        # P-TOL: the key SET must match exactly (size + every derived key present, so an invented or
+        # dropped tier is caught) and every value must land within _COMPARE_EPS of its round-4
+        # derivation. Same rule, same number, as verifiers/js and kry_attest.
+        if len(claimed_by_tier) != len(by_tier) or any(
+                not isinstance(claimed_by_tier.get(t), (int, float))
+                or isinstance(claimed_by_tier.get(t), bool)
+                or abs(claimed_by_tier[t] - by_tier[t]) > _COMPARE_EPS
+                for t in by_tier):
             errors.append(
                 f"veracity by_tier mismatch: declared {v.get('by_tier')}, "
                 f"links imply {by_tier}")
@@ -482,16 +537,14 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         except ValueError as exc:
             errors.append(str(exc))
             veracity_floor = 0.0
-        if abs(externally_anchored - round(anchored, 4)) > 0.01:
+        if abs(externally_anchored - derived_anchored) > _COMPARE_EPS:
             errors.append("anchored_kry mismatch")
-        if abs(self_reported - round(tier_kry.get("self_reported", 0.0), 4)) > 0.01:
+        if abs(self_reported - derived_self) > _COMPARE_EPS:
             errors.append("self_reported_kry mismatch")
-        if abs(veracity_floor - derived) > 0.01:
+        if abs(veracity_floor - derived) > _COMPARE_EPS:
             errors.append(
                 f"veracity_floor mismatch: declared {v.get('veracity_floor')}, "
                 f"links imply {derived:.4f} — trust surface misstated")
-    elif v is not None:
-        errors.append("veracity must be a JSON object")
 
     return len(errors) == 0, errors
 
@@ -717,9 +770,10 @@ def main(argv: list[str] | None = None) -> int:
             registry_anchor_line = ("PASS — live settled >= published per-party totals (no rollback)"
                                     if ra_ok else "FAIL — registry rollback/un-spend vs the anchor")
 
-    # HOLE #22: coerce a non-dict `veracity` (incl. JSON null, which verify_attestation considers
-    # VALID) to {} so the display below can't crash the stranger-facing CLI with an AttributeError
-    # on `v.get(...)`. The `{}` default only covers an ABSENT key, not a present non-dict value.
+    # HOLE #22: coerce a non-dict `veracity` (incl. JSON null) to {} so the display below can't
+    # crash the stranger-facing CLI with an AttributeError on `v.get(...)`. verify_attestation
+    # already flags such an input INVALID (SPEC §3.5), but the display block runs BEFORE the
+    # VERDICT print. The `{}` default only covers an ABSENT key, not a present non-dict value.
     _v = att.get("veracity")
     v = _v if isinstance(_v, dict) else {}
     # HOLE #22 (cont.): veracity_floor is operator-declared and may be a non-numeric string in a
