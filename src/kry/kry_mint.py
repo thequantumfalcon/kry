@@ -54,9 +54,12 @@ _OR_REF = re.compile(r"/openrouter:([^/\s]+)")
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
-    d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # IMPORT-PURITY: path CONSTRUCTION only — no mkdir. This runs at MODULE level to build the path
+    # constants, so creating the dir here made a bare `import` write to the caller's cwd (and raise
+    # PermissionError under a read-only one). Writers mkdir lazily BEFORE taking the lock —
+    # cross_process_lock() opens `<path>.lock` in this dir, so it must exist by LOCK time, not just
+    # by write time.
+    return Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
 
 _MINT_LOG_PATH = _kry_data_dir() / "kry_mint_log.jsonl"
 _MINT_LOCK = threading.Lock()
@@ -342,6 +345,7 @@ def _decayed_tokens(evidence_hash: str, tokens: float) -> float:
     global _evidence_mints
     from kry._locks import cross_process_lock
     now = time.time()
+    _DECAY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with cross_process_lock(_DECAY_STATE_PATH):
         state: dict = {}
         if _DECAY_STATE_PATH.exists():
@@ -375,7 +379,6 @@ def _decayed_tokens(evidence_hash: str, tokens: float) -> float:
         factor = _DECAY ** count
         state[evidence_hash] = [count + 1, start]
         _evidence_mints = state
-        _DECAY_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=_DECAY_STATE_PATH.parent, prefix=".decay_")
         try:
             with os.fdopen(fd, "w") as f:
@@ -584,8 +587,15 @@ def _find_t1_receipt_for_gen(gen_id: str) -> Optional[dict]:
                     continue
                 if rec.get("evidence_tier") == TIER_TLSN_ATTESTED:
                     continue
-                if _finite_number(rec.get("kry_minted", 0.0), "kry_minted",
-                                  positive=True) <= 0:
+                # PER-ROW skip (same idiom as _find_fresh_t2_receipt_for_gen): _finite_number
+                # RAISES on a zero-value row, and mint() writes legitimate kry_minted==0 rows
+                # (free-tier avoided_model, every tier_promotion). Uncaught it escapes to the
+                # function-level except and ABORTS the whole scan → the caller reads None as
+                # "no prior receipt" and mints FRESH FULL VALUE for an already-credited event.
+                try:
+                    if _finite_number(rec.get("kry_minted", 0.0), "kry_minted", positive=True) <= 0:
+                        continue
+                except ValueError:
                     continue
                 found = rec
     except Exception:
@@ -787,8 +797,13 @@ def _find_measurement_receipt_for_tee(measurement_id: str) -> Optional[dict]:
                     continue
                 if rec.get("evidence_tier") not in _UPGRADABLE:
                     continue
-                if _finite_number(rec.get("kry_minted", 0.0), "kry_minted",
-                                  positive=True) <= 0:
+                # PER-ROW skip (see _find_t1_receipt_for_gen): a legitimate zero-value row sharing
+                # this marker must not abort the scan and hide a prior positive-value receipt —
+                # promote_to_tee would then read None and the caller would mint fresh tee value.
+                try:
+                    if _finite_number(rec.get("kry_minted", 0.0), "kry_minted", positive=True) <= 0:
+                        continue
+                except ValueError:
                     continue
                 found = rec
     except Exception:
@@ -1014,6 +1029,7 @@ def verify_chain() -> tuple[bool, list[str]]:
     prev_chain = "0" * 64
     receipt_count = 0
     prev_version = 0
+    hash_bound_ids: set[str] = set()
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for lineno, line in enumerate(f, 1):
@@ -1141,6 +1157,19 @@ def verify_chain() -> tuple[bool, list[str]]:
                         f"Line {lineno} ({rec.get('receipt_id', '?')}): hash_version {hv} < "
                         f"previous {prev_version} — version downgrade (rollback attempt)")
                 prev_version = max(prev_version, hv)
+
+                # UNIQUE hash-bound receipt_id (_apply_promotion_overlay invariant #2): the overlay
+                # resolves a promotion's `supersedes` target by id, so two v6+ receipts sharing one
+                # id make that lookup ambiguous. Both public verifiers (kry_attest.verify_attestation,
+                # scripts/kry_verify.py) reject such a chain; without this check verify_chain called
+                # it valid and the INTERNAL veracity surface reported a floor the external one refuses.
+                rid_bound = rec.get("receipt_id")
+                if rid_bound and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
+                    if rid_bound in hash_bound_ids:
+                        errors.append(
+                            f"Line {lineno} ({rid_bound}): duplicate receipt_id among hash-bound "
+                            f"receipts — the promotion overlay's target lookup is ambiguous")
+                    hash_bound_ids.add(rid_bound)
 
                 # Re-derive chain_hash. v4 binds the public economic block; legacy uses prev:receipt.
                 if hv >= 4:
@@ -1298,8 +1327,12 @@ def _apply_promotion_overlay(by_tier: dict, promotions: list, kry_by_receipt: di
       1. HASH-BOUND target — the superseded receipt's id is bound into its chain hash
          (hash_version >= 6). v4/v5 ids are mutable, so such receipts are NEVER added to
          kry_by_receipt at the build sites.                                                   [A1-1]
-      2. UNIQUE target — no two hash-bound receipts share an id (duplicates rejected at the
-         verifier build sites), so the lookup is unambiguous.                                 [A1-1]
+      2. UNIQUE target — no two hash-bound receipts share an id, so the lookup is unambiguous.
+         Enforced at BOTH ends: the verifiers (verify_chain, kry_attest.verify_attestation,
+         scripts/kry_verify.py) report a duplicate id as an error, and the BUILD sites
+         (veracity_breakdown, kry_attest.build_attestation) drop a duplicated id from
+         kry_by_receipt instead of last-wins overwriting — an ambiguous target anchors NOTHING,
+         so the internal floor can never exceed what the external verifiers accept.           [A1-1]
       3. PRIOR target — `src_pos < promo_pos`: a promotion may re-tier ONLY a receipt seen EARLIER
          in the verified forward scan, never a later one (a forward-reference capture).       [A1-1b]
       4. POSITIVE value — a zero/negative-value target moves nothing (a promotion is itself
@@ -1340,6 +1373,7 @@ def veracity_breakdown() -> dict:
     # promotions: superseded receipt_id → the tier it was upgraded TO (tlsn or tee)
     promotions: list[tuple[str, str]] = []
     kry_by_receipt: dict[str, tuple] = {}  # receipt_id → (tier, kry)
+    ambiguous_ids: set[str] = set()        # hash-bound ids seen more than once — never overlay anchors
     if _MINT_LOG_PATH.exists():
         try:
             with open(_MINT_LOG_PATH, encoding="utf-8") as f:
@@ -1359,7 +1393,15 @@ def veracity_breakdown() -> dict:
                     # receipt_id is not in the chain hash, so it is mutable (own log is v7; this keeps
                     # the internal and public veracity surfaces consistent).
                     if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
-                        kry_by_receipt[rid] = (tier, k, _pos)
+                        # invariant #2: a duplicated hash-bound id makes the overlay target ambiguous
+                        # (last-wins let whichever row was written last decide what gets re-tiered).
+                        # verify_chain and both public verifiers REJECT such a chain, so neither row
+                        # may anchor a promotion here — drop the id rather than silently overwrite.
+                        if rid in kry_by_receipt or rid in ambiguous_ids:
+                            ambiguous_ids.add(rid)
+                            kry_by_receipt.pop(rid, None)
+                        else:
+                            kry_by_receipt[rid] = (tier, k, _pos)
                     sup = rec.get("supersedes")
                     # invariant #4 ENFORCED (was only asserted): a promotion is itself zero-value, so a
                     # positive-value tlsn/tee link with `supersedes` keeps its own value and is NOT a
