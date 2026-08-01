@@ -40,6 +40,7 @@ TEXT_EXTENSIONS = {
     ".jsonl",
     ".kt",
     ".md",
+    ".mjs",   # the stranger-facing JS verifier ships as ES modules; ".js" alone left it unscanned
     ".patch",
     ".ps1",
     ".py",

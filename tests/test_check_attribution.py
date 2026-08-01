@@ -4,6 +4,8 @@ The guard (scripts/check_attribution.py) is the SOLE enforcement of the no-AI-at
 rule (pre-commit hook + CI). Before the fix it missed the canonical markdown-link footer
 form (the "[" after "with" broke the plain-substring match) and the bare robot emoji. These
 tests pin both, AND that a legitimate product mention of the CLI's name is NOT false-flagged.
+It also missed the ".mjs" extension, silently exempting the stranger-facing JS verifier; the
+scan-coverage tests pin that too.
 
 Inputs are built from split literals / escapes so THIS file does not itself contain a
 contiguous banned marker (which would make the guard flag its own test).
@@ -51,3 +53,20 @@ def test_legit_claude_code_product_mention_not_flagged():
     mod = _load()
     # "Claude Code" as a tool/product reference appears in real repo docs and must NOT trip the guard.
     assert not _flagged(mod, "We route coding traffic through the Claude Code CLI in these tests.")
+
+
+def test_mjs_files_are_scanned():
+    mod = _load()
+    # The stranger-facing JS verifier (verifiers/js/*.mjs) ships as ES modules, so ".js"
+    # alone exempted it from the scan in all three places the guard runs.
+    assert ".mjs" in mod.TEXT_EXTENSIONS
+    assert mod._is_text_candidate(Path("verifiers/js/verify.mjs"))
+
+
+def test_marker_inside_an_mjs_file_is_reported(tmp_path, monkeypatch):
+    mod = _load()
+    target = tmp_path / "verify.mjs"
+    target.write_text("// Generated with [" + "Claude Code](https://claude.com/claude-code)\n", encoding="utf-8")
+    monkeypatch.setattr(mod, "ROOT", tmp_path)
+    monkeypatch.setattr(mod, "_tracked_files", lambda: [target])
+    assert mod.main() == 1

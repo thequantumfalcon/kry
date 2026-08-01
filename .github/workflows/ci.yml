@@ -97,9 +97,17 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - name: JS verifier vs the conformance corpus (SPEC v1.0)
+      - name: JS verifier vs the conformance corpus (SPEC v1.3)
         run: node verifiers/js/cli.mjs --vectors vectors
       - name: Corpus drift guard — regenerate from the reference and diff
         run: |
           PYTHONPATH=src python3 vectors/generate.py
           git diff --exit-code vectors/
+      - name: Browser demo wiring — the page's imports and demo vectors still resolve
+        run: node verifiers/web/check_demos.mjs
+      # A FRESH seed each run, deliberately: diff_fuzz's fixed seed 1234 makes a single run
+      # reproducible but explores the same stream every time. The 2026-08-01 envelope-completeness
+      # divergences sat undetected because no run ever varied the mutation stream. N is small enough
+      # for per-push CI; the 10^6 SC2 bar stays a manual, sealed run (docs/evidence/spec_v1_sc2_run.md).
+      - name: Differential fuzz — Python reference vs JS verifier (fresh seed)
+        run: PYTHONPATH=src KRY_FUZZ_SEED=${{ github.run_id }} python3 verifiers/diff_fuzz.py 20000
