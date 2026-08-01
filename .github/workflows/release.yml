@@ -22,6 +22,7 @@ jobs:
   # un-hashed install here cannot reach the OIDC identity or the release. `publish` needs it.
   gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -66,6 +67,7 @@ jobs:
   publish:
     needs: gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # F1: bind this id-token-bearing job to a protected environment. Add required reviewers in
     # Settings -> Environments -> "release" to gate signed-artifact publication behind approval
     # (no-op until configured, so this is safe to land now).

@@ -20,6 +20,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pages: write
@@ -32,6 +33,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Stage the static verify surface
         run: |
           mkdir _site
