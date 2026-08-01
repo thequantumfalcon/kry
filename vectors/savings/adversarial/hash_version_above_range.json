@@ -1,0 +1,54 @@
+{
+  "id": "hash_version_above_range",
+  "kind": "savings_attestation",
+  "description": "link0 declares hash_version 8, above the v4..v7 range this spec defines; every other field is self-consistent under the v7 block shape",
+  "input": {
+    "receipts": 1,
+    "total_kry": 1000.0,
+    "usd_equivalent": 0.025,
+    "chain_head": "49a9e828c50ab7015e1318410a44a3890e64f5a639f0e0abe9b2b85516049f00",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "49a9e828c50ab7015e1318410a44a3890e64f5a639f0e0abe9b2b85516049f00",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 8,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 1000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 1000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "de5d16fe78b73e1937a84ac6157ade7713845d6b15942413e5330c47d799f0be"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: unrecognized hash_version 8 \u2014 this verifier understands 7 and below (fail closed)",
+      "total_kry mismatch: declared 1000.0, chain sums to 0.0",
+      "event_type_counts mismatch: declared {'cache_hit': 1}, links imply {}",
+      "usd_equivalent mismatch: declared 0.025, links imply 0.0",
+      "veracity by_tier mismatch: declared {'self_reported': 1000.0}, links imply {}",
+      "self_reported_kry mismatch"
+    ]
+  },
+  "rationale": "SPEC 3.4 step 2 / 3.6: an unrecognized hash_version MUST fail closed. Hashing it with the newest shape the verifier happens to know would verify a v8 link against a v7-shaped block."
+}

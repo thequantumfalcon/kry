@@ -15,6 +15,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 import random
 import shutil
 import subprocess
@@ -123,6 +124,14 @@ def bases():
 STR_FIELDS = ["event_type", "evidence_tier", "receipt_hash", "chain_hash", "receipt_id", "tool",
               "args_commit", "status", "agent_id", "kind"]
 
+# SPEC §3.1 / §4.2 envelope keys, both profiles. Deleting one is NOT the same input as tampering
+# with it: "absent" and "present but wrong" are separate branches in both verifiers (an absent
+# total_kry is not a declared 0.0; an absent veracity is not "no claim"), and mutate()'s tamper
+# class can only ever produce the second. Without this class the ABSENT branch is unreachable.
+ENVELOPE_FIELDS = ["total_kry", "usd_equivalent", "veracity", "chain_head", "receipts",
+                   "chain_valid", "event_type_counts", "attestation_hash", "links", "kind",
+                   "action_count", "chain_tip", "action_hash_version"]
+
 
 def mutate(att, rng):
     a = copy.deepcopy(att)
@@ -172,11 +181,26 @@ def mutate(att, rng):
                 link = rng.choice(links)
                 k = rng.choice(list(link.keys()))
                 link[k] = rng.choice([None, [], {}, True, "x", 0])
+        elif op < 0.95:                                            # DELETE an envelope field
+            v = a.get("veracity")
+            if isinstance(v, dict) and v and rng.random() < 0.3:
+                del v[rng.choice(sorted(v))]                       # e.g. a missing by_tier
+            else:
+                a.pop(rng.choice(ENVELOPE_FIELDS), None)
         else:                                                      # server_evidence toggle (action)
             if links:
                 link = rng.choice(links)
                 if "server_evidence_commit" in link:
                     link["server_evidence_commit"] = rng.choice([None, kax.commit("x"), ""])
+    # RESEAL. The outer attestation_hash is a KEYLESS self-hash over the attestation's own public
+    # metadata, so a producer can re-hash any edit and the mutant still parses. Without this step
+    # ~87% of savings mutants fail the outer-hash check, both verifiers reject on that one shared
+    # comparison, and the envelope / veracity / chain checks BEHIND it are never what decides the
+    # verdict — the region where two implementations can actually disagree stays unreachable.
+    # Sealed with the MINTER's hasher (kry_attest), not either verifier's, and only when the mutant
+    # still declares the field — so the deletion class above keeps producing unsealed mutants too.
+    if "attestation_hash" in a and rng.random() < 0.5:
+        a["attestation_hash"] = ka._attestation_hash(a)
     return a
 
 
@@ -202,7 +226,13 @@ MALFORMED = ['{"kind":"kry_action_attestation","action_hash_version":1,"links":[
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
     shutil.rmtree(ROOT / "verifiers" / "divergences", ignore_errors=True)  # fresh each run
-    rng = random.Random(1234)
+    # Seed 1234 by default so a reported run is reproducible (the sealed SC2 runs pin it). But a
+    # FIXED seed always walks the same stream: the 2026-08-01 envelope-completeness divergences
+    # were reachable for weeks and no run varied enough to hit them. KRY_FUZZ_SEED lets CI pass a
+    # fresh seed per run so the stream moves; the printed seed makes any failure reproducible.
+    seed = int(os.environ.get("KRY_FUZZ_SEED", "1234"))
+    print(f"seed={seed}  (set KRY_FUZZ_SEED to vary; rerun with this value to reproduce)")
+    rng = random.Random(seed)
     base = bases()
     reset()  # clean state; from here we only serialize, never mint
     if WORK.exists():

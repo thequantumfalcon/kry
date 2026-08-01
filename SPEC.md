@@ -1,6 +1,6 @@
-# KRY-SPEC v1.2 — Receipt & Attestation Verification
+# KRY-SPEC v1.3 — Receipt & Attestation Verification
 
-**Status:** normative, versioned. **Version:** v1.2 (2026-07-21); first published v1.0 (2026-07-04) — see Annex C. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
+**Status:** normative, versioned. **Version:** v1.3 (2026-08-01); first published v1.0 (2026-07-04) — see Annex C. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
 **Reference implementation:** `src/kry/` + `scripts/kry_verify.py` + `scripts/kry_action_verify.py`.
 **Conformance corpus:** `vectors/` (generated from the reference code by `vectors/generate.py`).
 
@@ -182,7 +182,11 @@ If `evidence_tier == "provider_metered"`: `ts` MUST be a numeric value ≥ 0, an
 
 ### 3.5 Veracity
 
-`veracity` MUST be an object with `by_tier` (`{tier: round(Σ kry_minted for that tier, 4)}`), `anchored_kry` (`round(Σ kry_minted over ANCHORED tiers, 4)`), `self_reported_kry` (`round(Σ kry_minted for self_reported, 4)`), and `veracity_floor` (`round(anchored_kry / total_kry, 4)`, or `0.0` if `total_kry == 0`). ANCHORED tiers are all tiers except `self_reported` (Annex B). A conformant verifier re-derives these from the links and MUST report INVALID on mismatch (tolerance as in the reference; the vectors use exact values).
+`veracity` MUST be an object with `by_tier` (`{tier: round(Σ kry_minted for that tier, 4)}`), `anchored_kry` (`round(Σ kry_minted over ANCHORED tiers, 4)`), `self_reported_kry` (`round(Σ kry_minted for self_reported, 4)`), and `veracity_floor` (`round(anchored_kry / total_kry, 4)`, or `0.0` if `total_kry == 0`). ANCHORED tiers are all tiers except `self_reported` (Annex B). A conformant verifier re-derives these from the links and MUST report INVALID on mismatch.
+
+A `veracity` key that is **present but not a JSON object** (`null`, a number, a string, an array) is INVALID — it is neither a declared trust surface nor "no claim". An absent `veracity` is likewise INVALID (§3.1). `by_tier` is compared as a **map**: the declared key set MUST equal the derived key set (an invented or dropped tier is a mismatch even when the summary numbers still add up).
+
+**Numeric comparison tolerance.** Every declared-vs-derived numeric comparison in §3.1 and §3.5 — `total_kry`, `usd_equivalent`, each `by_tier` value, `anchored_kry`, `self_reported_kry`, `veracity_floor` — uses one absolute tolerance: **`1e-9`**. Compare against the rounded derivation this spec mandates (`round(x, 4)`, or `round(x, 6)` for `usd_equivalent`), so the smallest real discrepancy is `1e-6`; `1e-9` sits three decades below that and above IEEE-754 accumulation noise, which makes it strict enough to reject any misstatement and loose enough to survive re-summing in another language. This tolerance does NOT apply to the values this spec pins separately: the `1e-6` rate and `1e-3` multiplier bounds of §3.4.1, the `-0.01` outcome guard of §3.7, and the `0.01` action floor of §4.1/§4.4.
 
 ### 3.6 Versioning / fail-closed
 
@@ -302,6 +306,7 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **v1.3 (2026-08-01):** §3.5 made **derivable**. Three rules that were previously implied or delegated are now stated: (a) a `veracity` key present but not a JSON object is INVALID, and `by_tier` is compared as a map with equal key sets; (b) every §3.5 field (`by_tier`, `anchored_kry`, `self_reported_kry`, `veracity_floor`) MUST be present — an absent one is INVALID, not a skipped check; (c) the numeric comparison tolerance is pinned at **1e-9** as a number, replacing "tolerance as in the reference", with the separately-pinned constants of §3.4.1/§3.7/§4 explicitly excluded. Prompted by a differential-fuzz run whose expanded mutation space (reseal + envelope field deletion) found the two implementations disagreeing on exactly these absent-key cases. Five vectors added (`vectors/savings/adversarial/veracity_*_missing`, `event_type_counts_missing`). Additive: every v1.0–v1.2 vector and verdict is unchanged.
 - **v1.2 (2026-07-21):** §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor becomes an optional profile with vectors (`vectors/savings/anchor/` — anchored-valid, trailing-truncation detected, retroactive re-mint detected; the truncation vector verifies VALID standalone, pinning that chain-walking alone cannot see a dropped tail). Anchor vectors carry `input_anchor` as a second verifier input. Additive: every v1.0/v1.1 vector and verdict unchanged.
 - **v1.1 (2026-07-21):** §3.7 promotion overlay promoted from informative to an optional, normatively-specified **profile** with its own vector category (`vectors/savings/overlay/` — one VALID promotion, four adversarial: forward-reference, positive-value promoter, duplicate hash-bound id, double-claim). Non-profile verifiers MUST fail closed on a non-null `supersedes`. Published-anchor semantics remain deferred. Additive: every v1.0 vector and verdict is unchanged.
 - **v1.0 (2026-07-04):** first normative spec. Covers canonical JSON, `canon_f64`, savings v4–v7 chain + magnitude + tier-schema + veracity + envelope verdict, and the action profile. Promotion-overlay/anchor semantics deferred to a later revision (§3.7).

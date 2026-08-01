@@ -9,6 +9,7 @@ The standalone verifier is scripts/kry_verify.py (stdlib-only). These tests:
 """
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -23,6 +24,38 @@ def _load_verifier():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _rechain(v, att):
+    """Re-derive every chain_hash, the head and the outer hash, so a mutated attestation is
+    internally consistent and ONLY the rule under test can reject it."""
+    prev = "0" * 64
+    for link in att["links"]:
+        block = v._v4_public_block(link)
+        link["chain_hash"] = hashlib.sha256(
+            f"{prev}:{link['receipt_hash']}:{block}".encode()).hexdigest()
+        prev = link["chain_hash"]
+    att["chain_head"] = prev
+    att["attestation_hash"] = v._attestation_hash(att)
+    return att
+
+
+def _legacy_attestation(v, hash_version):
+    """A minimal, internally consistent single-link attestation at a LEGACY (pre-v4) version —
+    chain_hash is the plain prev:receipt_hash formula (SPEC §3.3)."""
+    link = {"seq": 1, "hash_version": hash_version, "event_type": "cache_hit",
+            "tokens_saved": 1000.0, "ts": 1.0, "evidence_tier": "self_reported",
+            "metered_tokens": None, "kry_minted": 1000.0, "earn_rate": 1.0,
+            "receipt_id": "KRY-00000001", "receipt_hash": "r1"}
+    link["chain_hash"] = v._sha(f"{'0' * 64}:r1")
+    att = {"receipts": 1, "chain_valid": True, "links": [link], "total_kry": 1000.0,
+           "usd_equivalent": 0.025, "event_type_counts": {"cache_hit": 1},
+           "chain_head": link["chain_hash"],
+           "veracity": {"by_tier": {"self_reported": 1000.0}, "anchored_kry": 0.0,
+                        "self_reported_kry": 1000.0, "veracity_floor": 0.0},
+           "attestation_hash": ""}
+    att["attestation_hash"] = v._attestation_hash(att)
+    return att
 
 
 @pytest.fixture
@@ -465,3 +498,147 @@ def test_magnitude_rejects_unknown_event_type_arbitrary_rate():
                                 "tokens_saved": 1000.0, "earn_rate": 0.9})        # arbitrary -> rejected
     assert not v._magnitude_errors({"seq": 1, "event_type": "weird", "kry_minted": 500.0,
                                     "tokens_saved": 1000.0, "earn_rate": 0.5})    # 0.5 fallback -> ok
+
+
+def test_stranger_fails_closed_on_hash_version_above_seven(isolated):
+    """SPEC §3.6: a verifier that understands v4..v7 MUST fail closed on any higher version —
+    even when the chain is re-derived over the v7-shaped block so nothing else can catch it."""
+    kt, km, ka, ks, log = isolated
+    for i in range(3):
+        km.mint("cache_hit", 1000, f"q{i}", evidence=f"u{i}",
+                avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    v = _load_verifier()
+    for link in att["links"]:
+        link["hash_version"] = 8
+    _rechain(v, att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any("unrecognized hash_version 8" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("bad_version", [7.5, "7", True, None])
+def test_stranger_fails_closed_on_non_integer_hash_version(isolated, bad_version):
+    """SPEC §3.6: hash_version is an INTEGER; a non-integer is unrecognized, not a silent v1."""
+    kt, km, ka, ks, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    v = _load_verifier()
+    att["links"][0]["hash_version"] = bad_version
+    _rechain(v, att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any("unrecognized hash_version" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("hash_version", [1, 3])
+def test_stranger_still_accepts_legacy_pre_v4_versions(hash_version):
+    """The fail-closed ceiling is ABOVE 7 only: SPEC §3.3 still defines the legacy
+    prev:receipt_hash formula, so a pre-v4 self_reported chain stays verifiable."""
+    v = _load_verifier()
+
+    ok, errs = v.verify_attestation(_legacy_attestation(v, hash_version))
+
+    assert ok, errs
+
+
+@pytest.mark.parametrize("field", ["total_kry", "usd_equivalent", "veracity"])
+def test_stranger_rejects_absent_required_envelope_field(isolated, field):
+    """SPEC §3.1: these envelope keys MUST be present. An absent one used to be indistinguishable
+    from a declared default (total_kry / usd_equivalent) or skipped outright (veracity)."""
+    kt, km, ka, ks, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    v = _load_verifier()
+    del att[field]
+    att["attestation_hash"] = v._attestation_hash(att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any(f"{field} missing" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("head", [None, "f" * 64])
+def test_stranger_checks_chain_head_on_an_empty_chain(head):
+    """SPEC §3.1: chain_head is checked even with NO links — it must be the genesis value.
+    An empty chain used to skip the head check entirely, so any head rode along unverified."""
+    v = _load_verifier()
+    att = {"receipts": 0, "chain_valid": True, "links": [], "total_kry": 0.0,
+           "usd_equivalent": 0.0, "event_type_counts": {}, "chain_head": "0" * 64,
+           "veracity": {"by_tier": {}, "anchored_kry": 0.0, "self_reported_kry": 0.0,
+                        "veracity_floor": 0.0},
+           "attestation_hash": ""}
+    att["attestation_hash"] = v._attestation_hash(att)
+    assert v.verify_attestation(att)[0]        # a genesis head still verifies
+
+    if head is None:
+        del att["chain_head"]
+    else:
+        att["chain_head"] = head
+    att["attestation_hash"] = v._attestation_hash(att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any("genesis value for an empty chain" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("bad", [None, 0, 0.0, "self_reported", [], ["by_tier"]])
+def test_stranger_rejects_present_but_non_object_veracity(isolated, bad):
+    """SPEC §3.5: `veracity` is a required OBJECT, so a key that is PRESENT but null / a number /
+    a string / a list is INVALID. A non-object used to read as "no claim" and skip the whole trust
+    surface, which let an operator silence the floor without deleting the key."""
+    kt, km, ka, ks, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    v = _load_verifier()
+    att["veracity"] = bad
+    att["attestation_hash"] = v._attestation_hash(att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any("veracity must be a JSON object" in e for e in errs), errs
+
+
+@pytest.mark.parametrize("field,skim", [
+    ("total_kry", 0.005),
+    ("usd_equivalent", 0.005),
+])
+def test_stranger_rejects_envelope_skim_under_the_one_tolerance(isolated, field, skim):
+    """SPEC §3.5 (tolerance): §3.1 mandates round(Σ,4) / round(x,6), so the comparison runs against
+    that same rounding at 1e-9. A 0.005 skim used to ride inside a 0.01 slack — free KRY that
+    conserved on paper."""
+    kt, km, ka, ks, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    v = _load_verifier()
+    att[field] += skim
+    att["attestation_hash"] = v._attestation_hash(att)
+
+    ok, errs = v.verify_attestation(att)
+
+    assert not ok
+    assert any(f"{field} mismatch" in e for e in errs), errs
+
+
+def test_stranger_tolerance_still_accepts_fractional_honest_totals(isolated):
+    """The counterpart to the skim test: 1e-9 must not be so tight that an HONEST attestation whose
+    sums are non-terminating fractions (sub-frontier multipliers, fractional earn rates) fails.
+    Every §3.1/§3.5 number here is a genuine round(...,4)/round(...,6) of a float accumulation."""
+    kt, km, ka, ks, log = isolated
+    for i, tokens in enumerate((333, 777, 1111)):
+        km.mint("compression", tokens, f"q{i}", evidence=f"u{i}",
+                avoided_model="gh/claude-sonnet-4.5")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    assert att["total_kry"] != round(att["total_kry"])          # genuinely fractional
+    v = _load_verifier()
+
+    ok, errs = v.verify_attestation(att)
+
+    assert ok, errs

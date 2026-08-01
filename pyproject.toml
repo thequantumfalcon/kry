@@ -13,8 +13,36 @@ keywords = [
     "attestation", "tee", "tlsnotary", "zero-dependency",
 ]
 license = {text = "Apache-2.0"}
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []   # zero-dependency, pure stdlib
+
+# "3 - Alpha" tracks the 0.1.x version and the README's own `readiness: research_grade`; do not
+# promote it ahead of either. The Python entries mirror `requires-python`, and the License
+# classifier pairs with the free-text `License:` field above — swapping that field for a PEP 639
+# `License-Expression` would make PyPI reject this classifier.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/thequantumfalcon/kry"
+Repository = "https://github.com/thequantumfalcon/kry"
+Documentation = "https://github.com/thequantumfalcon/kry/blob/main/SPEC.md"
+Changelog = "https://github.com/thequantumfalcon/kry/blob/main/CHANGELOG.md"
+Issues = "https://github.com/thequantumfalcon/kry/issues"
 
 # The core token is stdlib-only. The `tee` extra adds the ONE thing you must never
 # hand-roll — audited public-key crypto — used solely by scripts/kry_tee_verify.py to

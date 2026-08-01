@@ -56,9 +56,12 @@ from typing import Optional
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
-    d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # IMPORT-PURITY: path CONSTRUCTION only — no mkdir. This runs at MODULE level to build
+    # _MINT_LOG_PATH, so creating the dir here made a bare `import kry.kry_attest` write to the
+    # caller's cwd (and raise PermissionError under a read-only one). This module only ever READS
+    # the mint log, so unlike the writers there is no lazy mkdir to add — the reader already
+    # guards with path.exists().
+    return Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
 
 _MINT_LOG_PATH = _kry_data_dir() / "kry_mint_log.jsonl"
 
@@ -67,6 +70,14 @@ _MINT_LOG_PATH = _kry_data_dir() / "kry_mint_log.jsonl"
 # under a fixed public salt, so a party who holds the private evidence_hash can still link it — this
 # HIDES the raw hash, it is not unlinkability.
 _ATTEST_SALT = "kry-attest-v1"
+
+# SPEC §3.5 (P-TOL): the ONE absolute tolerance for every §3.1/§3.5 derived-vs-declared numeric
+# comparison, shared verbatim by scripts/kry_verify.py and verifiers/js/verify.mjs. Those values are
+# all SPEC-mandated round(x,4) / round(x,6), so the smallest REAL discrepancy is 1e-6; 1e-9 sits
+# three decades below that and three decades above IEEE-754 accumulation noise at corpus scale. It
+# does NOT apply to the constants SPEC states separately: §3.4.1's 1e-6 rate / 1e-3 multiplier,
+# §3.7's -0.01 outcome guard, §4's 0.01 action floor.
+_COMPARE_EPS = 1e-9
 
 
 def _reject_json_constant(value: str):
@@ -251,6 +262,7 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
     total_kry = 0.0
     promotions: list = []      # (superseded_receipt_id, promoting_tier) — F5 overlay, shared w/ veracity_breakdown
     kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), for the overlay
+    ambiguous_ids: set = set()  # hash-bound ids seen more than once — never overlay anchors
     chain_head = "0" * 64
     valid = True
 
@@ -313,7 +325,16 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
                 rid = rec.get("receipt_id")
                 _hv = rec.get("hash_version", 1)   # A1-1: only v6+ (hash-bound) receipts anchor the overlay
                 if rid and isinstance(_hv, int) and not isinstance(_hv, bool) and _hv >= 6:
-                    kry_by_receipt[rid] = (tier, rec["kry_minted"], i)   # i = forward-scan position
+                    # invariant #2 (see kry_mint._apply_promotion_overlay): two hash-bound receipts
+                    # sharing an id make the overlay target ambiguous. verify_attestation REJECTS such
+                    # a chain, so a last-wins overwrite here would PUBLISH a veracity_floor the verifier
+                    # refuses — mark the chain invalid and let neither row anchor a promotion.
+                    if rid in kry_by_receipt or rid in ambiguous_ids:
+                        ambiguous_ids.add(rid)
+                        kry_by_receipt.pop(rid, None)
+                        valid = False
+                    else:
+                        kry_by_receipt[rid] = (tier, rec["kry_minted"], i)   # i = forward-scan position
                 sup = rec.get("supersedes")
                 # invariant #4 ENFORCED: only a ZERO-value link may re-tier a prior receipt — a
                 # positive-value promoter double-counts (see kry_mint._apply_promotion_overlay).
@@ -386,6 +407,12 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             f"links contain {len(links)}")
     if data.get("chain_valid") is not True:
         errors.append("chain_valid is not true")
+    # SPEC §3.1: these envelope fields MUST be PRESENT. A wholly absent key is not a silent default
+    # — an absent total_kry is not a declared 0.0, an absent veracity is not "no claim". Same rule
+    # the stranger-facing scripts/kry_verify.py and verifiers/js enforce.
+    for required in ("total_kry", "usd_equivalent", "veracity"):
+        if required not in data:
+            errors.append(f"{required} missing — SPEC §3.1 requires it")
 
     for _pos, link in enumerate(links):
         if not isinstance(link, dict):
@@ -406,8 +433,15 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         # earn_rate / token count breaks the chain HERE (on the public surface), not just in the private
         # receipt_hash the stranger can't re-derive. Legacy (<4) links use the prev:receipt formula.
         hv = link.get("hash_version", 1)
-        if isinstance(hv, bool) or not isinstance(hv, int):
-            hv = 1
+        # SPEC §3.6 (fail closed): this verifier defines the v4..v7 block shapes plus the legacy
+        # <=3 formula. An unrecognized version must be INVALID — never hashed with the newest shape
+        # we happen to know, which would verify a v8 link against a v7-shaped block. Same rule the
+        # stranger-facing scripts/kry_verify.py and verifiers/js enforce.
+        if isinstance(hv, bool) or not isinstance(hv, int) or hv > 7:
+            errors.append(f"seq {seq}: unrecognized hash_version {link.get('hash_version')!r} — "
+                          f"this verifier understands 7 and below (fail closed)")
+            prev_chain = chain_hash
+            continue
         # Monotonic version: a v4 link cannot be followed by a legacy one — that is a partial-tail
         # downgrade (forge a suffix link's tier + re-stamp it under the weaker legacy formula). The
         # private verify_chain enforces this too; the PUBLIC verifier must as well (GPT v4-review HIGH).
@@ -475,29 +509,37 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     except ValueError as exc:
         errors.append(str(exc))
         total_kry = 0.0
-    if abs(running_kry - total_kry) > 0.01:
+    # SPEC §3.1: total_kry MUST equal round(Σ kry_minted, 4) — compare against the SAME rounding
+    # the spec mandates, at the one _COMPARE_EPS tolerance (P-TOL).
+    derived_total = round(running_kry, 4)
+    if abs(derived_total - total_kry) > _COMPARE_EPS:
         errors.append(
             f"total_kry mismatch: claimed {data.get('total_kry')}, "
-            f"chain sums to {running_kry:.4f}")
+            f"chain sums to {derived_total}")
 
-    # Verify the head matches the last link
+    # Verify the head matches the last link. SPEC §3.1: an EMPTY chain is checked too — its head
+    # must be the genesis value, so a declared (or absent) head cannot ride along unverified.
     if links:
         if data.get("chain_head") != links[-1].get("chain_hash"):
             errors.append("chain_head does not match last link")
+    elif data.get("chain_head") != "0" * 64:
+        errors.append("chain_head must be the genesis value for an empty chain")
     if not isinstance(data.get("event_type_counts"), dict):
         errors.append("event_type_counts must be a JSON object")
     elif data.get("event_type_counts") != dict(type_counts):
         errors.append(
             f"event_type_counts mismatch: claimed {data.get('event_type_counts')}, "
             f"links imply {dict(type_counts)}")
-    expected_usd = round(running_kry * 0.000025, 6)
+    # SPEC §3.1: usd_equivalent MUST equal round(total_kry * 0.000025, 6) — over the ROUNDED
+    # total_kry, so a cold implementer derives the same number from the spec text alone.
+    expected_usd = round(derived_total * 0.000025, 6)
     try:
         usd_equivalent = _finite_number(data.get("usd_equivalent", 0.0),
                                         "usd_equivalent", nonnegative=True)
     except ValueError as exc:
         errors.append(str(exc))
         usd_equivalent = 0.0
-    if abs(usd_equivalent - expected_usd) > 1e-6:
+    if abs(usd_equivalent - expected_usd) > _COMPARE_EPS:
         errors.append(
             f"usd_equivalent mismatch: claimed {data.get('usd_equivalent')}, "
             f"links imply {expected_usd}")
@@ -530,11 +572,30 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     # the per-link tiers back it (and tiers are bound into v2+ receipt hashes, so
     # a forged tier also breaks the chain above).
     v = data.get("veracity")
+    # SPEC §3.1 lists `veracity` as required and §3.5 defines it as an OBJECT, so a key that is
+    # PRESENT but null / a number / a string / a list is INVALID — a non-object cannot carry the
+    # trust surface, and treating it as "no claim" would let an operator drop the floor silently.
+    if "veracity" in data and not isinstance(v, dict):
+        errors.append("veracity must be a JSON object — SPEC §3.5")
+    # SPEC §3.5 requires all four fields. A missing sub-key used to SKIP the whole block below
+    # (by_tier) or silently read as 0.0 (the numbers), so an operator could drop the trust surface
+    # and still verify — while verifiers/js rejected the same input. Require them explicitly.
+    # `externally_anchored_kry` stays accepted as the pre-rename alias for `anchored_kry`.
+    if isinstance(v, dict):
+        for _field in ("by_tier", "self_reported_kry", "veracity_floor"):
+            if _field not in v:
+                errors.append(f"veracity.{_field} missing — SPEC §3.5 requires it")
+        if "anchored_kry" not in v and "externally_anchored_kry" not in v:
+            errors.append("veracity.anchored_kry missing — SPEC §3.5 requires it")
     if isinstance(v, dict) and v.get("by_tier") is not None:
         # S3: anchored = only KNOWN anchored tiers, not "anything that isn't self_reported". A forged
         # or typo'd tier (e.g. magic_attested) must NOT inflate the veracity floor. Matches the builder.
         anchored = sum(val for t, val in tier_kry.items() if t in _ANCHORED_TIERS)
-        derived_floor = (anchored / running_kry) if running_kry > 0 else 0.0
+        # SPEC §3.5: every one of these is a round(...,4) value derived from the ROUNDED
+        # anchored/total, so the comparisons below are against the same rounding (P-TOL).
+        derived_anchored = round(anchored, 4)
+        derived_self = round(tier_kry.get("self_reported", 0.0), 4)
+        derived_floor = round(derived_anchored / derived_total, 4) if derived_total > 0 else 0.0
         by_tier = {t: round(val, 4) for t, val in tier_kry.items()}
         claimed_by_tier = v.get("by_tier")
         if not isinstance(claimed_by_tier, dict):
@@ -549,7 +610,14 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                     _finite_number(value, f"veracity.by_tier.{tier}", nonnegative=True)
                 except ValueError as exc:
                     errors.append(str(exc))
-        if claimed_by_tier != by_tier:
+        # P-TOL: the key SET must match exactly (size + every derived key present, so an invented or
+        # dropped tier is caught) and every value must land within _COMPARE_EPS of its round-4
+        # derivation. Same rule, same number, as scripts/kry_verify.py and verifiers/js.
+        if len(claimed_by_tier) != len(by_tier) or any(
+                not isinstance(claimed_by_tier.get(t), (int, float))
+                or isinstance(claimed_by_tier.get(t), bool)
+                or abs(claimed_by_tier[t] - by_tier[t]) > _COMPARE_EPS
+                for t in by_tier):
             errors.append(
                 f"veracity by_tier mismatch: claimed {v.get('by_tier')}, "
                 f"links imply {by_tier}")
@@ -557,17 +625,14 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         # `anchored_kry` because the metered/holdout tiers are operator-run). Accept the old field so
         # an otherwise-valid older attestation still verifies — the value is cross-checked either way.
         _vh = v if "anchored_kry" in v else {**v, "anchored_kry": v.get("externally_anchored_kry", 0.0)}
-        if abs(_veracity_number(_vh, "anchored_kry", errors) - round(anchored, 4)) > 0.01:
+        if abs(_veracity_number(_vh, "anchored_kry", errors) - derived_anchored) > _COMPARE_EPS:
             errors.append("anchored_kry mismatch")
-        if abs(_veracity_number(v, "self_reported_kry", errors)
-               - round(tier_kry.get("self_reported", 0.0), 4)) > 0.01:
+        if abs(_veracity_number(v, "self_reported_kry", errors) - derived_self) > _COMPARE_EPS:
             errors.append("self_reported_kry mismatch")
-        if abs(_veracity_number(v, "veracity_floor", errors) - derived_floor) > 0.01:
+        if abs(_veracity_number(v, "veracity_floor", errors) - derived_floor) > _COMPARE_EPS:
             errors.append(
                 f"veracity_floor mismatch: claimed {v.get('veracity_floor')}, "
                 f"links imply {derived_floor:.4f} — trust surface misstated")
-    elif v is not None:
-        errors.append("veracity must be a JSON object")
 
     return len(errors) == 0, errors
 

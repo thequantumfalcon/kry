@@ -48,9 +48,12 @@ def _reject_json_constant(value: str):
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
-    d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # IMPORT-PURITY: path CONSTRUCTION only — no mkdir. This runs at MODULE level to build the path
+    # constants, so creating the dir here made a bare `import` write to the caller's cwd (and raise
+    # PermissionError under a read-only one). Writers mkdir lazily BEFORE taking the lock —
+    # cross_process_lock() opens `<path>.lock` in this dir, so it must exist by LOCK time, not just
+    # by write time.
+    return Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
 
 
 _PENDING_PATH = _kry_data_dir() / "kry_pending.json"

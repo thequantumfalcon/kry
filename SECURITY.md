@@ -36,8 +36,8 @@ treat the advisory default as a vulnerability — it is a labeled limit, like `v
 
 | Version | Supported |
 |---|---|
-| 0.1.0 (current) | ✅ |
-| < 0.1.0 | ❌ |
+| 0.1.2 (current) | ✅ |
+| < 0.1.2 | ❌ |
 
 ## Reporting a vulnerability
 
@@ -58,6 +58,17 @@ one, and your assessment of impact.
 - **Coordinated disclosure:** we request up to **90 days** before public disclosure, and will
  credit you in the advisory unless you ask to remain anonymous. We will **not** pursue legal
  action against good-faith research.
+
+## AI-generated reports
+
+AI-assisted analysis is welcome; unverified machine output is not. A report must include a
+**human-verified proof of concept** — a concrete input and the wrong behaviour it produces, which
+you have run yourself. Reports that restate the threat model back at us, or describe a plausible
+vulnerability class without a reproducer, are closed without further analysis.
+
+This is not a stance against the tools. Triage capacity is the scarce resource for a single
+maintainer, and a report that cannot be reproduced consumes it without adding information — the
+same reason `veracity_floor` exists rather than a green checkmark.
 
 ## Out of scope
 

@@ -58,8 +58,12 @@ category (its VALID vector would refuse). The bundled `verifiers/js` implements 
 - **primitives:** float→IEEE-754-hex (incl. `1` vs `1.0`, non-finite sentinels), canonical
   JSON (key sort at depth, `\uXXXX` escaping, `NaN` rejection).
 - **savings:** valid single + 3-link chains; adversarial — illegal magnitude multiplier,
-  v7 `event_type` relabel, `hash_version` downgrade, forged tier, blanked `attestation_hash`,
-  `receipts` mismatch, raw `NaN` parse-reject.
+  v7 `event_type` relabel, `hash_version` downgrade, `hash_version` above the v4–v7 range this
+  spec defines (§3.6 fail-closed — the chain is otherwise self-consistent, so a verifier that
+  guesses the newest shape it knows returns VALID and fails this vector), forged tier, blanked
+  `attestation_hash`, `receipts` mismatch, absent `total_kry`, absent `veracity`, `veracity`
+  present but `null`, empty chain whose `chain_head` is not the genesis value, raw `NaN`
+  parse-reject.
 - **savings/overlay (profile):** one VALID real promotion; adversarial — forward-reference
   capture, positive-value promoter, duplicate hash-bound id, double-claim.
 - **savings/anchor (profile):** each vector carries `input_anchor` (a published

@@ -29,12 +29,24 @@ claimed today) — this file is about what the *wire contract* becomes next.
 | v1.1 | 2026-07-21 | §3.7 promotion overlay: informative → optional **profile**, five invariants + outcome guard, `vectors/savings/overlay/` (1 valid, 4 adversarial). Non-profile verifiers fail closed on `supersedes`. Both bundled implementations pass 33/33. |
 | v1.2 | 2026-07-21 | §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor as a second optional profile — `vectors/savings/anchor/` (anchored-valid; trailing truncation, which verifies VALID standalone and only the anchor catches; retroactive re-mint). Anchor vectors carry `input_anchor` as a second verifier input; `verifiers/js/cli.mjs` takes an anchor path. Both implementations pass 36/36. (The truncation hole was independently confirmed by the same design appearing in the author's `nomos-kernel` ledger — sidecar head file, "a prefix of a valid chain is valid" rationale.) |
 
+| v1.3 | 2026-08-01 | §3.5 made **derivable from the spec alone**: a present-but-non-object `veracity` is INVALID; `by_tier` compared as a map with equal key sets; all four §3.5 fields required (absent ≠ a declared zero); and the numeric comparison tolerance pinned at **1e-9** as a number, replacing "tolerance as in the reference". Five vectors added. Both implementations pass 46/46 and the 10⁶ differential fuzz at the expanded mutation space returns 0 divergences. |
+
 ## Next revision
 
-No revision is currently scheduled. §3.7 and §3.8 closed both items v1.0 deferred; the
-remaining candidates below are **design decisions awaiting a real external driver** (an
-independent implementer or user asking for them) — per the ground rules, none should be
-promoted to spec text just because the machinery is easy.
+No revision is currently scheduled. §3.7 and §3.8 closed both items v1.0 deferred, and v1.3
+closed the derivability gap the differential fuzz exposed. The remaining candidates below are
+**design decisions awaiting a real external driver** (an independent implementer or user asking
+for them) — per the ground rules, none should be promoted to spec text just because the
+machinery is easy.
+
+**Process note from v1.3.** The rules v1.3 pins were not new intentions — §3.1 already said the
+envelope fields were MUST-present. They were *underdetermined in the text*, so the two bundled
+implementations had each resolved them differently and the corpus never noticed, because no
+vector exercised an absent key. What surfaced it was widening the differential fuzz's mutation
+space (reseal + field deletion), not review. Ground rule 2 ("vectors or it didn't happen") is
+therefore necessary but not sufficient: a rule with no vector is unpinned, and a rule whose
+vectors all exercise the same branch is unpinned in the branches they miss. Worth running the
+fuzz with a fresh seed as a standing CI gate rather than by hand.
 
 ## Attestation-surface candidates (design decisions — not started)
 

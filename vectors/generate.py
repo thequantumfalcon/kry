@@ -265,6 +265,114 @@ def gen_savings() -> None:
         "input": f, "expected": verdict_savings(f),
         "rationale": "Declared receipt count must equal len(links)."})
 
+    # adversarial: hash_version above the range this spec defines. rechain()d, so the chain is
+    # self-consistent under the v7 block shape — a verifier that GUESSES the newest shape it knows
+    # would call this VALID; only fail-closed refusal reaches INVALID.
+    g = build([{**CACHE, "detail": "q0", "evidence": "u0"}])
+    g["links"][0]["hash_version"] = 8
+    g = rechain(g)
+    exp = verdict_savings(g)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("unrecognized hash_version" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "hash_version_above_range", {
+        "kind": "savings_attestation",
+        "description": "link0 declares hash_version 8, above the v4..v7 range this spec defines; "
+                       "every other field is self-consistent under the v7 block shape",
+        "input": g, "expected": exp,
+        "rationale": "SPEC 3.4 step 2 / 3.6: an unrecognized hash_version MUST fail closed. "
+                     "Hashing it with the newest shape the verifier happens to know would "
+                     "verify a v8 link against a v7-shaped block."})
+
+    # adversarial: envelope key total_kry wholly absent
+    h = copy.deepcopy(base)
+    del h["total_kry"]
+    reseal(h)
+    exp = verdict_savings(h)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("total_kry missing" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "total_kry_missing", {
+        "kind": "savings_attestation", "description": "the total_kry envelope key is absent",
+        "input": h, "expected": exp,
+        "rationale": "SPEC 3.1 lists total_kry as MUST-present: an absent key is not a declared "
+                     "0.0, and a skipped conservation check is not a passed one."})
+
+    # adversarial: envelope key veracity wholly absent
+    i = copy.deepcopy(base)
+    del i["veracity"]
+    reseal(i)
+    exp = verdict_savings(i)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("veracity missing" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "veracity_missing", {
+        "kind": "savings_attestation", "description": "the veracity envelope key is absent",
+        "input": i, "expected": exp,
+        "rationale": "SPEC 3.1/3.5: an absent veracity is not 'no claim' — dropping the key would "
+                     "let an operator ship a chain with no declared trust surface at all."})
+
+    # adversarial: veracity PRESENT but null (not an object)
+    j = copy.deepcopy(base)
+    j["veracity"] = None
+    reseal(j)
+    exp = verdict_savings(j)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("veracity must be a JSON object" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "veracity_null", {
+        "kind": "savings_attestation", "description": "veracity is present but JSON null",
+        "input": j, "expected": exp,
+        "rationale": "SPEC 3.5: a veracity that is present but not an object is neither a declared "
+                     "trust surface nor 'no claim'; reading null as 'no claim' would silently "
+                     "drop the floor."})
+
+    # adversarial: veracity is an OBJECT but a required sub-key is absent. Each of these was a
+    # live divergence between the two implementations until 2026-08-01 (the expanded differential
+    # fuzz found them once reseal + field-deletion entered the mutation space): one side skipped
+    # the check on the absent key while the other rejected it.
+    for _sub, _marker in (("by_tier", "veracity.by_tier missing"),
+                          ("anchored_kry", "veracity.anchored_kry missing"),
+                          ("self_reported_kry", "veracity.self_reported_kry missing"),
+                          ("veracity_floor", "veracity.veracity_floor missing")):
+        s = copy.deepcopy(base)
+        del s["veracity"][_sub]
+        reseal(s)
+        exp = verdict_savings(s)
+        assert exp["verdict"] == "INVALID", (_sub, exp)
+        assert any(_marker in r for r in exp["reasons"]), (_sub, exp)
+        write("savings/adversarial", f"veracity_{_sub}_missing", {
+            "kind": "savings_attestation",
+            "description": f"veracity is an object but its {_sub} field is absent",
+            "input": s, "expected": exp,
+            "rationale": "SPEC 3.5 requires all four veracity fields. An absent one is not a "
+                         "declared zero, and a skipped comparison is not a passed one."})
+
+    # adversarial: the event_type_counts envelope key is absent
+    e = copy.deepcopy(base)
+    del e["event_type_counts"]
+    reseal(e)
+    exp = verdict_savings(e)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("event_type_counts" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "event_type_counts_missing", {
+        "kind": "savings_attestation", "description": "the event_type_counts envelope key is absent",
+        "input": e, "expected": exp,
+        "rationale": "SPEC 3.1 lists event_type_counts as MUST-present and MUST equal the per-type "
+                     "tally over the links; an absent key cannot stand in for that tally."})
+
+    # adversarial: zero links but a declared head — here the real head of the one-link chain above
+    k = build([])
+    assert k["links"] == [] and k["chain_head"] == GENESIS, k
+    k["chain_head"] = att["chain_head"]
+    reseal(k)
+    exp = verdict_savings(k)
+    assert exp["verdict"] == "INVALID", exp
+    assert any("genesis value for an empty chain" in r for r in exp["reasons"]), exp
+    write("savings/adversarial", "empty_chain_head_not_genesis", {
+        "kind": "savings_attestation",
+        "description": "an attestation with zero links declaring a real chain's head instead of "
+                       "the genesis value",
+        "input": k, "expected": exp,
+        "rationale": "SPEC 3.1: chain_head MUST equal the genesis 0*64 when there are no links, so "
+                     "a head with nothing behind it cannot ride along unverified."})
+
     # adversarial: raw JSON containing NaN must be rejected at parse time
     write("savings/adversarial", "parse_reject_nan", {
         "kind": "raw_json", "description": "raw attestation text embedding the JSON constant NaN",
@@ -559,7 +667,7 @@ def main() -> None:
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(
-        {"spec": "KRY-SPEC v1.2", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
+        {"spec": "KRY-SPEC v1.3", "count": len(manifest), "vectors": manifest}, indent=2) + "\n")
     print(f"wrote {len(manifest)} vectors + manifest.json")
     for m in manifest:
         print(f"  {m['category']:22} {m['id']:30} -> {m['verdict']}")

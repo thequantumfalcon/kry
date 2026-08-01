@@ -1,6 +1,6 @@
 // KRY verifier — independent second implementation (JavaScript / Node/Deno).
 //
-// Written to KRY-SPEC v1.2 (../../SPEC.md); verifies both the savings and action
+// Written to KRY-SPEC v1.3 (../../SPEC.md); verifies both the savings and action
 // attestation profiles and is checked against the shared conformance corpus
 // (../../vectors/) — the SC2 implementation-independence gate.
 //
@@ -161,6 +161,13 @@ const numval = (x, d = undefined) => (x instanceof Num ? x.val : (typeof x === "
 const isNumLike = (x) => x instanceof Num || (typeof x === "number" && !Number.isNaN(x));
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
+// SPEC 3.5 (P-TOL): the ONE absolute tolerance for every 3.1/3.5 derived-vs-declared numeric
+// comparison, shared verbatim with scripts/kry_verify.py and kry.kry_attest. Those values are all
+// SPEC-mandated round(x,4) / round(x,6), so the smallest REAL discrepancy is 1e-6; 1e-9 sits three
+// decades below that and three decades above IEEE-754 accumulation noise at corpus scale. It does
+// NOT apply to the constants SPEC states separately: 3.4.1's 1e-6 rate / 1e-3 multiplier, 3.7's
+// -0.01 outcome guard, 4.4's 0.01 action floor.
+const CMP_EPS = 1e-9;
 
 // ── published price multipliers (SPEC §3.4.1) ─────────────────────────────────
 const EARN_RATES = { cache_hit: 1.0, l3_semantic_match: 0.8, short_circuit: 1.0, compression: 0.6, feed_bag_deposit: 0.7, cache_creation: 0.0, continuity_capsule: 0.1 };
@@ -174,6 +181,8 @@ const ANCHORED_SAVINGS = new Set(["holdout_validated", "provider_metered", "tee_
 
 // ── savings verification (SPEC §3) ────────────────────────────────────────────
 function publicBlock(link) {
+  // hv is already bounded to the understood range by the caller (SPEC §3.6 fail-closed), so the
+  // >= 5 / >= 6 / >= 7 dispatch below never has to guess the shape of an unknown future version.
   const hv = numval(get(link, "hash_version", 1));
   const B = {};
   if (hv >= 5) {
@@ -220,8 +229,18 @@ function verifySavings(att) {
     if (typeof ch !== "string" || !ch) { errs.push("bad chain_hash"); continue; }
     if (typeof et !== "string" || !et) { errs.push("bad event_type"); continue; }
     if (!isNumLike(km) || numval(km) < 0) { errs.push("bad kry_minted"); continue; }
-    let hv = numval(get(link, "hash_version", 1), 1);
-    if (!Number.isInteger(hv)) hv = 1;
+    // SPEC 3.6: hash_version is an INTEGER and this spec understands only 4..7, so an above-7 or
+    // non-integer version fails CLOSED - a verifier must never guess an unknown block shape. <= 3
+    // stays supported (3.3 legacy prev:receipt_hash formula, 3.4 step 4 pre-v4 tier coercion).
+    // A fractional literal (5.0 / 7.5) is not an integer: CPython's json makes it a float and the
+    // reference coerces it to legacy v1, so match on the literal, not on the numeric value.
+    const rawHv = get(link, "hash_version");
+    let hv = 1;                                       // an ABSENT hash_version is legacy v1, not an error
+    if (rawHv !== undefined) {
+      if (rawHv instanceof Num && /^-?(0|[1-9][0-9]*)$/.test(rawHv.raw)) hv = rawHv.val;
+      else errs.push(`seq ${numval(seq)}: hash_version must be an integer`);
+      if (hv > 7) errs.push(`seq ${numval(seq)}: unsupported hash_version ${hv} (this spec defines 4..7)`);
+    }
     if (hv < prevVer) errs.push("version downgrade");
     prevVer = Math.max(prevVer, hv);
     const expected = hv >= 4 ? sha(`${prev}:${rh}:${publicBlock(link)}`) : sha(`${prev}:${rh}`);
@@ -247,13 +266,36 @@ function verifySavings(att) {
     errs.push(...tierSchemaErrors(link));
     prev = expected;
   }
-  // envelope
-  if (isNumLike(get(att, "total_kry")) && Math.abs(numval(get(att, "total_kry")) - r4(total)) > 1e-9) errs.push("total_kry mismatch");
-  if (isNumLike(get(att, "usd_equivalent")) && Math.abs(numval(get(att, "usd_equivalent")) - r6(r4(total) * 0.000025)) > 1e-9) errs.push("usd_equivalent mismatch");
+  // envelope — SPEC 3.1 declares these keys MUST-present, so an ABSENT one is INVALID; a skipped
+  // check is not a passed check (an omitted total_kry must not buy silence about the chain sum).
+  if (!has(att, "total_kry")) errs.push("total_kry missing");
+  else if (!isNumLike(get(att, "total_kry"))) errs.push("total_kry must be a finite JSON number");
+  else if (Math.abs(numval(get(att, "total_kry")) - r4(total)) > CMP_EPS) errs.push("total_kry mismatch");
+  if (!has(att, "usd_equivalent")) errs.push("usd_equivalent missing");
+  else if (!isNumLike(get(att, "usd_equivalent"))) errs.push("usd_equivalent must be a finite JSON number");
+  else if (Math.abs(numval(get(att, "usd_equivalent")) - r6(r4(total) * 0.000025)) > CMP_EPS) errs.push("usd_equivalent mismatch");
+  // chain_head is compared for an EMPTY chain too, where the recomputed head is genesis (64 zeros).
   const declHead = get(att, "chain_head");
   if (declHead !== prev) errs.push("chain_head mismatch");
-  // veracity (a non-object veracity, e.g. null, is treated as empty — matches the reference)
+  // SPEC 3.1: event_type_counts MUST equal {event_type: count} over the links. This verifier built
+  // `counts` while walking the chain but never compared it, so a declared map that was absent or
+  // wrong passed here while the Python reference rejected it - a differential-fuzz divergence.
+  if (!has(att, "event_type_counts")) errs.push("event_type_counts missing");
+  else {
+    const declCounts = get(att, "event_type_counts");
+    const derivedTypes = Object.keys(counts);
+    if (!(declCounts instanceof Map)) errs.push("event_type_counts must be a JSON object");
+    else if (declCounts.size !== derivedTypes.length
+      || derivedTypes.some((t) => numval(declCounts.get(t), -1) !== counts[t]))
+      errs.push("event_type_counts mismatch");
+  }
+  // veracity — SPEC 3.1 requires the key and 3.5 defines it as an OBJECT, so a key that is PRESENT
+  // but null / a number / a string / a list is INVALID (a non-object cannot carry the trust surface,
+  // and reading it as "no claim" would let an operator drop the floor silently). The empty-Map
+  // fallback below only keeps the derivation from crashing on that already-INVALID input.
   const _ver = get(att, "veracity");
+  if (!has(att, "veracity")) errs.push("veracity missing");
+  else if (!(_ver instanceof Map)) errs.push("veracity must be a JSON object");
   const ver = _ver instanceof Map ? _ver : new Map();
   // SPEC 3.7 overlay profile: a zero-value tlsn/tee promotion re-tiers its (earlier,
   // hash-bound, positive-value) superseded receipt's value; each target is consumed once.
@@ -269,12 +311,37 @@ function verifySavings(att) {
   }
   // OUTCOME GUARD: the overlay is a pure transfer, so no tier may go negative afterwards.
   if (Object.values(byTier).some((v) => v < -0.01)) errs.push("by_tier negative after promotion overlay");
+  // SPEC 3.5: the by_tier MAP is re-derived and compared, not just the summary numbers - a declared
+  // split can misstate WHICH tier holds the value while anchored/self_reported still add up. Key sets
+  // must match exactly (size + every derived key present), so an invented or dropped tier is caught.
+  if (_ver instanceof Map) {                          // gated exactly like the reference's veracity block
+    const declTier = get(_ver, "by_tier");
+    const derivedTiers = Object.keys(byTier);
+    if (declTier === undefined || declTier === null) errs.push("veracity.by_tier missing");
+    else if (!(declTier instanceof Map)) errs.push("veracity.by_tier must be a JSON object");
+    else if (declTier.size !== derivedTiers.length
+      || derivedTiers.some((t) => !isNumLike(declTier.get(t)) || Math.abs(numval(declTier.get(t)) - r4(byTier[t])) > CMP_EPS))
+      errs.push("by_tier mismatch");
+  }
   const anchored = r4(Object.entries(byTier).filter(([t]) => ANCHORED_SAVINGS.has(t)).reduce((a, [, v]) => a + v, 0));
   const selfRep = r4(byTier["self_reported"] || 0);
-  if (Math.abs(numval(get(ver, "anchored_kry", 0), 0) - anchored) > 1e-4) errs.push("anchored_kry mismatch");
-  if (Math.abs(numval(get(ver, "self_reported_kry", 0), 0) - selfRep) > 1e-4) errs.push("self_reported_kry mismatch");
-  const floor = total > 0 ? r4(anchored / total) : 0;
-  if (isNumLike(get(ver, "veracity_floor")) && Math.abs(numval(get(ver, "veracity_floor")) - floor) > 1e-4) errs.push("veracity_floor mismatch");
+  // SPEC 3.5 requires all four veracity fields, so an ABSENT key is INVALID rather than a default of
+  // 0 that happens to match a derived 0. `externally_anchored_kry` stays accepted as the pre-rename
+  // alias. Without these the Python reference rejected a dropped anchored_kry/self_reported_kry and
+  // this verifier accepted it - the residual differential-fuzz divergence after the by_tier fix.
+  if (_ver instanceof Map && !has(_ver, "anchored_kry") && !has(_ver, "externally_anchored_kry"))
+    errs.push("veracity.anchored_kry missing");
+  else if (Math.abs(numval(get(ver, "anchored_kry", get(ver, "externally_anchored_kry", 0)), 0) - anchored) > CMP_EPS) errs.push("anchored_kry mismatch");
+  if (_ver instanceof Map && !has(_ver, "self_reported_kry")) errs.push("veracity.self_reported_kry missing");
+  else if (Math.abs(numval(get(ver, "self_reported_kry", 0), 0) - selfRep) > CMP_EPS) errs.push("self_reported_kry mismatch");
+  // SPEC 3.5: the floor divides the ROUNDED anchored by the ROUNDED total, so all three
+  // implementations derive the identical value from the spec text alone.
+  const floor = r4(total) > 0 ? r4(anchored / r4(total)) : 0;
+  // SPEC 3.5 lists veracity_floor as required, so an ABSENT key is INVALID rather than a skipped
+  // check. Gating the comparison on isNumLike() meant a dropped floor verified clean here while the
+  // Python reference rejected it (it defaults the key to 0.0 and then mismatches) - a divergence.
+  if (_ver instanceof Map && !has(_ver, "veracity_floor")) errs.push("veracity.veracity_floor missing");
+  else if (isNumLike(get(ver, "veracity_floor")) && Math.abs(numval(get(ver, "veracity_floor")) - floor) > CMP_EPS) errs.push("veracity_floor mismatch");
   // attestation_hash — canonicalize the whole attestation with the field blanked
   const declAH = get(att, "attestation_hash");
   const clone = cloneWith(att, "attestation_hash", "");

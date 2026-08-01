@@ -1,0 +1,28 @@
+{
+  "id": "empty_chain_head_not_genesis",
+  "kind": "savings_attestation",
+  "description": "an attestation with zero links declaring a real chain's head instead of the genesis value",
+  "input": {
+    "receipts": 0,
+    "total_kry": 0.0,
+    "usd_equivalent": 0.0,
+    "chain_head": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+    "chain_valid": true,
+    "event_type_counts": {},
+    "links": [],
+    "veracity": {
+      "by_tier": {},
+      "anchored_kry": 0,
+      "self_reported_kry": 0.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "3d9ec829e78784fe2ca2c669197d81074f78e6dc39640f0d426b455154b933f7"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "chain_head must be the genesis value for an empty chain"
+    ]
+  },
+  "rationale": "SPEC 3.1: chain_head MUST equal the genesis 0*64 when there are no links, so a head with nothing behind it cannot ride along unverified."
+}

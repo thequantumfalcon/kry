@@ -14,7 +14,7 @@ Closes #
 - [ ] Build / CI
 
 ## Checklist — the bar (see [CONTRIBUTING.md](../CONTRIBUTING.md))
-- [ ] `PYTHONPATH=src python -m pytest tests/ -q` passes
+- [ ] `python3 -m pytest tests/ -q` passes
 - [ ] `ruff check src/ scripts/ tests/ examples/ lab/` is clean
 - [ ] **Stdlib only** — no new third-party dependency in `src/` or `scripts/`
 - [ ] **No AI attribution** anywhere (commits, docs, comments) — enforced by CI

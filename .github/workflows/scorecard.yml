@@ -16,6 +16,7 @@ jobs:
   analysis:
     name: OpenSSF Scorecard
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Scorecard publishing requires a public repo. Skip cleanly until this repo is public.
     if: ${{ !github.event.repository.private }}
     permissions:

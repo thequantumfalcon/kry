@@ -16,6 +16,7 @@ jobs:
   analyze:
     name: Analyze (python)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # CodeQL is free on public repos; on private it needs GitHub Advanced Security.
     # Skip cleanly until this repo is public so CI never fails on it.
     if: ${{ !github.event.repository.private }}
@@ -27,6 +28,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           languages: python

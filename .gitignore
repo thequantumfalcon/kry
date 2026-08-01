@@ -1,6 +1,41 @@
 __pycache__/
 *.pyc
 kry_data/
+# vectors/generate.py mints into this scratch dir (mint log + ledger + decay state) and normally
+# rmtree's it, but an interrupted run leaves runtime ledger data in the tree — same class as
+# kry_data/, which must never be committed.
+vectors/.mintwork/
+
+# Operator artifacts the docs walk a user through CREATING in the working tree. None belong in a
+# public repo: the provider exports and usage logs are real billing/traffic data, prompts.jsonl
+# holds real prompt TEXT, kry_shadow_rows.jsonl is live gateway traffic, and packet/ +
+# evidence_templates/ are generated evidence bundles. Following a README walkthrough and then
+# running `git add -A` would otherwise publish them. Root-anchored on purpose: the committed,
+# sanitized bundles under docs/evidence/ are a different thing and stay tracked (.gitignore never
+# applies to already-tracked files anyway).
+/or.json
+/or_provider_export.json
+/provider_usage.json
+/usage.json
+/usage_real.jsonl
+/google_billing.json
+/prompts.jsonl
+/kry_shadow_rows.jsonl
+/att.json
+/attestation.json
+/attestation.sig.json
+/t1_manifest.json
+/corpus_manifest.json
+/provider_export_manifest.json
+/outside_review.json
+/buyer_feedback.json
+/legal_review.json
+/truth.json
+/report.json
+/presentation.json
+/pres.json
+/packet/
+/evidence_templates/
 .venv/
 *.egg-info/
 .DS_Store

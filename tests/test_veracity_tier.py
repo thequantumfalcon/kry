@@ -477,3 +477,53 @@ def test_veracity_note_does_not_overclaim_trustless(isolated):
     assert "cannot fabricate" not in note
     assert "operator-asserted" in note
     assert "the chain binds the tier LABEL" in note
+
+
+def _standalone_verifier():
+    """Load the stdlib stranger verifier by PATH (it must never be importable as a package)."""
+    import importlib.util
+    import pathlib
+    spec = importlib.util.spec_from_file_location(
+        "kv_veracity", pathlib.Path(__file__).resolve().parents[1] / "scripts" / "kry_verify.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.parametrize("bad", [None, 0, 0.0, "self_reported", [], ["by_tier"]])
+def test_non_object_veracity_is_rejected_by_both_verifiers(isolated, bad):
+    """SPEC §3.5: `veracity` is a required OBJECT. A PRESENT but non-object value (null, a number, a
+    string, a list) is INVALID in BOTH Python verifiers — the in-package one kry_settlement calls and
+    the standalone stranger one. Reading it as "no claim" let an operator silence the trust surface
+    without deleting the key, and the two verifiers used to disagree about it."""
+    kt, km, ka, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8")
+    att = json.loads(ka.build_attestation().to_public_json())
+    att["veracity"] = bad
+    att["attestation_hash"] = ka._attestation_hash(att)
+
+    ok_a, errs_a = ka.verify_attestation(json.dumps(att))
+    ok_v, errs_v = _standalone_verifier().verify_attestation(att)
+
+    assert ok_a is False and any("veracity must be a JSON object" in e for e in errs_a), errs_a
+    assert ok_v is False and any("veracity must be a JSON object" in e for e in errs_v), errs_v
+
+
+@pytest.mark.parametrize("key", ["anchored_kry", "self_reported_kry", "veracity_floor"])
+def test_veracity_skim_under_the_one_tolerance_is_rejected_by_both_verifiers(isolated, key):
+    """SPEC §3.5 (tolerance): every veracity number is mandated to be a round(...,4) derivation, so
+    both Python verifiers compare against that rounding at 1e-9. A 0.005 misstatement used to ride
+    inside a 0.01 slack in both — a trust surface off by more than the spec's own granularity."""
+    kt, km, ka, log = isolated
+    km.mint("cache_hit", 1000, "a", evidence="a", avoided_model="gh/claude-opus-4.8",
+            evidence_tier=km.TIER_PROVIDER_METERED, metered_tokens=[600, 400])
+    att = json.loads(ka.build_attestation().to_public_json())
+    assert ka.verify_attestation(json.dumps(att))[0]        # honest baseline verifies
+    att["veracity"][key] += 0.005
+    att["attestation_hash"] = ka._attestation_hash(att)
+
+    ok_a, errs_a = ka.verify_attestation(json.dumps(att))
+    ok_v, errs_v = _standalone_verifier().verify_attestation(att)
+
+    assert ok_a is False and any(key in e for e in errs_a), errs_a
+    assert ok_v is False and any(key in e for e in errs_v), errs_v

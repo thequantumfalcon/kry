@@ -1,6 +1,6 @@
 {
-  "spec": "KRY-SPEC v1.2",
-  "count": 26,
+  "spec": "KRY-SPEC v1.3",
+  "count": 36,
   "vectors": [
     {
       "id": "canon_f64",
@@ -54,6 +54,56 @@
     },
     {
       "id": "receipts_mismatch",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "hash_version_above_range",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "total_kry_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_null",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_by_tier_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_anchored_kry_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_self_reported_kry_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_veracity_floor_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "event_type_counts_missing",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "empty_chain_head_not_genesis",
       "category": "savings/adversarial",
       "verdict": "INVALID"
     },
