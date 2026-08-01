@@ -16,7 +16,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  # De-privileged gate (audit round 5 deferred item). `kry_release_verify` builds throwaway venvs and
+  # pip-installs the package + DEV_REQUIREMENTS with no --require-hashes, so it must not run anywhere
+  # near a signing credential. This job is read-only — no id-token, no contents:write — so an
+  # un-hashed install here cannot reach the OIDC identity or the release. `publish` needs it.
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false   # F5: don't leave a token in .git/config where the gate can read it
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Validate tag format
+        run: |
+          set -euo pipefail
+          echo "tag: ${GITHUB_REF_NAME}"
+          [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+            || { echo "Tag must be vMAJOR.MINOR.PATCH"; exit 1; }
+
+      - name: Verify the tag signature (audit F2 — fail closed on an unsigned/unknown-key tag)
+        run: |
+          set -euo pipefail
+          git config gpg.ssh.allowedSignersFile "${GITHUB_WORKSPACE}/.github/allowed_signers"
+          git verify-tag "${GITHUB_REF_NAME}"
+
+      - name: Release gate (must pass before anything is published)
+        run: |
+          set -euo pipefail
+          python -m pip install -e ".[dev]"
+          python3 scripts/kry_release_verify.py --full --json-out release-verify.json
+
+      # Hand the proof to `publish` — it is a release asset, and publish must not re-run the gate to
+      # regenerate it. `always()` so a failed gate still uploads its own failure report.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: release-verify
+          path: release-verify.json
+
+  publish:
+    needs: gate
     runs-on: ubuntu-latest
     # F1: bind this id-token-bearing job to a protected environment. Add required reviewers in
     # Settings -> Environments -> "release" to gate signed-artifact publication behind approval
@@ -45,24 +93,30 @@ jobs:
           [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
             || { echo "Tag must be vMAJOR.MINOR.PATCH"; exit 1; }
 
+      # Re-checked here and not only on `gate`: this job re-clones at ${{ github.ref }}, so a tag
+      # force-moved between the two jobs would otherwise be built, attested and released without
+      # any allowed-signers check on the commit that actually ships.
       - name: Verify the tag signature (audit F2 — fail closed on an unsigned/unknown-key tag)
         run: |
           set -euo pipefail
           git config gpg.ssh.allowedSignersFile "${GITHUB_WORKSPACE}/.github/allowed_signers"
           git verify-tag "${GITHUB_REF_NAME}"
 
-      - name: Release gate (must pass before anything is published)
-        run: |
-          set -euo pipefail
-          # L5: hash-pinned build frontend (this job holds id-token:write) — fail closed on a
-          # tampered/substituted artifact instead of pulling floating latest via --upgrade.
-          python -m pip install --require-hashes -r .github/build-requirements.txt
-          python -m pip install -e ".[dev]"
-          python3 scripts/kry_release_verify.py --full --json-out release-verify.json
+      # Pulled in before anything is built or signed: a missing gate proof fails here rather than
+      # after the OIDC identity has already minted an attestation. Lands at the workspace root —
+      # not in dist/, which is checksummed as a unit below.
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-verify
 
       - name: Build artifacts (wheel + source tarball + checksums)
         run: |
           set -euo pipefail
+          # L5: hash-pinned build frontend, and the ONLY package install on this id-token:write job —
+          # a tampered/substituted artifact fails the release closed instead of being pulled by a
+          # floating `--upgrade`. Nothing else resolves from an index: `[project] dependencies` and
+          # `[build-system] requires` are both empty and the backend is in-tree.
+          python -m pip install --require-hashes -r .github/build-requirements.txt
           mkdir -p dist
           python -m build --wheel --outdir dist
           git archive --format=tar.gz --prefix="kry-${GITHUB_REF_NAME}/" \
