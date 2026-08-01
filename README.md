@@ -585,7 +585,7 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 
 | Doc | What it covers |
 |---|---|
-| [SPEC.md](SPEC.md) | **KRY-SPEC v1.2** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
+| [SPEC.md](SPEC.md) | **KRY-SPEC v1.3** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
 | [KRY_LITELLM.md](docs/KRY_LITELLM.md) | LiteLLM proxy integration — attest response-cache savings (honest T0 labeling) |
 | [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier |
 | [KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md) | integrity vs veracity, the tier ladder, F1/F2 |
