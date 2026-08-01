@@ -41,9 +41,12 @@ from kry._locks import cross_process_lock
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
-    d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # IMPORT-PURITY: path CONSTRUCTION only — no mkdir. This runs at MODULE level to build the path
+    # constants, so creating the dir here made a bare `import` write to the caller's cwd (and raise
+    # PermissionError under a read-only one). Writers mkdir lazily BEFORE taking the lock —
+    # cross_process_lock() opens `<path>.lock` in this dir, so it must exist by LOCK time, not just
+    # by write time.
+    return Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
 
 logger = logging.getLogger("kry.referee")
 
@@ -384,6 +387,7 @@ def ratify_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
     # R16 + HOLE #11: lock the read-modify-write across THREADS (_LOCK) AND PROCESSES
     # (cross_process_lock) so concurrent ratifications/sanctions/revokes on a shared file don't
     # clobber each other — the thread lock alone left the file racy in multi-process deployments.
+    _SANCTIONED_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _LOCK, cross_process_lock(_SANCTIONED_PATH):
         try:
             sanctioned = _load_sanctioned()
@@ -413,6 +417,7 @@ def is_sanctioned(gate_class: str, rule: str) -> bool:
     re-confirmation, bounding revoke-race damage. Use-count persists atomically.
     """
     key = f"{gate_class}:{rule}"
+    _SANCTIONED_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _LOCK, cross_process_lock(_SANCTIONED_PATH):   # HOLE #11: process-safe RMW, not thread-only
         try:
             sanctioned = _load_sanctioned()
@@ -459,6 +464,7 @@ def revoke_ascension(gate_class: str, rule: str, operator_token: str) -> bool:
     # ratify_ascension / is_sanctioned). Without the cross-process lock, a concurrent is_sanctioned()
     # full-file rewrite in another PROCESS racing this revoke could win the last os.replace and
     # resurrect a just-revoked attack-vector rule.
+    _SANCTIONED_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _LOCK, cross_process_lock(_SANCTIONED_PATH):
         try:
             sanctioned = _load_sanctioned()

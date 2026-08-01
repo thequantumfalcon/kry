@@ -46,9 +46,12 @@ from typing import Optional
 
 def _kry_data_dir() -> Path:
     """Portable data dir. Set KRY_DATA_DIR to relocate; defaults to ./kry_data."""
-    d = Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    # IMPORT-PURITY: path CONSTRUCTION only — no mkdir. This runs at MODULE level to build the path
+    # constants, so creating the dir here made a bare `import` write to the caller's cwd (and raise
+    # PermissionError under a read-only one). Writers mkdir lazily BEFORE taking the lock —
+    # cross_process_lock() opens `<path>.lock` in this dir, so it must exist by LOCK time, not just
+    # by write time.
+    return Path(os.environ.get("KRY_DATA_DIR", "kry_data")).expanduser()
 
 logger = logging.getLogger("kry.settlement")
 
@@ -287,6 +290,7 @@ def compact_registry(keep_recent: int = 1000) -> bool:
     # S8: read + verify + summarize + rewrite ALL under the same lock, so a settlement appended between
     # a stale read and the locked rewrite cannot be lost by compaction's overwrite. (verify_registry and
     # _registry_entries do NOT take _REGISTRY_LOCK/the flock, so holding both here can't deadlock.)
+    _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
         try:
             entries = _registry_entries()
