@@ -604,9 +604,10 @@ _LEASE_STEAL_STALE = os.environ.get(
 
 
 _LEASE_LOCK_WINDOWS = os.name == "nt"
-# Windows can refuse the O_EXCL create with PermissionError (not FileExistsError) while another
-# process is still deleting the lockfile. Retry that as contention, but only for this many seconds of
-# CONSECUTIVE refusals, so a genuinely unwritable authority dir still fails fast.
+# Windows can refuse the O_EXCL create with PermissionError (not FileExistsError) under a multi-process
+# race (observed; consistent with another process deleting the lockfile, not proven). Retry that as
+# contention, but only for this many seconds of CONSECUTIVE refusals, so a genuinely unwritable
+# authority dir still fails once the bound passes.
 _LEASE_LOCK_PERM_RETRY_S = 2.0
 
 
