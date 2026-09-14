@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PYTHONIOENCODING=cp1252` — report → mint → attest → verify, plus the demo — and statically
   requires the guard on every printing entry point. CI is ubuntu-only; this test is the
   Windows coverage. 3 tests.
+- **Settlement lease lock no longer crashes on Windows under contention** — `_lease_lock`
+  (`src/kry/kry_settlement.py`) retried only `FileExistsError`, but on Windows the `O_EXCL`
+  create can instead raise `PermissionError` under a multi-process race (consistent with another
+  process deleting the lockfile), which killed a settling process:
+  `test_acquire_lease_cross_process_atomic` failed 1 in 10 runs on main (3 failures in 13 runs
+  overall). On Windows only, `PermissionError` is now retried as contention for up to 2 s of
+  consecutive refusals and then re-raised, so an unwritable authority dir still fails; POSIX
+  behaviour is unchanged. After the fix the stress test passed 50/50. 3 tests.
 
 ## [0.1.2] - 2026-07-21
 

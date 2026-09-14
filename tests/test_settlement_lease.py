@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 import kry.kry_settlement as ks
 
 _SRC = str(Path(__file__).resolve().parents[1] / "src")
@@ -237,3 +239,49 @@ def test_settlement_guard_opt_in(monkeypatch):
         assert g_no is None and "policy guard" in reason, reason
     finally:
         ks.set_settlement_guard(None)   # restore default OFF so the module global never leaks
+
+
+# ── Windows: the O_EXCL create can raise PermissionError while the lockfile is being deleted ──
+
+def _flaky_lock_open(monkeypatch, fails):
+    """Make os.open refuse the lease .lock with PermissionError `fails` times (None = always)."""
+    real_open, calls = os.open, {"n": 0}
+
+    def fake_open(path, flags, *args, **kwargs):
+        if str(path).endswith(".lock"):
+            calls["n"] += 1
+            if fails is None or calls["n"] <= fails:
+                raise PermissionError(13, "Permission denied", str(path))
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(ks.os, "open", fake_open)
+    return calls
+
+
+def test_lease_lock_retries_transient_permission_error_on_windows(tmp_path, monkeypatch):
+    """The observed Windows failure: a transient PermissionError on create is contention, not a crash."""
+    monkeypatch.setattr(ks, "_LEASE_LOCK_WINDOWS", True)
+    calls = _flaky_lock_open(monkeypatch, fails=2)
+    ks._lease_lock(tmp_path)
+    assert calls["n"] == 3 and (tmp_path / ".lock").exists()
+    ks._lease_unlock(tmp_path)
+
+
+def test_lease_lock_persistent_permission_error_still_fails_on_windows(tmp_path, monkeypatch):
+    """A PermissionError that never clears is a real permissions problem: re-raised after the short bound."""
+    monkeypatch.setattr(ks, "_LEASE_LOCK_WINDOWS", True)
+    monkeypatch.setattr(ks, "_LEASE_LOCK_PERM_RETRY_S", 0.05)
+    _flaky_lock_open(monkeypatch, fails=None)
+    t0 = time.monotonic()
+    with pytest.raises(PermissionError):
+        ks._lease_lock(tmp_path)
+    assert time.monotonic() - t0 < 5.0
+
+
+def test_lease_lock_permission_error_not_retried_off_windows(tmp_path, monkeypatch):
+    """POSIX behaviour is unchanged: PermissionError propagates on the first attempt."""
+    monkeypatch.setattr(ks, "_LEASE_LOCK_WINDOWS", False)
+    calls = _flaky_lock_open(monkeypatch, fails=1)
+    with pytest.raises(PermissionError):
+        ks._lease_lock(tmp_path)
+    assert calls["n"] == 1
