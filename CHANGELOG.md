@@ -30,6 +30,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (digest-pinned actions, harden-runner, minimal permissions). The site is the verify
   surface only, not a repo mirror.
 
+### Fixed (Windows portability)
+
+- **CLIs no longer crash on a non-UTF-8 console** — on Windows with output piped or
+  redirected (cp1252), `print` raised `UnicodeEncodeError` on the report glyphs (`p̂`, `—`,
+  the demo's `━` rule lines), so `scripts/kry_verify.py` died before printing a VERDICT and
+  `scripts/kry_savings_report.py` and `examples/try_kry.py` failed the same way. Every entry
+  point that prints non-ASCII text (56 files) now sets `errors="replace"` on stdout/stderr at
+  the top of its `__main__` block: glyphs the console cannot represent print as `?`, UTF-8
+  consoles are unchanged, and file writes are untouched (the guard only changes how the two
+  console streams encode). `tests/test_console_encoding.py` reproduces the crash on any OS via
+  `PYTHONIOENCODING=cp1252` — report → mint → attest → verify, plus the demo — and statically
+  requires the guard on every printing entry point. CI is ubuntu-only; this test is the
+  Windows coverage. 3 tests.
+
 ## [0.1.2] - 2026-07-21
 
 ### Added (SPEC v1.2 — the chain-head anchor profile)
