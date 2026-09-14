@@ -53,6 +53,26 @@ jobs:
           python3 scripts/kry_finops_report.py "$tmp/packet/artifact.json"
           python3 scripts/kry_doctor.py --artifact "$tmp/packet/artifact.json"
 
+  # The ubuntu jobs cannot see Windows-only defects (cp1252 console, locale file reads,
+  # POSIX-rooted paths, O_EXCL PermissionError races); every one fixed in #57 passed them.
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: python -m pip install -e ".[dev]"
+      - name: Tests
+        run: python -m pytest tests/ -q
+
   release-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
