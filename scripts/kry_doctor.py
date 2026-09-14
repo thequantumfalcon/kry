@@ -391,7 +391,7 @@ def _artifact_ship_scope_status(root: Path, artifact: str | None, *, artifact_ve
     return _check("artifact_ship_scope_status", FAIL, f"artifact has unknown ship_scope={scope!r}")
 
 
-def _packet_privacy_boundary(root: Path, artifact: str | None) -> dict | None:
+def _packet_privacy_boundary(root: Path, artifact: str | None, *, trust_local_inputs: bool = False) -> dict | None:
     path = _resolve_artifact_path(root, artifact)
     if path is None or not path.exists() or not _is_packet_like(path):
         return None
@@ -445,6 +445,7 @@ def _packet_privacy_boundary(root: Path, artifact: str | None) -> dict | None:
         )
 
     content_errors: list[str] = []
+    not_read: list[str] = []
     if isinstance(command_inputs, dict):
         usage_log = command_inputs.get("usage_log")
         attestation = command_inputs.get("attestation")
@@ -456,31 +457,42 @@ def _packet_privacy_boundary(root: Path, artifact: str | None) -> dict | None:
         buyer_feedback = command_inputs.get("buyer_feedback")
         legal_review = command_inputs.get("legal_review")
 
-        def declared_path(value) -> str | None:
+        def declared_path(key: str, value) -> str | None:
             if not isinstance(value, str) or not value:
                 return None
             input_path = Path(value)
+            outside = input_path.is_absolute() or PurePosixPath(value).is_absolute()
+            if not outside:
+                try:
+                    (packet_dir / input_path).resolve().relative_to(packet_dir)
+                except ValueError:
+                    outside = True
+            if outside and not trust_local_inputs:
+                # Same rule as the verifier's containment check: never open an input outside the
+                # packet unless the operator vouches for it (--trust-local-inputs).
+                not_read.append(key)
+                return None
             if input_path.is_absolute():
                 return str(input_path)
             return str(path.parent / input_path)
 
-        usage_path = declared_path(usage_log)
-        attestation_path = declared_path(attestation)
-        t1_path = declared_path(t1_manifest)
-        provider_path = declared_path(provider_export)
-        provider_manifest_path = declared_path(provider_export_manifest)
-        corpus_manifest_path = declared_path(corpus_manifest)
-        outside_path = declared_path(outside_review)
-        buyer_path = declared_path(buyer_feedback)
-        legal_path = declared_path(legal_review)
-        if usage_path:
+        usage_path = declared_path("usage_log", usage_log)
+        attestation_path = declared_path("attestation", attestation)
+        t1_path = declared_path("t1_manifest", t1_manifest)
+        provider_path = declared_path("provider_export", provider_export)
+        provider_manifest_path = declared_path("provider_export_manifest", provider_export_manifest)
+        corpus_manifest_path = declared_path("corpus_manifest", corpus_manifest)
+        outside_path = declared_path("outside_review", outside_review)
+        buyer_path = declared_path("buyer_feedback", buyer_feedback)
+        legal_path = declared_path("legal_review", legal_review)
+        if usage_path or not_read:
             spec = importlib.util.spec_from_file_location(
                 "kry_verified_artifact_for_doctor_privacy_scan",
                 root / "scripts" / "kry_verified_artifact.py",
             )
             if spec is None or spec.loader is None:
                 content_errors.append("cannot load scripts/kry_verified_artifact.py for packet privacy scan")
-            else:
+            elif usage_path:
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
                 content_errors.extend(
@@ -496,12 +508,40 @@ def _packet_privacy_boundary(root: Path, artifact: str | None) -> dict | None:
                         legal_review=legal_path,
                     )
                 )
+            else:
+                # usage_log was refused as outside the packet: still scan the inputs that are inside it,
+                # with the same per-input scans _bundle_input_privacy_errors runs after the usage log.
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                content_errors.extend(mod._provider_export_privacy_errors(provider_path))
+                for label, declared in (
+                    ("attestation", attestation_path),
+                    ("t1_manifest", t1_path),
+                    ("provider_export_manifest", provider_manifest_path),
+                    ("corpus_manifest", corpus_manifest_path),
+                ):
+                    content_errors.extend(mod._public_packet_json_privacy_errors(declared, label))
+                for kind, declared in (
+                    ("outside_review", outside_path),
+                    ("buyer_feedback", buyer_path),
+                    ("legal_review", legal_path),
+                ):
+                    content_errors.extend(mod._review_evidence_file_privacy_errors(declared, kind))
     if content_errors:
         return _check(
             "packet_privacy_boundary",
             FAIL,
             "private prompt/message/raw-body material present in packet inputs: "
-            + "; ".join(content_errors),
+            + "; ".join(content_errors)
+            + ("; inputs outside the packet were not read, so they were not scanned: " + ", ".join(not_read)
+               if not_read else ""),
+        )
+    if not_read:
+        return _check(
+            "packet_privacy_boundary",
+            WARN,
+            "inputs outside the packet were not read, so they were not scanned "
+            "(use --trust-local-inputs only for your own packet): " + ", ".join(not_read),
         )
     return _check(
         "packet_privacy_boundary",
@@ -628,7 +668,7 @@ def run_checks(root: str | Path = ROOT, *, artifact: str | None = None, trust_lo
     packet_checklist_check = _packet_checklist_current(root_path, artifact)
     if packet_checklist_check is not None:
         checks.append(packet_checklist_check)
-    packet_privacy_check = _packet_privacy_boundary(root_path, artifact)
+    packet_privacy_check = _packet_privacy_boundary(root_path, artifact, trust_local_inputs=trust_local_inputs)
     if packet_privacy_check is not None:
         checks.append(packet_privacy_check)
     packet_portability_check = _packet_input_portability(root_path, artifact)
