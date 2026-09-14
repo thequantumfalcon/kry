@@ -603,9 +603,18 @@ _LEASE_STEAL_STALE = os.environ.get(
     "KRY_SETTLE_LEASE_STEAL_STALE", "1").strip().lower() in ("1", "true", "yes", "on")
 
 
+_LEASE_LOCK_WINDOWS = os.name == "nt"
+# Windows can refuse the O_EXCL create with PermissionError (not FileExistsError) under a multi-process
+# race (observed; consistent with another process deleting the lockfile, not proven). Retry that as
+# contention, but only for this many seconds of CONSECUTIVE refusals, so a genuinely unwritable
+# authority dir still fails once the bound passes.
+_LEASE_LOCK_PERM_RETRY_S = 2.0
+
+
 def _lease_lock(authdir: Path) -> None:
     lock = authdir / ".lock"
     deadline = time.monotonic() + 60.0   # bounded: never spin forever on an orphaned lock
+    perm_deadline = None
     while True:
         try:
             fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -614,7 +623,17 @@ def _lease_lock(authdir: Path) -> None:
             finally:
                 os.close(fd)
             return
+        except PermissionError:
+            if not _LEASE_LOCK_WINDOWS:
+                raise
+            if perm_deadline is None:
+                perm_deadline = time.monotonic() + _LEASE_LOCK_PERM_RETRY_S
+            elif time.monotonic() > perm_deadline:
+                raise
+            time.sleep(0.001)
+            continue
         except FileExistsError:
+            perm_deadline = None
             # Steal an orphaned lock — a holder that crashed between create and unlink would
             # otherwise deadlock every future settlement (availability DoS).
             try:

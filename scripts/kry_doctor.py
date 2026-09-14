@@ -13,7 +13,7 @@ import json
 import re
 import sys
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "kry_doctor/v1"
@@ -351,8 +351,11 @@ def _is_packet_like(path: Path) -> bool:
     command_inputs = data.get("command_inputs")
     if not isinstance(command_inputs, dict):
         return False
+    # POSIX-rooted inputs are absolute on every OS (Windows Path('/x').is_absolute() is False),
+    # so the packet-shape verdict does not depend on where the doctor runs.
     return any(
-        isinstance(value, str) and value and not Path(value).is_absolute()
+        isinstance(value, str) and value
+        and not (Path(value).is_absolute() or PurePosixPath(value).is_absolute())
         for key, value in command_inputs.items()
         if key in ARTIFACT_PATH_INPUTS
     )
@@ -528,7 +531,7 @@ def _packet_input_portability(root: Path, artifact: str | None) -> dict | None:
             errors.append(f"{key} is not a path string")
             continue
         input_path = Path(value)
-        if input_path.is_absolute():
+        if input_path.is_absolute() or PurePosixPath(value).is_absolute():
             errors.append(f"{key} is absolute: {value}")
             continue
         resolved = (packet_dir / input_path).resolve()
@@ -675,4 +678,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
     raise SystemExit(main())

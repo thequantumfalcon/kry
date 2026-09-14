@@ -130,4 +130,7 @@ def _selftest():
 
 
 if __name__ == "__main__":
+    for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
     _selftest()

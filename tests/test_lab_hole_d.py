@@ -31,10 +31,16 @@ def test_lease_caps_at_attested_ceiling(tmp_path):
 def test_lease_is_atomic_under_race(tmp_path):
     hd = _load()
     results: list[bool] = []
+    errors: list[BaseException] = []
     lock = threading.Lock()
 
     def racer():
-        g = hd.lease(tmp_path, "A:race", 7000, 10000)   # only one 7000 fits under 10000
+        try:
+            g = hd.lease(tmp_path, "A:race", 7000, 10000)   # only one 7000 fits under 10000
+        except BaseException as exc:   # a crashed racer must fail the test, not pass as a denial
+            with lock:
+                errors.append(exc)
+            return
         with lock:
             results.append(g)
 
@@ -43,4 +49,26 @@ def test_lease_is_atomic_under_race(tmp_path):
         t.start()
     for t in threads:
         t.join()
+    assert not errors, f"racer thread raised: {errors!r}"
+    assert len(results) == len(threads)
     assert sum(results) == 1, "exactly one lease may win the race"
+
+
+def test_lock_retries_transient_permission_error_on_windows(tmp_path, monkeypatch):
+    """The Windows race, deterministically: a transient PermissionError on the O_EXCL create is
+    contention, not a crash."""
+    hd = _load()
+    monkeypatch.setattr(hd, "_WINDOWS", True)
+    real_open, calls = hd.os.open, {"n": 0}
+
+    def fake_open(path, flags, *args, **kwargs):
+        if str(path).endswith(".lock"):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise PermissionError(13, "Permission denied", str(path))
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(hd.os, "open", fake_open)
+    hd._lock(tmp_path)
+    assert calls["n"] == 3 and (tmp_path / ".lock").exists()
+    hd._unlock(tmp_path)

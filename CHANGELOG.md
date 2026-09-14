@@ -30,6 +30,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (digest-pinned actions, harden-runner, minimal permissions). The site is the verify
   surface only, not a repo mirror.
 
+### Fixed (Windows portability)
+
+- **CLIs no longer crash on a non-UTF-8 console** — on Windows with output piped or
+  redirected (cp1252), `print` raised `UnicodeEncodeError` on the report glyphs (`p̂`, `—`,
+  the demo's `━` rule lines), so `scripts/kry_verify.py` died before printing a VERDICT and
+  `scripts/kry_savings_report.py` and `examples/try_kry.py` failed the same way. Every entry
+  point that prints non-ASCII text (56 files) now sets `errors="replace"` on stdout/stderr at
+  the top of its `__main__` block: glyphs the console cannot represent print as `?`, UTF-8
+  consoles are unchanged, and file writes are untouched (the guard only changes how the two
+  console streams encode). `tests/test_console_encoding.py` reproduces the crash on any OS via
+  `PYTHONIOENCODING=cp1252` — report → mint → attest → verify, plus the demo — and statically
+  requires the guard on every printing entry point. CI is ubuntu-only; this test is the
+  Windows coverage. 3 tests. (Follow-up: the demo test's full-exit assertion now applies only on a
+  cp1252 locale. The demo decodes a child's output in the locale encoding, so on a UTF-8 locale the
+  forced cp1252 child fails by construction of the test; the first Linux CI run caught this.)
+- **Settlement lease lock no longer crashes on Windows under contention** — `_lease_lock`
+  (`src/kry/kry_settlement.py`) retried only `FileExistsError`, but on Windows the `O_EXCL`
+  create can instead raise `PermissionError` under a multi-process race (consistent with another
+  process deleting the lockfile), which killed a settling process:
+  `test_acquire_lease_cross_process_atomic` failed 1 in 10 runs on main (3 failures in 13 runs
+  overall). On Windows only, `PermissionError` is now retried as contention for up to 2 s of
+  consecutive refusals and then re-raised, so an unwritable authority dir still fails; POSIX
+  behaviour is unchanged. After the fix the stress test passed 50/50. 3 tests.
+- **Absolute-path checks no longer depend on the host OS** — `Path('/etc/hostname').is_absolute()`
+  is `False` on Windows, so POSIX-absolute `command_inputs` were classified by where the tool ran:
+  `scripts/kry_verified_artifact.py`'s bundle-containment and external-candidate portability checks
+  reported the input as escaping instead of absolute, and `scripts/kry_doctor.py` called such an
+  artifact packet-shaped on Windows only and named the input as escaping the packet. Each check now
+  also treats `PurePosixPath(value).is_absolute()` as absolute; POSIX behaviour is unchanged. Every
+  case reproduced 3/3 on Windows before the fix. The containment check rejected the input on both
+  OSes throughout, so this is verdict consistency, not a containment hole. Deliberately unchanged:
+  the doctor's privacy scan still opens a POSIX-absolute input as `C:\...` on Windows and as the
+  real path on POSIX — whether it should open out-of-packet inputs at all is a separate question.
+  3 new tests; the existing out-of-bundle test now also passes on Windows.
+- **The action verifier no longer reports a valid attestation as tampered on Windows** —
+  `scripts/kry_action_verify.py` opened the attestation and anchor JSON without an encoding, so on
+  Windows they were decoded as cp1252. A valid attestation saved as raw UTF-8 with a non-ASCII tool
+  or agent name then failed with `receipt_hash mismatch — a field was tampered` (3/3 on main; an
+  ASCII-escaped copy of the same attestation, and the raw file read in UTF-8 mode, were VALID). Both
+  reads now use `encoding="utf-8"`. Attestations kry itself writes are ASCII-escaped and were never
+  affected. 2 tests: a static check that every text-mode `open()` in the verifier names an
+  encoding, and an end-to-end CLI check (which only discriminates on a non-UTF-8 locale).
+- **The lab lease prototype no longer crashes on Windows, and its race test now sees a crash** —
+  `lab/hole_d_double_spend.py`'s `_lock` had the same Windows `PermissionError` race as the
+  settlement lease lock, and `tests/test_lab_hole_d.py::test_lease_is_atomic_under_race` counted a
+  crashed racer thread as a denial, so it kept passing. With the test strengthened to fail when any
+  racer raises, main failed 12 of 60 runs on Windows, every failure a `PermissionError`; the old
+  test passed through such runs (pytest only warned). `_lock` now uses the same bounded Windows-only
+  retry; after the fix the strengthened test failed 0 of 50 runs. The prototype's result that
+  exactly one lease wins the race is unchanged. 1 new test; 1 test strengthened.
+
 ## [0.1.2] - 2026-07-21
 
 ### Added (SPEC v1.2 — the chain-head anchor profile)

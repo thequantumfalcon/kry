@@ -161,6 +161,10 @@ else:
 
 if __name__ == "__main__":
     # Self-test on a canned event (no litellm needed): extractor + fail-closed paths.
+    import sys
+    for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
     ev = {"cache_hit": True, "model": "gh/claude-opus-4.8",
           "litellm_call_id": "demo-1", "response_cost": 0.0125}
     resp = {"usage": {"total_tokens": 1000}}

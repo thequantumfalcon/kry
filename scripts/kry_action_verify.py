@@ -209,7 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--anchor", help="path to a PUBLISHED {count, chain_tip} anchor (re-mint detection)")
     args = p.parse_args(argv)
 
-    with open(args.attestation) as fh:
+    # JSON is UTF-8: an implicit locale read (cp1252 on Windows) mangles a raw non-ASCII field and
+    # reports a VALID attestation as a receipt_hash mismatch.
+    with open(args.attestation, encoding="utf-8") as fh:
         att = _json_loads(fh.read())
 
     ok, errors, warnings = verify_action_attestation(att)
@@ -226,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  by tier:         {bt}")
 
     if args.anchor:
-        with open(args.anchor) as fh:
+        with open(args.anchor, encoding="utf-8") as fh:
             anchor = _json_loads(fh.read())
         a_ok, a_errors = verify_against_anchor(att, anchor)
         if a_ok:
@@ -253,4 +255,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
     sys.exit(main())

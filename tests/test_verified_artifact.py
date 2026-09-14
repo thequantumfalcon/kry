@@ -5855,3 +5855,14 @@ def test_verify_rejects_out_of_bundle_path_inputs(tmp_path):
     p.write_text(json.dumps(art))
     res2 = kva.verify_artifact_file(p)
     assert any("escapes the bundle" in e for e in res2["errors"]), res2["errors"]
+
+
+def test_portability_names_posix_absolute_input_as_absolute_on_every_os(tmp_path):
+    """Windows Path('/etc/hostname').is_absolute() is False, so the external-candidate portability check
+    said 'escapes artifact directory' there and 'must be relative' on POSIX. The reason must not depend
+    on the verifier's OS."""
+    kva = _load(_ARTIFACT, "kry_verified_artifact_posix_absolute_portability")
+    art = {"ship_scope": "external_verified_savings_candidate",
+           "command_inputs": {"usage_log": "/etc/hostname"}}
+    errors = kva._command_input_portability_errors(tmp_path / "artifact.json", art)
+    assert errors == ["command_inputs.usage_log must be relative, got absolute path"], errors
