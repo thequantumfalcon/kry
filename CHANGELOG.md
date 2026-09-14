@@ -51,6 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   overall). On Windows only, `PermissionError` is now retried as contention for up to 2 s of
   consecutive refusals and then re-raised, so an unwritable authority dir still fails; POSIX
   behaviour is unchanged. After the fix the stress test passed 50/50. 3 tests.
+- **Absolute-path checks no longer depend on the host OS** — `Path('/etc/hostname').is_absolute()`
+  is `False` on Windows, so POSIX-absolute `command_inputs` were classified by where the tool ran:
+  `scripts/kry_verified_artifact.py`'s bundle-containment and external-candidate portability checks
+  reported the input as escaping instead of absolute, and `scripts/kry_doctor.py` called such an
+  artifact packet-shaped on Windows only and named the input as escaping the packet. Each check now
+  also treats `PurePosixPath(value).is_absolute()` as absolute; POSIX behaviour is unchanged. Every
+  case reproduced 3/3 on Windows before the fix. The containment check rejected the input on both
+  OSes throughout, so this is verdict consistency, not a containment hole. Deliberately unchanged:
+  the doctor's privacy scan still opens a POSIX-absolute input as `C:\...` on Windows and as the
+  real path on POSIX — whether it should open out-of-packet inputs at all is a separate question.
+  3 new tests; the existing out-of-bundle test now also passes on Windows.
 
 ## [0.1.2] - 2026-07-21
 

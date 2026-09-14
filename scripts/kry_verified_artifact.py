@@ -23,7 +23,7 @@ import importlib.util
 import math
 import shutil
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -1907,7 +1907,7 @@ def _command_input_portability_errors(artifact_path: Path, artifact: dict) -> li
             errors.append(f"command_inputs.{key} must be a relative packet path")
             continue
         input_path = Path(value)
-        if input_path.is_absolute():
+        if input_path.is_absolute() or PurePosixPath(value).is_absolute():
             errors.append(f"command_inputs.{key} must be relative, got absolute path")
             continue
         resolved = (packet_dir / input_path).resolve()
@@ -1935,7 +1935,9 @@ def _command_input_containment_errors(artifact_path: Path, command_inputs: objec
         if not isinstance(value, str) or not value:
             errors.append(f"command_inputs.{key} must be a relative bundle path")
             continue
-        if Path(value).is_absolute():
+        # POSIX-rooted paths count too: on Windows '/etc/x' is not is_absolute(), and the
+        # verdict must not depend on which OS the verifier runs on.
+        if Path(value).is_absolute() or PurePosixPath(value).is_absolute():
             errors.append(f"command_inputs.{key}: absolute path not allowed — must stay in the bundle")
             continue
         resolved = (bundle / value).resolve()

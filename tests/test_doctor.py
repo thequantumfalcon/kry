@@ -848,3 +848,27 @@ def test_doctor_rejects_nonstandard_json_artifact(tmp_path):
     assert doctor._load_artifact_json(artifact) is None
     with pytest.raises(ValueError, match="Out of range float values"):
         doctor._json_pretty({"bad": float("nan")})
+
+
+def test_packet_like_treats_posix_absolute_input_as_absolute_on_every_os(tmp_path):
+    """Windows Path('/etc/hostname').is_absolute() is False, so before the fix the doctor called this
+    artifact packet-shaped on Windows only. The packet-shape verdict must not depend on the host OS."""
+    doctor = _load(DOCTOR, "kry_doctor_posix_absolute_input")
+    key = sorted(doctor.ARTIFACT_PATH_INPUTS)[0]
+    artifact = tmp_path / "artifact.json"
+    artifact.write_text(json.dumps({"command_inputs": {key: "/etc/hostname"}}) + "\n", encoding="utf-8")
+    assert not any((tmp_path / name).exists() for name in doctor.PACKET_SURFACE_FILES)
+    assert doctor._is_packet_like(artifact) is False
+
+
+def test_packet_portability_names_posix_absolute_input_as_absolute_on_every_os(tmp_path):
+    """Same OS dependence in the portability check: Windows reported '/etc/hostname' as escaping the
+    packet, POSIX as absolute. Both FAIL; the reason must not depend on the host OS."""
+    doctor = _load(DOCTOR, "kry_doctor_posix_absolute_portability")
+    artifact = tmp_path / "artifact.json"
+    artifact.write_text(json.dumps({"command_inputs": {"usage_log": "/etc/hostname"}}) + "\n", encoding="utf-8")
+    for name in doctor.PACKET_SURFACE_FILES:
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+    check = doctor._packet_input_portability(ROOT, str(artifact))
+    assert check["status"] == "FAIL"
+    assert "usage_log is absolute: /etc/hostname" in check["detail"]
