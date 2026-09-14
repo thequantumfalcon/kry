@@ -422,7 +422,10 @@ def test_doctor_fails_external_candidate_without_portable_packet(monkeypatch, tm
     assert "finops_report.md missing from packet" in checks["packet_report_current"]["detail"]
     assert checks["packet_checklist_current"]["status"] == "FAIL"
     assert "reviewer_checklist.json missing from packet" in checks["packet_checklist_current"]["detail"]
-    assert checks["packet_privacy_boundary"]["status"] == "PASS"
+    # The inputs are absolute paths outside the packet and --trust-local-inputs is not set, so the
+    # privacy scan does not open them: it warns rather than passing a scan it did not perform.
+    assert checks["packet_privacy_boundary"]["status"] == "WARN"
+    assert "not read" in checks["packet_privacy_boundary"]["detail"]
     assert checks["packet_input_portability"]["status"] == "FAIL"
     assert "usage_log is absolute" in checks["packet_input_portability"]["detail"]
     assert checks["external_evidence_status"]["status"] == "WARN"
@@ -872,3 +875,49 @@ def test_packet_portability_names_posix_absolute_input_as_absolute_on_every_os(t
     check = doctor._packet_input_portability(ROOT, str(artifact))
     assert check["status"] == "FAIL"
     assert "usage_log is absolute: /etc/hostname" in check["detail"]
+
+
+def test_privacy_scan_does_not_read_inputs_outside_the_packet_unless_trusted(tmp_path):
+    """Without --trust-local-inputs the privacy scan must not open a command input outside the packet
+    (absolute or ../), matching the verifier's containment rule. On main the outside file was parsed in
+    every case, trusted or not (reproduced 3/3 on Linux). The outside file is invalid JSON, so a parse
+    error in the detail proves it was opened."""
+    doctor = _load(DOCTOR, "kry_doctor_privacy_containment")
+    packet = tmp_path / "packet"
+    packet.mkdir()
+    for name in doctor.PACKET_SURFACE_FILES:
+        (packet / name).write_text("{}\n", encoding="utf-8")
+    outside = tmp_path / "outside_usage.jsonl"
+    outside.write_text("this line is not json\n", encoding="utf-8")
+    artifact = packet / "artifact.json"
+    for value in (str(outside), "../outside_usage.jsonl"):
+        artifact.write_text(json.dumps({"command_inputs": {"usage_log": value}}) + "\n", encoding="utf-8")
+        refused = doctor._packet_privacy_boundary(ROOT, str(artifact))
+        assert refused["status"] == "WARN"
+        assert "inputs outside the packet were not read" in refused["detail"], refused["detail"]
+        assert "usage_log" in refused["detail"]
+        assert "Expecting value" not in refused["detail"], refused["detail"]
+        checks = {c["name"]: c for c in doctor.run_checks(ROOT, artifact=str(artifact))["checks"]}
+        assert "Expecting value" not in checks["packet_privacy_boundary"]["detail"]   # flag threads through
+        trusted = doctor._packet_privacy_boundary(ROOT, str(artifact), trust_local_inputs=True)
+        assert "Expecting value" in trusted["detail"], trusted["detail"]   # opt-in still reads it
+
+
+def test_privacy_scan_still_checks_in_packet_inputs_when_usage_log_is_refused(tmp_path):
+    """Refusing an out-of-packet usage_log must not switch off the scan of inputs that ARE inside the
+    packet: a private field in an in-packet attestation still fails the check."""
+    doctor = _load(DOCTOR, "kry_doctor_privacy_partial_scan")
+    packet = tmp_path / "packet"
+    packet.mkdir()
+    for name in doctor.PACKET_SURFACE_FILES:
+        (packet / name).write_text("{}\n", encoding="utf-8")
+    (tmp_path / "outside_usage.jsonl").write_text("this line is not json\n", encoding="utf-8")
+    (packet / "attestation.json").write_text(json.dumps({"prompt": "a private prompt"}), encoding="utf-8")
+    artifact = packet / "artifact.json"
+    artifact.write_text(json.dumps({"command_inputs": {
+        "usage_log": "../outside_usage.jsonl", "attestation": "attestation.json"}}) + "\n", encoding="utf-8")
+    check = doctor._packet_privacy_boundary(ROOT, str(artifact))
+    assert check["status"] == "FAIL", check
+    assert "attestation contains private field" in check["detail"], check["detail"]
+    assert "Expecting value" not in check["detail"], check["detail"]   # the outside file is still not read
+    assert "not read" in check["detail"] and "usage_log" in check["detail"], check["detail"]   # and says so

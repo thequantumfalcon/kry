@@ -81,6 +81,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   retry; after the fix the strengthened test failed 0 of 50 runs. The prototype's result that
   exactly one lease wins the race is unchanged. 1 new test; 1 test strengthened.
 
+### Fixed (doctor input containment)
+
+- **`scripts/kry_doctor.py` no longer opens packet inputs outside the packet unless told to** — the
+  packet privacy scan ignored `--trust-local-inputs`: for a `command_inputs` path that was absolute
+  or escaped the packet with `../`, it opened and parsed that file whether or not the operator had
+  vouched for local inputs (reproduced 3/3 on Linux through `run_checks`). Without the flag such
+  inputs are now not read, matching the verifier's containment rule, and `packet_privacy_boundary`
+  reports them by name as a WARN instead of passing a scan it did not perform; the packet
+  portability check already FAILs the same inputs, so the failure count is unchanged. With the flag
+  the scan reads them as before. `test_doctor_fails_external_candidate_without_portable_packet`
+  previously asserted that scan PASSed (it had read the out-of-packet files); it now asserts the
+  WARN. When `usage_log` itself is refused, the inputs that are inside the packet are still
+  scanned, so a private field in an in-packet attestation still FAILs, and that FAIL also names the
+  inputs that were not read. 2 new tests.
+
 ## [0.1.2] - 2026-07-21
 
 ### Added (SPEC v1.2 — the chain-head anchor profile)
