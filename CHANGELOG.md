@@ -62,6 +62,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the doctor's privacy scan still opens a POSIX-absolute input as `C:\...` on Windows and as the
   real path on POSIX — whether it should open out-of-packet inputs at all is a separate question.
   3 new tests; the existing out-of-bundle test now also passes on Windows.
+- **The action verifier no longer reports a valid attestation as tampered on Windows** —
+  `scripts/kry_action_verify.py` opened the attestation and anchor JSON without an encoding, so on
+  Windows they were decoded as cp1252. A valid attestation saved as raw UTF-8 with a non-ASCII tool
+  or agent name then failed with `receipt_hash mismatch — a field was tampered` (3/3 on main; an
+  ASCII-escaped copy of the same attestation, and the raw file read in UTF-8 mode, were VALID). Both
+  reads now use `encoding="utf-8"`. Attestations kry itself writes are ASCII-escaped and were never
+  affected. 2 tests: a static check that every text-mode `open()` in the verifier names an
+  encoding, and an end-to-end CLI check (which only discriminates on a non-UTF-8 locale).
 
 ## [0.1.2] - 2026-07-21
 

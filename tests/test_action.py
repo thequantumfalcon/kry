@@ -9,9 +9,13 @@ are caught.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -273,3 +277,32 @@ def test_verifier_is_independent_of_the_package():
     # It re-implements the checks from spec; it must not import the package under test.
     assert not re.search(r"^\s*(from|import)\s+kry\b", src, re.MULTILINE), \
         "kry_action_verify must not import the kry package — it is the stranger's check"
+
+
+# ── the verifier reads JSON as UTF-8, whatever the platform locale ────────────
+
+def test_verifier_text_reads_declare_utf8():
+    """Every text-mode open() in the stranger verifier names encoding='utf-8' (a locale read is
+    cp1252 on Windows). Static, so it fails on any OS if an implicit read comes back."""
+    tree = ast.parse(_VERIFIER_PATH.read_text(encoding="utf-8"))
+    implicit = [n.lineno for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "open"
+                and "b" not in (n.args[1].value if len(n.args) > 1 and isinstance(n.args[1], ast.Constant) else "r")
+                and not any(k.arg == "encoding" for k in n.keywords)]
+    assert not implicit, f"open() without encoding at lines {implicit}"
+
+
+def test_raw_utf8_attestation_verifies_valid_cli(tmp_path):
+    """A VALID attestation saved as raw UTF-8 (non-ASCII tool/agent names) must not read as tampered.
+    Reproduced on Windows before the fix: VERDICT INVALID, receipt_hash mismatch. PYTHONUTF8=0 keeps the
+    locale read in play; on a UTF-8 locale this passes either way, which the static test above covers."""
+    kry_action.record("búsqueda_web", {"q": "x"}, result={"ok": True}, agent_id="asistente_ñ")
+    att_path, anchor_path = tmp_path / "att.json", tmp_path / "anchor.json"
+    att_path.write_text(json.dumps(kry_action.build_action_attestation(), ensure_ascii=False), encoding="utf-8")
+    anchor_path.write_text(json.dumps(kry_action.export_anchor(), ensure_ascii=False), encoding="utf-8")
+    assert any(b > 127 for b in att_path.read_bytes())
+    env = {**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "utf-8"}
+    res = subprocess.run([sys.executable, str(_VERIFIER_PATH), str(att_path), "--anchor", str(anchor_path)],
+                         env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "VERDICT: VALID" in res.stdout
