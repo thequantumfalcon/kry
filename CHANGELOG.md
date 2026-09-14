@@ -41,8 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consoles are unchanged, and file writes are untouched (the guard only changes how the two
   console streams encode). `tests/test_console_encoding.py` reproduces the crash on any OS via
   `PYTHONIOENCODING=cp1252` — report → mint → attest → verify, plus the demo — and statically
-  requires the guard on every printing entry point. CI is ubuntu-only; this test is the
-  Windows coverage. 3 tests. (Follow-up: the demo test's full-exit assertion now applies only on a
+  requires the guard on every printing entry point; the `test-windows` CI job also runs the whole
+  suite on Windows. 3 tests. (Follow-up: the demo test's full-exit assertion now applies only on a
   cp1252 locale. The demo decodes a child's output in the locale encoding, so on a UTF-8 locale the
   forced cp1252 child fails by construction of the test; the first Linux CI run caught this.)
 - **Settlement lease lock no longer crashes on Windows under contention** — `_lease_lock`
@@ -60,10 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   artifact packet-shaped on Windows only and named the input as escaping the packet. Each check now
   also treats `PurePosixPath(value).is_absolute()` as absolute; POSIX behaviour is unchanged. Every
   case reproduced 3/3 on Windows before the fix. The containment check rejected the input on both
-  OSes throughout, so this is verdict consistency, not a containment hole. Deliberately unchanged:
-  the doctor's privacy scan still opens a POSIX-absolute input as `C:\...` on Windows and as the
-  real path on POSIX — whether it should open out-of-packet inputs at all is a separate question.
-  3 new tests; the existing out-of-bundle test now also passes on Windows.
+  OSes throughout, so this is verdict consistency, not a containment hole. Whether the doctor's
+  privacy scan should open out-of-packet inputs at all was handled separately; see the doctor input
+  containment entry below. 3 new tests; the existing out-of-bundle test now also passes on Windows.
 - **The action verifier no longer reports a valid attestation as tampered on Windows** —
   `scripts/kry_action_verify.py` opened the attestation and anchor JSON without an encoding, so on
   Windows they were decoded as cp1252. A valid attestation saved as raw UTF-8 with a non-ASCII tool
