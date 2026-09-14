@@ -42,7 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   console streams encode). `tests/test_console_encoding.py` reproduces the crash on any OS via
   `PYTHONIOENCODING=cp1252` — report → mint → attest → verify, plus the demo — and statically
   requires the guard on every printing entry point. CI is ubuntu-only; this test is the
-  Windows coverage. 3 tests.
+  Windows coverage. 3 tests. (Follow-up: the demo test's full-exit assertion now applies only on a
+  cp1252 locale. The demo decodes a child's output in the locale encoding, so on a UTF-8 locale the
+  forced cp1252 child fails by construction of the test; the first Linux CI run caught this.)
 - **Settlement lease lock no longer crashes on Windows under contention** — `_lease_lock`
   (`src/kry/kry_settlement.py`) retried only `FileExistsError`, but on Windows the `O_EXCL`
   create can instead raise `PermissionError` under a multi-process race (consistent with another

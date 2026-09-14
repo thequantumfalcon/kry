@@ -2,9 +2,12 @@
 
 The report/verifier output uses glyphs cp1252 cannot encode (p-hat, arrows, box rules), so an
 unguarded `print` raised UnicodeEncodeError and kry_verify.py died before printing a VERDICT.
-PYTHONIOENCODING=cp1252 reproduces that condition on any OS, so the Linux CI catches it.
+PYTHONIOENCODING=cp1252 reproduces that encode crash on any OS, so the Linux CI catches it.
+One limit: a parent that captures a child's output decodes it in the LOCALE encoding, so where the
+locale is UTF-8 a forced cp1252 child is a mismatch that exists only in the test (see the demo test).
 """
 import ast
+import locale
 import os
 import subprocess
 import sys
@@ -36,9 +39,14 @@ def test_savings_report_and_verifier_survive_cp1252_console(tmp_path):
 
 
 def test_try_kry_demo_survives_cp1252_console(tmp_path):
+    """The demo's own output must not raise UnicodeEncodeError under a cp1252 console (any OS).
+    It also captures kry_verify.py as a child and decodes that in the locale encoding, so a full
+    returncode 0 is only a valid expectation where the locale is cp1252 too (Windows); on a UTF-8
+    locale the forced cp1252 child makes that decode fail by construction of the test."""
     res = _run(["examples/try_kry.py"], tmp_path)
     assert "UnicodeEncodeError" not in res.stderr, res.stderr
-    assert res.returncode == 0, res.stderr
+    if locale.getpreferredencoding(False).lower() in ("cp1252", "windows-1252"):
+        assert res.returncode == 0, res.stderr
 
 
 def _is_hazard(tree):
