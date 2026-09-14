@@ -72,6 +72,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads now use `encoding="utf-8"`. Attestations kry itself writes are ASCII-escaped and were never
   affected. 2 tests: a static check that every text-mode `open()` in the verifier names an
   encoding, and an end-to-end CLI check (which only discriminates on a non-UTF-8 locale).
+- **The lab lease prototype no longer crashes on Windows, and its race test now sees a crash** —
+  `lab/hole_d_double_spend.py`'s `_lock` had the same Windows `PermissionError` race as the
+  settlement lease lock, and `tests/test_lab_hole_d.py::test_lease_is_atomic_under_race` counted a
+  crashed racer thread as a denial, so it kept passing. With the test strengthened to fail when any
+  racer raises, main failed 12 of 60 runs on Windows, every failure a `PermissionError`; the old
+  test passed through such runs (pytest only warned). `_lock` now uses the same bounded Windows-only
+  retry; after the fix the strengthened test failed 0 of 50 runs. The prototype's result that
+  exactly one lease wins the race is unchanged. 1 new test; 1 test strengthened.
 
 ## [0.1.2] - 2026-07-21
 

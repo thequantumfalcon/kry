@@ -79,14 +79,29 @@ def _accept_and_settle(reg_path: Path, party: str, att_json: str,
 
 # ── Node D: a shared lease authority (the recommended HOLE D fix, prototype) ───
 
+_WINDOWS = os.name == "nt"
+
+
 def _lock(authdir: Path) -> None:
     lock = authdir / ".lock"
+    perm_deadline = None
     while True:
         try:
             fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             os.close(fd)
             return
         except FileExistsError:
+            perm_deadline = None
+            time.sleep(0.001)
+        except PermissionError:
+            # Windows can refuse the O_EXCL create with PermissionError under a race (observed, cause
+            # not proven): retry it as contention for up to 2 s of consecutive refusals, then re-raise.
+            if not _WINDOWS:
+                raise
+            if perm_deadline is None:
+                perm_deadline = time.monotonic() + 2.0
+            elif time.monotonic() > perm_deadline:
+                raise
             time.sleep(0.001)
 
 
