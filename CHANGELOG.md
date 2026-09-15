@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **The JS CLI verifies a single attestation against the published multipliers** —
+  `node verifiers/js/cli.mjs <attestation.json>`, the command the README gives outsiders, never
+  loaded `vectors/primitives/legal_multipliers.json`, so its magnitude check fell back to `{1.0}`. An
+  attestation minted from `examples/sample_usage_log.jsonl` verified VALID with
+  `scripts/kry_verify.py` and INVALID with the JS CLI. Single-file mode now loads the set from the
+  checkout, as `--vectors` does, and warns on stderr when the file is absent.
+  `tests/test_js_cli.py` checks both cases and skips where node is not installed. 2 tests.
+
+### Documentation
+
+- The browser verify page now says its verifier passes the 46-vector KRY-SPEC v1.3 corpus; it still
+  said 36 vectors and v1.2.
+- `kry_pqc/README.md` no longer points to `kry_pqc/PLAN.md`, which was never in the repository; the
+  three designed-but-unbuilt tiers it listed are kept.
 
 ## [0.1.3] - 2026-09-14
 

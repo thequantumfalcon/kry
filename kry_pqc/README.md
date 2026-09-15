@@ -117,6 +117,5 @@ size (M signatures). FROST is the optional future upgrade if compactness matters
 - Default algorithm: **ML-DSA-65** (FIPS 204, NIST level 3); override with `--alg`
  (e.g. `ML-DSA-87`, or `SPHINCS+-SHA2-128f-simple` for hash-based signatures).
 
-See `kry_pqc/PLAN.md` for the full adoption map, including the designed (not yet
-built) tiers: PQC-inside-the-enclave, privacy-preserving verifiable totals, and a
-FIPS-204 known-answer test harness.
+Designed but not yet built: PQC-inside-the-enclave, privacy-preserving verifiable
+totals, and a FIPS-204 known-answer test harness.
