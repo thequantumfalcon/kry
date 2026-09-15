@@ -72,7 +72,7 @@ KRY external verification — attestation
   veracity_floor:  0.3924 (fraction anchored by more than self-report — external OR operator-run)
                    ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                      kry_tlsn_verify to independently check the underlying evidence doc
-  price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
   anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                    here: a genesis re-mint with upgraded tiers passes this check.
                    Re-run with --anchor <operator's pre-published chain head> to make
@@ -121,7 +121,7 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
     veracity_floor:  0.7078 (fraction anchored by more than self-report — external OR operator-run)
                      ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                        kry_tlsn_verify to independently check the underlying evidence doc
-    price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
+    price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
     anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                      here: a genesis re-mint with upgraded tiers passes this check.
                      Re-run with --anchor <operator's pre-published chain head> to make

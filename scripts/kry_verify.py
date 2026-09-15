@@ -63,7 +63,7 @@ _COMPARE_EPS = 1e-9
 # standalone verifier can carry them. A drift-guard test
 # (tests/test_external_verify.py) asserts they still match the package source,
 # so this copy can never silently diverge.
-_PRICE_AS_OF = "2026-06-03"
+_PRICE_AS_OF = "2026-09-15"
 _FRONTIER_USD_PER_M = 25.0
 # S3: the KNOWN anchored tiers (must match kry_mint._ANCHORED_TIERS). The anchored fraction counts
 # ONLY these — a forged or typo'd tier (e.g. magic_attested) is not anchored and can't inflate the floor.
@@ -74,6 +74,10 @@ _EARN_RATES = {
     "cache_creation": 0.0,
 }
 _MODEL_USD_PER_M = {
+    # Current provider model ids first (the package matches by substring in insertion order), then the
+    # older class entries, which stay so receipts minted at those prices still verify.
+    "claude-fable-5": 50.0, "claude-sonnet-5": 10.0, "claude-sonnet-4-6": 15.0, "claude-sonnet-4-5": 15.0,
+    "claude-haiku-4-5": 5.0,
     "opus": 25.0, "sonnet": 7.5, "haiku": 1.25, "gpt-5": 10.0,
     "gpt-4o-mini": 0.60, "gpt-4o": 10.0,  # OpenAI list prices (mini before gpt-4o for substring match)
     "deepseek-v4-pro": 1.10, "deepseek": 0.55, "qwen": 1.25, "gemini": 0.0,

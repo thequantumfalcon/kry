@@ -480,6 +480,15 @@ def get_ledger() -> KRYLedger:
 
 # Per-model $/M output (mirrors the host's model-pricing map; frontier = $25/M)
 _MODEL_OUTPUT_USD_PER_M: dict[str, float] = {
+    # Current provider model ids at list price. Matching is by substring in insertion order, so these
+    # exact ids come first and win over the older class entries below.
+    "claude-fable-5":    50.0,   # Fable 5 and 5.1; the multiplier caps at 1.0 (the $25 frontier)
+    "claude-sonnet-5":   10.0,
+    "claude-sonnet-4-6": 15.0,
+    "claude-sonnet-4-5": 15.0,
+    "claude-haiku-4-5":   5.0,
+    # Older class entries, unchanged so receipts minted at these prices still verify (SPEC_DEVELOPMENT.md
+    # ground rule 1). A model id without an exact entry above still matches them.
     "opus":    25.0,   # gh/ or or/ Opus-class
     "sonnet":   7.5,   # Sonnet-class estimate
     "haiku":    1.25,  # Haiku-class
@@ -501,18 +510,29 @@ _FREE_PREFIXES = ("google", "groq", "nim", "local", "pool")
 # values live ONLY in _MODEL_OUTPUT_USD_PER_M above (single source of truth; the
 # EARN_RATES-drift footgun stays closed). `quality` is honest: "list" = a real
 # public list price, "estimate" = our approximation (no single canonical list).
-PRICE_BASIS_AS_OF = "2026-06-03"
+# The newest date any entry was checked; each entry's own date is its `as_of` below.
+PRICE_BASIS_AS_OF = "2026-09-15"
 _PRICE_SOURCE: dict[str, dict] = {
-    "opus":            {"quality": "list",     "source": "Anthropic/OpenRouter Opus-4.x output list price"},
-    "sonnet":          {"quality": "estimate", "source": "Sonnet-class estimate (no single canonical list)"},
-    "haiku":           {"quality": "list",     "source": "Anthropic Haiku output list price"},
-    "gpt-5":           {"quality": "estimate", "source": "GPT-5.x via Copilot premium-request estimate"},
-    "gpt-4o-mini":     {"quality": "list",     "source": "OpenAI gpt-4o-mini output list price ($0.60/M)"},
-    "gpt-4o":          {"quality": "list",     "source": "OpenAI gpt-4o output list price ($10/M)"},
-    "deepseek-v4-pro": {"quality": "list",     "source": "OpenRouter deepseek-v4-pro output list price"},
-    "deepseek":        {"quality": "list",     "source": "OpenRouter deepseek output list price"},
-    "qwen":            {"quality": "estimate", "source": "Qwen-class estimate"},
-    "gemini":          {"quality": "list",     "source": "Google AI Studio free quota ($0)"},
+    "claude-fable-5":    {"quality": "list", "as_of": "2026-09-15",
+                          "source": "Anthropic pricing page, Fable 5 and 5.1 output list price ($50/M)"},
+    "claude-sonnet-5":   {"quality": "list", "as_of": "2026-09-15",
+                          "source": "Anthropic pricing page, Sonnet 5 output list price ($10/M)"},
+    "claude-sonnet-4-6": {"quality": "list", "as_of": "2026-09-15",
+                          "source": "Anthropic pricing page, Sonnet 4.6 output list price ($15/M)"},
+    "claude-sonnet-4-5": {"quality": "list", "as_of": "2026-09-15",
+                          "source": "Anthropic pricing page, Sonnet 4.5 output list price ($15/M)"},
+    "claude-haiku-4-5":  {"quality": "list", "as_of": "2026-09-15",
+                          "source": "Anthropic pricing page, Haiku 4.5 output list price ($5/M)"},
+    "opus":            {"quality": "list",     "as_of": "2026-06-03", "source": "Anthropic/OpenRouter Opus-4.x output list price"},
+    "sonnet":          {"quality": "estimate", "as_of": "2026-06-03", "source": "Sonnet-class estimate (no single canonical list)"},
+    "haiku":           {"quality": "list",     "as_of": "2026-06-03", "source": "Anthropic Haiku output list price"},
+    "gpt-5":           {"quality": "estimate", "as_of": "2026-06-03", "source": "GPT-5.x via Copilot premium-request estimate"},
+    "gpt-4o-mini":     {"quality": "list",     "as_of": "2026-06-03", "source": "OpenAI gpt-4o-mini output list price ($0.60/M)"},
+    "gpt-4o":          {"quality": "list",     "as_of": "2026-06-03", "source": "OpenAI gpt-4o output list price ($10/M)"},
+    "deepseek-v4-pro": {"quality": "list",     "as_of": "2026-06-03", "source": "OpenRouter deepseek-v4-pro output list price"},
+    "deepseek":        {"quality": "list",     "as_of": "2026-06-03", "source": "OpenRouter deepseek output list price"},
+    "qwen":            {"quality": "estimate", "as_of": "2026-06-03", "source": "Qwen-class estimate"},
+    "gemini":          {"quality": "list",     "as_of": "2026-06-03", "source": "Google AI Studio free quota ($0)"},
 }
 
 
