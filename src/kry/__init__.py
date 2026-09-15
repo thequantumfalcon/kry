@@ -5,4 +5,4 @@
 # metadata.version() would raise PackageNotFoundError. Keeping it here means every importable
 # copy — wheel or checkout — carries its own version. pyproject.toml remains the release source
 # of truth; tests/test_package_version.py pins this to it so the two cannot drift.
-__version__ = "0.1.4"
+__version__ = "0.1.5"
