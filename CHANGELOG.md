@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Each price now records its own date; `PRICE_BASIS_AS_OF` is the newest one.
   - Tests: `tests/test_output_price_refresh.py`.
 
+### Fixed
+
+- **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
+  re-extracted each vector's raw input with a regex that required `,\n` before `"expected"`. On CRLF
+  files it fell back to re-serializing the input, which respells numbers such as `1.0`, so four
+  valid vectors came back INVALID. The regex now accepts `\r\n`; the browser page's demo loader
+  shares the same extraction and the same fix. No vector or verdict changes.
+  - Tests: `tests/test_js_vectors_crlf.py` (fail on the previous runner, pass now).
+
 ## [0.1.5] - 2026-09-15
 
 ### Added
