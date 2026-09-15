@@ -97,6 +97,8 @@ _Nothing yet._
 - **SPEC.md states its own version** — the header said v1.0 while Annex C documented later
   revisions; it now gives the current version and the first-published date. The "A+" alias is
   retired from the live docs in favour of `production_ready`; dated records keep their wording.
+  Annex C and `docs/SPEC_DEVELOPMENT.md` now say v1.3 added ten vectors, not five, and Annex C
+  names the rule each one pins (#64).
 - **Contributor guidance** — `AGENTS.md`, a contributions policy in `CONTRIBUTING.md`, and
   `.github/release.yml`, which sorts GitHub's generated release notes by PR label.
 
