@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - It reproduces the provider's worked example: 40,000 Opus 5 cache-read tokens cost $0.02 instead of
     $0.20.
   - Plan and candidate spec: `docs/PROMPT_CACHE_PLAN.md`, `docs/SPEC_V1_4_PROMPT_CACHE.md`. Tests:
-    `tests/test_prompt_cache.py`, `tests/test_savings_report_prompt_cache.py`. 33 tests.
+    `tests/test_prompt_cache.py`, `tests/test_savings_report_prompt_cache.py`. 35 tests.
 
 ### Changed
 
@@ -44,7 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against the uncached input only. Both now use
   `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`. Receipts minted with the old
   count still reconcile and are reported in `matched_legacy_uncached_prompt`. OpenAI-style prompt counts
-  already include cached tokens and are unchanged. `tests/test_reconcile_anthropic_cache.py`. 6 tests.
+  already include cached tokens and are unchanged. Aggregate mode cannot tell old receipts from new
+  ones, so a window holding receipts minted with the old count is checked more loosely; the reconciler's
+  docstring says to reconcile such windows per request. `tests/test_reconcile_anthropic_cache.py`, plus an
+  end-to-end mint-and-reconcile test in `tests/test_savings_report_prompt_cache.py`. 6 tests.
 
 ## [0.1.4] - 2026-09-14
 

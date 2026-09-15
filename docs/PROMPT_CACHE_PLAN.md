@@ -155,7 +155,8 @@ unpriced until their cached-input rates are sealed.
 - The block never changes `saved_kry`, spend, efficiency, veracity, by-kind or by-class figures: run
   the same log with and without cache fields and compare. The block does not touch the mint path. The
   separate prompt-count fix (finding 3.2) does intentionally change `metered_tokens` on new
-  displacement receipts whose usage reports cache tokens.
+  displacement receipts whose usage reports cache tokens; an end-to-end test mints such a receipt,
+  reads the chain back and reconciles it.
 
 **A6. Validation.**
 

@@ -32,7 +32,11 @@ generation API `{tokens_prompt,tokens_completion}`, or flat
 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, because
 Anthropic reports cache reads and writes outside `input_tokens`; a receipt minted
 with `input_tokens` alone still matches and is counted in
-`matched_legacy_uncached_prompt`.
+`matched_legacy_uncached_prompt`. Two cautions follow from that bridge. Per-request
+mode gives a cache-bearing record two counts it can match, so use `--tolerance`
+sparingly. Aggregate mode cannot tell old receipts from new ones: in a window
+holding receipts minted with the old count, their totals understate against the
+provider's, which loosens the check, so reconcile such windows per request.
 
 Usage:
     python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export or_usage.json

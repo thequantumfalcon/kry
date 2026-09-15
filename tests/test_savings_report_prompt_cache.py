@@ -97,3 +97,63 @@ def test_text_report_labels_the_block(sr, capsys):
     out = capsys.readouterr().out
     assert "not minted, not attested, self-reported" in out
     assert "$0.1800 of $0.2500" in out
+
+
+@pytest.fixture
+def ledger(monkeypatch, tmp_path):
+    import kry.kry_attest as ka
+    import kry.kry_mint as km
+    import kry.kry_token as kt
+    log = tmp_path / "mint.jsonl"
+    monkeypatch.setattr(km, "_MINT_LOG_PATH", log)
+    monkeypatch.setattr(ka, "_MINT_LOG_PATH", log)
+    monkeypatch.setattr(kt, "_LEDGER_PATH", tmp_path / "ledger.json")
+    monkeypatch.setattr(km, "_DECAY_STATE_PATH", tmp_path / "decay.json")
+    km._RECEIPT_COUNTER = 0
+    km._CHAIN_TIP = "0" * 64
+    km._evidence_mints = {}
+    km._decay_loaded = True
+    kt._ledger_instance = kt.KRYLedger()
+    return log
+
+
+def test_displacement_receipt_carries_the_whole_prompt_and_reconciles(sr, ledger):
+    # The prompt-count fix changes what a new provider_metered receipt records. Mint one from usage
+    # that reports cache tokens, read the chain back, and reconcile it against the same provider call.
+    usage = {"input_tokens": 50, "cache_read_input_tokens": 1_000, "cache_creation_input_tokens": 248,
+             "output_tokens": 340}
+    record = {"id": "d1", "avoided_model": "gh/claude-opus-4.8", "served_model": "claude-sonnet-5",
+              "usage": usage}
+    sr._mint_and_attest([record], None)
+    rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
+    metered = [row for row in rows if row.get("evidence_tier") == "provider_metered"]
+    assert len(metered) == 1
+    assert metered[0]["metered_tokens"] == [1_298, 340]
+
+    spec = importlib.util.spec_from_file_location("kry_reconcile_e2e", _ROOT / "scripts" / "kry_reconcile.py")
+    rc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rc)
+    result = rc.reconcile(rc.load_t1_receipts(str(ledger)), [{"usage": usage}])
+    assert result["verdict"] == "RECONCILED"
+    assert result["matched_legacy_uncached_prompt"] == 0
+
+
+def test_holdout_and_displacement_spend_follow_the_same_rules(sr):
+    records = [
+        {"id": "h1", "request_class": "x", "holdout": True, "model": "claude-sonnet-5",
+         "usage": {"input_tokens": 1, "output_tokens": 1_000}},
+        {"id": "h2", "request_class": "x", "holdout": True, "model": "mystery-model-9",
+         "usage": {"completion_tokens": 1_000}},
+        {"id": "d1", "request_class": "y", "avoided_model": "gh/claude-opus-4.8",
+         "served_model": "mystery-model-9", "usage": {"completion_tokens": 500}},
+    ]
+    rep = sr.analyze(records)
+    # Paid classification still follows spend_cost, which treats both holdout models as paid.
+    assert rep["by_class"]["x"]["holdout_n"] == 2
+    assert rep["by_class"]["x"]["p_hat"] == 1.0
+    assert rep["by_kind"]["holdout"] == 2 and rep["by_kind"]["displacement"] == 1
+    # Spend: 400 KRY for the Sonnet 5 holdout; neither unknown-model call is charged.
+    assert rep["holdout"]["measurement_cost_kry"] == 400.0
+    assert rep["spend_kry"] == 400.0
+    assert rep["unpriced_spend_calls"] == 2
+    assert rep["by_class"]["y"]["tier"] == "provider_metered"
