@@ -63,6 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OSes throughout, so this is verdict consistency, not a containment hole. Whether the doctor's
   privacy scan should open out-of-packet inputs at all was handled separately; see the doctor input
   containment entry below. 3 new tests; the existing out-of-bundle test now also passes on Windows.
+  The same rule now also covers the expected-files set and public-packet privacy scan in
+  `_packet_surface_errors` and the doctor's expected-files set (#60): with a packet at a Windows
+  volume root, a POSIX-rooted input such as `/etc/x.json` resolved inside the packet and the
+  privacy scan read it (reproduced 3/3 on a mounted virtual disk). No pytest reproduces a volume
+  root, so this was validated by re-running that probe against the fix.
 - **The action verifier no longer reports a valid attestation as tampered on Windows** —
   `scripts/kry_action_verify.py` opened the attestation and anchor JSON without an encoding, so on
   Windows they were decoded as cp1252. A valid attestation saved as raw UTF-8 with a non-ASCII tool

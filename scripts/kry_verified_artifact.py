@@ -1963,7 +1963,7 @@ def _packet_surface_errors(artifact_path: Path, artifact: dict) -> list[str]:
             if key == "mint_log" or not isinstance(value, str) or not value:
                 continue
             input_path = Path(value)
-            if input_path.is_absolute():
+            if input_path.is_absolute() or PurePosixPath(value).is_absolute():
                 continue
             resolved = (packet_dir / input_path).resolve()
             try:
@@ -2002,7 +2002,7 @@ def _packet_surface_errors(artifact_path: Path, artifact: dict) -> list[str]:
             if not isinstance(value, str) or not value:
                 continue
             input_path = Path(value)
-            if input_path.is_absolute():
+            if input_path.is_absolute() or PurePosixPath(value).is_absolute():
                 continue
             resolved = (packet_dir / input_path).resolve()
             try:
