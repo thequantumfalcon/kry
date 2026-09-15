@@ -28,7 +28,15 @@ Provider export: a JSON list of usage records (per-request) or an aggregate
 total / list of aggregates (aggregate mode). Common shapes are normalised —
 OpenAI/Anthropic `{usage:{prompt_tokens,completion_tokens}}`, OpenRouter
 generation API `{tokens_prompt,tokens_completion}`, or flat
-`{prompt_tokens,completion_tokens}`.
+`{prompt_tokens,completion_tokens}`. An Anthropic record's prompt is
+`input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, because
+Anthropic reports cache reads and writes outside `input_tokens`; a receipt minted
+with `input_tokens` alone still matches and is counted in
+`matched_legacy_uncached_prompt`. Two cautions follow from that bridge. Per-request
+mode gives a cache-bearing record two counts it can match, so use `--tolerance`
+sparingly. Aggregate mode cannot tell old receipts from new ones: in a window
+holding receipts minted with the old count, their totals understate against the
+provider's, which loosens the check, so reconcile such windows per request.
 
 Usage:
     python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export or_usage.json
@@ -175,7 +183,24 @@ def normalize_provider_record(rec: dict) -> tuple[int, int]:
         raise ValueError("provider usage must be an object")
     p = _provider_token_value(u, ("prompt_tokens", "tokens_prompt", "input_tokens"))
     c = _provider_token_value(u, ("completion_tokens", "tokens_completion", "output_tokens"))
+    if "prompt_tokens" not in u and "tokens_prompt" not in u:
+        # Anthropic reports cache reads and writes outside input_tokens, so the whole prompt is their
+        # sum. OpenAI and OpenRouter prompt counts already include cached tokens.
+        p += (_provider_token_value(u, ("cache_read_input_tokens",))
+              + _provider_token_value(u, ("cache_creation_input_tokens",)))
     return p, c
+
+
+def _legacy_uncached_prompt(rec: dict) -> int | None:
+    """input_tokens alone for an Anthropic record that also reports cache tokens, else None.
+
+    Receipts minted before prompt counts included cache reads and writes carry this number."""
+    u = rec.get("usage", rec)
+    if "prompt_tokens" in u or "tokens_prompt" in u or "input_tokens" not in u:
+        return None
+    cached = (_provider_token_value(u, ("cache_read_input_tokens",))
+              + _provider_token_value(u, ("cache_creation_input_tokens",)))
+    return _provider_token_value(u, ("input_tokens",)) if cached else None
 
 
 def _norm_provider(rec: dict) -> tuple[int, int]:
@@ -224,22 +249,32 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
     many claims). tolerance allows minor per-side token accounting differences.
     """
     tolerance = _validate_tolerance(tolerance)
-    pool = [_norm_provider(r) for r in provider_records]
+    pool = [(_norm_provider(r), _legacy_uncached_prompt(r)) for r in provider_records]
     used = [False] * len(pool)
     matched: list[dict] = []
     unmatched: list[dict] = []
+    legacy_matches = 0
     for rcpt in t1_receipts:
         try:
             rp, rc = _metered_pair(rcpt.get("metered_tokens"))
         except ValueError as exc:
             raise ValueError(f"T1 receipt {rcpt.get('receipt_id')}: {exc}") from exc
         hit = None
-        for i, (pp, cc) in enumerate(pool):
+        for i, ((pp, cc), _) in enumerate(pool):
             if not used[i] and abs(pp - rp) <= tolerance and abs(cc - rc) <= tolerance:
                 hit = i
                 break
+        legacy = False
+        if hit is None:
+            # A receipt minted before prompts counted Anthropic cache tokens: match its uncached count.
+            for i, ((_, cc), lp) in enumerate(pool):
+                if (not used[i] and lp is not None and abs(lp - rp) <= tolerance
+                        and abs(cc - rc) <= tolerance):
+                    hit, legacy = i, True
+                    break
         if hit is not None:
             used[hit] = True
+            legacy_matches += legacy
             matched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc]})
         else:
             unmatched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc]})
@@ -248,6 +283,7 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
         "t1_receipts": total,
         "provider_records": len(pool),
         "matched": len(matched),
+        "matched_legacy_uncached_prompt": legacy_matches,
         "unmatched_receipts": unmatched,
         # 0/0 is UNDEFINED, never "perfect agreement" — an empty reconciliation must not read as 1.0
         # for any caller (the grade driver guards this too, but the helper must not lie at the source).
