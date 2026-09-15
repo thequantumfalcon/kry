@@ -18,12 +18,23 @@ THE HONEST EVIDENCE BOUNDARY (read before quoting numbers):
   * `cache_hit` is LiteLLM's RESPONSE cache, not provider-side prompt caching
     (`cached_tokens`); prompt-cache savings need a separate signal.
   * `response_cost` is LiteLLM's estimate from its price table (may be absent).
-    It is recorded in the receipt detail as context, never used as evidence.
+    It is recorded in the receipt detail as context, never used as evidence; so are
+    LiteLLM's `saved_cache_cost` and `autorouter_savings` figures.
+
+AUTO-ROUTER RECEIPTS: when LiteLLM's auto-router sends a request to a cheaper model,
+the request metadata carries `routing_decision.savings_baseline_model`, the model the
+router measures savings against. That becomes a T0 `short_circuit` receipt (the event
+the savings report mints for a displacement): `avoided_model` = the baseline,
+`served_model` = the model that ran, `tokens_saved` = output tokens, valued at kry's
+published price difference. The counterfactual is the operator's router configuration,
+not an observed call. LiteLLM's own figure is signed and prices input and cache tokens
+too, so the two need not agree. The decision's `signals` and keyword fields quote the
+caller's prompt and are never copied. The router's internal calls are skipped.
 
 Deliberately dict-based and stdlib-only: the extractor operates on the plain
 kwargs/response shapes LiteLLM already passes, so it is testable without
 litellm installed; the CustomLogger subclass is defined only when litellm is
-importable. Imports only kry.kry_mint (the package's stdlib core).
+importable. Imports only kry.kry_mint and kry.kry_token (the package's stdlib core).
 
 Use with the LiteLLM proxy (litellm_config.yaml):
 
@@ -81,6 +92,47 @@ def _usage_total_tokens(response_obj: Any) -> Optional[int]:
     return total if total > 0 else None
 
 
+def _finite(value: Any) -> Optional[float]:
+    """A real, finite number, or None (bools, NaN and infinities excluded)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value != value or value in (float("inf"), float("-inf")):
+        return None
+    return float(value)
+
+
+def _standard_logging_number(kwargs: dict, key: str) -> Optional[float]:
+    """A numeric field of LiteLLM's standard logging payload, recorded as context only."""
+    payload = kwargs.get("standard_logging_object")
+    return _finite(payload.get(key)) if isinstance(payload, dict) else None
+
+
+def _completion_tokens(response_obj: Any) -> Optional[int]:
+    """Output tokens of the served response: what a cheaper route saves on."""
+    usage = response_obj.get("usage") if isinstance(response_obj, dict) else getattr(response_obj, "usage", None)
+    value = usage.get("completion_tokens") if isinstance(usage, dict) else getattr(usage, "completion_tokens", None)
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _request_metadata(kwargs: dict) -> Optional[dict]:
+    """The request metadata LiteLLM's auto-router writes into (`metadata` or `litellm_metadata`)."""
+    params = kwargs.get("litellm_params")
+    if not isinstance(params, dict):
+        return None
+    merged: dict = {}
+    for key in ("metadata", "litellm_metadata"):   # litellm_metadata wins: the router reads it first
+        value = params.get(key)
+        if isinstance(value, dict):
+            merged.update(value)
+    return merged
+
+
+def _bare_model(name: str) -> str:
+    return name.rsplit("/", 1)[-1].lower()
+
+
 def receipt_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dict]:
     """Extract mint inputs from a LiteLLM success-callback event, or None.
 
@@ -102,23 +154,71 @@ def receipt_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dic
     cost_note = (f" litellm_cost_estimate={cost:.6f}"
                  if isinstance(cost, (int, float)) and not isinstance(cost, bool)
                  and cost == cost else "")   # NaN != NaN -> excluded
+    saved = _standard_logging_number(kwargs, "saved_cache_cost")
+    saved_note = f" litellm_saved_cache_cost={saved:.6f}" if saved is not None else ""
     return {
         "tokens_saved": float(tokens),
         "avoided_model": model,
-        "detail": f"litellm response-cache hit /litellm:{call_id}{cost_note}",
+        "detail": f"litellm response-cache hit /litellm:{call_id}{cost_note}{saved_note}",
         "evidence": f"litellm:{call_id}",
     }
 
 
+def route_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dict]:
+    """Extract short_circuit mint inputs for a request LiteLLM's auto-router sent to a cheaper model.
+
+    The counterfactual is the router's own `routing_decision.savings_baseline_model`; the served
+    model is the one the call actually ran on. Only model names and LiteLLM's own dollar figure are
+    copied: the decision's `signals` and keyword fields quote the caller's prompt and are never read.
+    Fail-closed: no routing decision, the router's internal calls, the baseline served itself, no
+    output tokens, or a route that is not cheaper at kry's published prices -> no receipt.
+    """
+    if not isinstance(kwargs, dict) or kwargs.get("cache_hit") is True:
+        return None
+    metadata = _request_metadata(kwargs)
+    if not metadata or metadata.get("internal_call_origin"):
+        return None
+    decision = metadata.get("routing_decision")
+    if not isinstance(decision, dict):
+        return None
+    baseline = decision.get("savings_baseline_model")
+    served = kwargs.get("model")
+    call_id = kwargs.get("litellm_call_id")
+    if not all(isinstance(value, str) and value for value in (baseline, served, call_id)):
+        return None
+    if _bare_model(baseline) == _bare_model(served):
+        return None
+    tokens = _completion_tokens(response_obj)
+    if tokens is None:
+        return None
+    from kry.kry_token import net_value_multiplier
+    if net_value_multiplier(baseline, served) <= 0:
+        return None   # not cheaper at kry's published prices: nothing to credit
+    savings = _standard_logging_number(kwargs, "autorouter_savings")
+    savings_note = f" litellm_autorouter_savings={savings:.6f}" if savings is not None else ""
+    return {
+        "tokens_saved": float(tokens),
+        "avoided_model": baseline,
+        "served_model": served,
+        "detail": f"litellm auto-router /litellm:{call_id} baseline={baseline} served={served}{savings_note}",
+        "evidence": f"litellm-route:{call_id}",
+    }
+
+
 def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
-    """Mint a T0 cache_hit receipt from one LiteLLM success event (or None).
+    """Mint a T0 receipt from one LiteLLM success event: cache_hit for a response-cache hit,
+    short_circuit for a request the auto-router sent to a cheaper model (or None).
 
     Never raises: this runs inside a serving gateway's logging hot path, and a
     foreign library's kwargs are a system boundary — attestation must not break
     traffic. A failed mint is a missing receipt, not a corrupted ledger.
     """
     try:
+        event_type = "cache_hit"
         fields = receipt_fields_from_litellm(kwargs, response_obj)
+        if fields is None:
+            event_type = "short_circuit"
+            fields = route_fields_from_litellm(kwargs, response_obj)
         if fields is None:
             return None
         call_id = fields["evidence"]
@@ -126,8 +226,9 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
             return None
         from kry import kry_mint
         receipt = kry_mint.mint(
-            "cache_hit", fields["tokens_saved"], fields["detail"],
-            evidence=fields["evidence"], avoided_model=fields["avoided_model"])
+            event_type, fields["tokens_saved"], fields["detail"],
+            evidence=fields["evidence"], avoided_model=fields["avoided_model"],
+            served_model=fields.get("served_model"))
         if receipt is not None:
             _seen_ids.add(call_id)
             _seen_order.append(call_id)

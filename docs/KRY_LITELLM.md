@@ -42,6 +42,26 @@ call id is the evidence key, minted at most once per process). Anything malforme
 missing fails closed: no receipt, never a guessed one, and the logging path never raises
 into your serving traffic.
 
+## Auto-router receipts
+
+When LiteLLM's auto-router sends a request to a cheaper model, the request metadata carries
+`routing_decision.savings_baseline_model`: the model the router measures its savings against.
+Each such request mints one `short_circuit` receipt, the same event the savings report mints for
+a displacement:
+
+- `avoided_model` is the router's baseline; `served_model` is the model that actually ran.
+- `tokens_saved` is the response's output tokens, valued at kry's published price difference
+  between the two models.
+- Nothing is minted for the router's own internal calls (classifier, shadow evaluation), when the
+  baseline served the request itself, or when the route is not cheaper at kry's published prices.
+- LiteLLM's `autorouter_savings` figure is recorded in the receipt detail as context. It is signed
+  and also prices input and cache tokens, so it need not match kry's value.
+- The decision's `signals` and keyword fields quote the caller's prompt; they are never copied.
+
+The receipt is `self_reported` (T0): the counterfactual is your router configuration, not a call
+anyone observed. It proves the ledger of routed requests is intact and priced at public rates, not
+that the baseline would have been called.
+
 ## Attest and hand it to a stranger
 
 ```bash
