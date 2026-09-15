@@ -19,13 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - It is labeled "not minted, not attested, self-reported" and is never added to `saved_kry`,
     `efficiency_ratio` or veracity. The block leaves every minted figure unchanged, and a test checks
     that.
-  - Model ids not in the table, batch or priority tier, fast mode, and US-only inference are excluded
-    and counted. Writes without a TTL split are priced at the 1-hour rate, so the saving is never
-    overstated. A cache that is written but never read shows as a negative saving.
+  - These are excluded and counted:
+    - model ids not in the table
+    - batch or priority tier, fast mode, and US-only inference
+    - input above 200K tokens on the 4.5 models, for which the pricing page states no long-context
+      rate. A record that names its `context_window`, as an organization usage report row does, is
+      judged by that field instead.
+  - Writes without a TTL split are priced at the 1-hour rate, so the saving is never overstated. A
+    cache that is written but never read shows as a negative saving.
   - It reproduces the provider's worked example: 40,000 Opus 5 cache-read tokens cost $0.02 instead of
     $0.20.
   - Plan and candidate spec: `docs/PROMPT_CACHE_PLAN.md`, `docs/SPEC_V1_4_PROMPT_CACHE.md`. Tests:
-    `tests/test_prompt_cache.py`, `tests/test_savings_report_prompt_cache.py`. 35 tests.
+    `tests/test_prompt_cache.py`, `tests/test_savings_report_prompt_cache.py`. 41 tests.
 
 ### Changed
 

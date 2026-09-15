@@ -127,6 +127,13 @@ and leaves `saved_kry`, `veracity`, the chain and the corpus untouched.
   `"not_available"`. The prompt caching documentation's example shows `service_tier` `"standard"` and
   `inference_geo` `"global"`. The full value sets must be confirmed from the API reference before
   implementation.)
+- Input above 200K tokens on `claude-opus-4-5`, `claude-sonnet-4-5` or `claude-haiku-4-5` is excluded
+  and counted as modifier-excluded. The pricing page states that 4.6-generation and later models bill
+  the full 1M context at standard rates, and gives no long-context rate for these ids.
+  - A record that names its `context_window`, as organization usage report rows do, is judged by that
+    field: any value other than `"0-200k"` is excluded. An aggregated row's token total says nothing
+    about any single request.
+  - Otherwise a single call is judged by its total input tokens.
 
 **A3. Report integration.** `kry_savings_report` gains a separate `prompt_cache` block in `--json` and
 a separate text section:

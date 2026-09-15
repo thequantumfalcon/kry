@@ -59,6 +59,14 @@ def test_cache_hits_are_not_provider_calls(sr):
     assert sr.analyze([hit])["prompt_cache"]["records"]["priced"] == 0
 
 
+def test_long_context_without_a_stated_rate_is_counted_not_priced(sr):
+    usage = {"input_tokens": 190_000, "cache_read_input_tokens": 60_000, "output_tokens": 100}
+    call = {"id": "p2", "model": "claude-sonnet-4-5", "usage": usage}
+    row = {"id": "p3", "model": "claude-sonnet-4-5", "usage": {**usage, "context_window": "0-200k"}}
+    records = sr.analyze([call, row])["prompt_cache"]["records"]
+    assert (records["modifier_excluded"], records["priced"]) == (1, 1)
+
+
 def test_strict_baseline_keeps_the_block_separate(sr):
     records = [{"id": "c", "cache_hit": True, "avoided_model": "gh/claude-opus-4.8",
                 "usage": {"completion_tokens": 500}}, _opus5_call()]

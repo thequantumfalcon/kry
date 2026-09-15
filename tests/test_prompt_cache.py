@@ -82,6 +82,28 @@ def test_standard_usage_is_priced(standard):
     assert pc.value_record("claude-opus-5", _usage(**standard))["status"] == "priced"
 
 
+@pytest.mark.parametrize("model", ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5-20251001"])
+def test_long_context_on_models_without_a_stated_rate_is_excluded(model):
+    over = _usage(input_tokens=150_000, cache_read_input_tokens=50_001)
+    at_limit = _usage(input_tokens=150_000, cache_read_input_tokens=50_000)
+    assert pc.value_record(model, over)["status"] == "modifier_excluded"
+    assert pc.value_record(model, at_limit)["status"] == "priced"
+
+
+def test_a_named_context_window_decides_for_aggregated_rows():
+    # A usage report row sums many requests, so its token total says nothing about any one of them.
+    row = _usage(input_tokens=5_000_000, cache_read_input_tokens=9_000_000)
+    assert pc.value_record("claude-sonnet-4-5", {**row, "context_window": "0-200k"})["status"] == "priced"
+    assert pc.value_record("claude-sonnet-4-5", {**row, "context_window": "200k-1M"})["status"] == "modifier_excluded"
+    assert pc.value_record("claude-sonnet-4-5", {**row, "context_window": None})["status"] == "modifier_excluded"
+
+
+def test_models_billing_the_full_window_at_standard_rates_stay_priced_above_200k():
+    assert pc.value_record("claude-opus-4-6", {**_usage(input_tokens=900_000), "context_window": "200k-1M"})[
+        "status"] == "priced"
+    assert pc.value_record("claude-opus-5", _usage(input_tokens=900_000))["status"] == "priced"
+
+
 @pytest.mark.parametrize("usage", [
     {"cache_read_input_tokens": 5},                            # no input_tokens field
     _usage(input_tokens=-1), _usage(cache_read_input_tokens=True), _usage(input_tokens="10"),

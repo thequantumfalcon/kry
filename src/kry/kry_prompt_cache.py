@@ -8,7 +8,8 @@ self-reported by construction.
 Anthropic reports cache reads and writes outside `input_tokens`: total input is
 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`. A record is valued only when
 its model id is in the table below and nothing in its usage changes the price (batch or priority
-tier, fast mode, US-only inference); every other record is counted, never guessed.
+tier, fast mode, US-only inference, or input above 200K tokens on a model with no stated long-context
+rate); every other record is counted, never guessed.
 """
 from __future__ import annotations
 
@@ -56,6 +57,20 @@ _ALIASES = {"claude-haiku-4-5-20251001": "claude-haiku-4-5"}
 _MILLION = Decimal(1_000_000)
 _TOKEN_FIELDS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 
+# The pricing page states that 4.6-generation and later models bill the full 1M context at standard
+# rates. It gives no long-context rate for these ids, so their input above 200K tokens is left out.
+_NO_STATED_LONG_CONTEXT_RATE = frozenset({"claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"})
+_LONG_CONTEXT_TOKENS = 200_000
+
+
+def _beyond_stated_context(usage: dict, counts: dict) -> bool:
+    """Whether usage may exceed the 200K tokens priced by the table. An organization usage report row
+    names its context window and sums many requests, so that field decides; a single call is judged by
+    its own input tokens."""
+    if "context_window" in usage:
+        return usage["context_window"] != "0-200k"
+    return sum(counts.values()) > _LONG_CONTEXT_TOKENS
+
 
 def _model_key(model: object) -> str | None:
     if not isinstance(model, str):
@@ -90,6 +105,8 @@ def value_record(model: object, usage: object) -> dict:
     counts = {field: _count(usage.get(field, 0)) for field in _TOKEN_FIELDS}
     if any(value is None for value in counts.values()):
         return {"status": "malformed", "model": key}
+    if key in _NO_STATED_LONG_CONTEXT_RATE and _beyond_stated_context(usage, counts):
+        return {"status": "modifier_excluded", "model": key}
     write = counts["cache_creation_input_tokens"]
 
     split = usage.get("cache_creation")

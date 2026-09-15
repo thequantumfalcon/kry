@@ -35,6 +35,10 @@ Sealed at 2026-09-15T04:21:04Z; hashes are in `PROMPT_CACHE_PLAN.md` §2.
   `inference_geo`. The values observed in real usage were `"standard"`, `"standard"` and
   `"not_available"`; the prompt caching documentation's example shows `service_tier` `"standard"` and
   `inference_geo` `"global"`.
+- **Long context:** 4.6-generation and later models bill the full 1M context at standard rates. The
+  pricing page states no long-context rate for the 4.5 models, so Stage A excludes their usage above
+  200K input tokens. Organization usage reports name each row's `context_window` (`"0-200k"` or
+  `"200k-1M"`); single API responses do not.
 
 ## 3. Design options
 
