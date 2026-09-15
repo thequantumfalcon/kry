@@ -1,8 +1,9 @@
 name: Release
 
 # Cut a release by pushing a signed tag: git tag -s v0.1.0 -m "Release v0.1.0" && git push origin v0.1.0
-# Produces a GitHub Release with the wheel + a source tarball, SHA-256 checksums, the release-verify
-# proof, and a SLSA build-provenance attestation — all gated behind the release verifier.
+# Produces a GitHub Release with the wheel, the sdist, a source tarball, SHA-256 checksums, the
+# release-verify proof, and a SLSA build-provenance attestation — all gated behind the release
+# verifier — then publishes the same wheel and sdist to PyPI through trusted publishing.
 on:
   push:
     tags: ["v*.*.*"]
@@ -121,6 +122,7 @@ jobs:
           python -m pip install --require-hashes -r .github/build-requirements.txt
           mkdir -p dist
           python -m build --wheel --outdir dist
+          python -m build --sdist --outdir dist    # the PyPI source distribution (PKG-INFO included)
           git archive --format=tar.gz --prefix="kry-${GITHUB_REF_NAME}/" \
             -o "dist/kry-${GITHUB_REF_NAME}-source.tar.gz" HEAD
           ( cd dist && sha256sum ./* > checksums.txt )
@@ -141,3 +143,58 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             dist/*.whl dist/*.tar.gz dist/checksums.txt release-verify.json \
             --title "${GITHUB_REF_NAME}" --generate-notes
+
+      # Hand exactly the attested wheel and sdist to `pypi` (not the git-archive source tarball,
+      # which is not an installable distribution).
+      - name: Stage the PyPI distributions
+        run: |
+          set -euo pipefail
+          mkdir -p pypi-dist
+          cp dist/*.whl "dist/kry_attest-${GITHUB_REF_NAME#v}.tar.gz" pypi-dist/
+          ls -l pypi-dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pypi-dist
+          path: pypi-dist/
+          if-no-files-found: error
+
+  # Trusted publishing: PyPI accepts an upload for kry-attest only from this workflow file running in
+  # the `pypi` environment, as configured on pypi.org, so no PyPI API token exists anywhere. The
+  # environment requires approval and admits only v*.*.* tags. Runs after the GitHub Release exists.
+  pypi:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/kry-attest/
+    permissions:
+      contents: read        # read the release's checksums.txt
+      id-token: write       # the OIDC token PyPI exchanges for a short-lived upload credential
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pypi-dist
+          path: dist
+
+      # Upload only files whose SHA-256 matches the checksums published with this GitHub Release.
+      - name: Match the files to the release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --pattern checksums.txt --dir release-checksums
+          ( cd dist && for f in *; do
+              grep -F "  ./${f}" ../release-checksums/checksums.txt > "../${f}.sha256" \
+                || { echo "::error::${f} is not listed in the release checksums"; exit 1; }
+              sha256sum -c "../${f}.sha256"
+            done )
+          [ "$(ls dist | wc -l)" -eq 2 ] || { echo "::error::expected exactly a wheel and an sdist"; exit 1; }
+
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist/

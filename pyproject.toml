@@ -44,6 +44,13 @@ Documentation = "https://github.com/thequantumfalcon/kry/blob/main/SPEC.md"
 Changelog = "https://github.com/thequantumfalcon/kry/blob/main/CHANGELOG.md"
 Issues = "https://github.com/thequantumfalcon/kry/issues"
 
+# `kry-verify` is the stdlib stranger verifier, shipped as its own top-level module so it still
+# imports nothing from `kry`. `kry-try` mints a throwaway receipt chain from synthetic events and
+# verifies it, so a first look needs no repository checkout.
+[project.scripts]
+kry-verify = "kry_verify:console_main"
+kry-try = "kry.try_demo:main"
+
 # The core token is stdlib-only. The `tee` extra adds the ONE thing you must never
 # hand-roll — audited public-key crypto — used solely by scripts/kry_tee_verify.py to
 # verify an AWS Nitro attestation's ECDSA-P384 signature + X.509 chain (the tee_attested

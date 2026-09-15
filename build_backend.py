@@ -36,7 +36,13 @@ METADATA_POLICY = EmailPolicy(utf8=True, max_line_length=0)
 DESCRIPTION_TYPES = {".md": "text/markdown", ".rst": "text/x-rst", ".txt": "text/plain"}
 
 # Everything an sdist consumer needs to rebuild the wheel from the tarball alone.
-SDIST_CONTENTS = ("pyproject.toml", "build_backend.py", "README.md", "LICENSE.md", "src")
+SDIST_CONTENTS = ("pyproject.toml", "build_backend.py", "README.md", "LICENSE.md", "src",
+                  "scripts/kry_verify.py")
+
+# The stdlib stranger verifier ships as its own top-level module, NOT inside the `kry` package: it
+# must keep importing nothing from `kry`, and a separate module keeps that boundary visible in an
+# installed environment. Keyed by the module's filename in site-packages.
+STANDALONE_MODULES = {"kry_verify.py": ROOT / "scripts" / "kry_verify.py"}
 
 ZIP_EPOCH = 315532800   # 1980-01-01T00:00:00Z — ZIP cannot encode timestamps before this
 
@@ -125,11 +131,42 @@ def _record_entry(path: str, data: bytes) -> str:
     return f"{path},sha256={_hash(data)},{len(data)}\n"
 
 
+def _entry_points() -> bytes | None:
+    """`entry_points.txt` for `[project.scripts]`; pip writes the console launchers from it."""
+    scripts = _project().get("scripts")
+    if not isinstance(scripts, dict) or not scripts:
+        return None
+    lines = ["[console_scripts]", *(f"{name} = {target}" for name, target in scripts.items())]
+    return ("\n".join(lines) + "\n").encode()
+
+
+def _editable_shim(source: pathlib.Path) -> bytes:
+    """A module that loads `source` from the checkout, so an editable install tracks edits to it.
+
+    The editable `.pth` only puts `src/` on sys.path, which does not reach a standalone module kept
+    elsewhere in the repository. Replacing the shim's own sys.modules entry makes `import`, `from ...
+    import` and `python -m` all see the real module.
+    """
+    return (
+        '"""Editable-install shim: loads this module from the source checkout."""\n'
+        "import importlib.util as _util\n"
+        "import sys as _sys\n"
+        "\n"
+        f"_spec = _util.spec_from_file_location(__name__, {str(source)!r})\n"
+        "_module = _util.module_from_spec(_spec)\n"
+        "_sys.modules[__name__] = _module\n"
+        "_spec.loader.exec_module(_module)\n"
+    ).encode()
+
+
 def _write_metadata_dir(base: pathlib.Path) -> str:
     dist_info = base / _dist_info_name()
     dist_info.mkdir(parents=True, exist_ok=True)
     (dist_info / "METADATA").write_bytes(_metadata())
     (dist_info / "WHEEL").write_bytes(_wheel())
+    entry_points = _entry_points()
+    if entry_points is not None:
+        (dist_info / "entry_points.txt").write_bytes(entry_points)
     return dist_info.name
 
 
@@ -163,13 +200,18 @@ def _wheel_files(editable: bool) -> list[tuple[str, bytes]]:
         (f"{dist_info}/WHEEL", _wheel()),
         (f"{dist_info}/licenses/{LICENSE.name}", LICENSE.read_bytes()),
     ]
+    entry_points = _entry_points()
+    if entry_points is not None:
+        files.append((f"{dist_info}/entry_points.txt", entry_points))
     if editable:
         # P6: derive the path filename from the distribution so it cannot go stale again the way
         # `kry_token_editable.pth` did when the distribution was renamed to kry-attest.
         pth = f"{_dist_name(str(_project()['name']))}_editable.pth"
         files.append((pth, f"{SRC}\n".encode()))
+        files.extend((name, _editable_shim(source)) for name, source in STANDALONE_MODULES.items())
     else:
         files.extend(_package_files())
+        files.extend((name, source.read_bytes()) for name, source in STANDALONE_MODULES.items())
     return files
 
 

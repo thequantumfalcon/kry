@@ -116,6 +116,20 @@ Expected packet result on bundled sample data:
 - `scripts/kry_doctor.py --artifact ...` has zero FAIL items and keeps external
  evidence warnings until real provider/reviewer/buyer/legal evidence exists.
 
+## Publishing
+
+- Push a signed `vX.Y.Z` tag on the release commit, with the version matching `pyproject.toml`. Use
+  the GitHub noreply address as the tagger email: GitHub rejects a push that would publish a private
+  email address, and `.github/allowed_signers` lists the noreply address.
+- The Release workflow's `gate` job checks the tag format and signature and runs
+  `scripts/kry_release_verify.py --full`.
+- Approve `publish` in the `release` environment. It creates the GitHub Release with the wheel,
+  sdist, source tarball, `checksums.txt`, the release-verify proof and build provenance.
+- Approve `pypi` in the `pypi` environment. It uploads the same wheel and sdist to PyPI after matching
+  them to the release's `checksums.txt`. PyPI must list this repository as a trusted publisher for
+  `kry-attest` (workflow `release.yml`, environment `pypi`).
+- Both environments accept deployments only from `v*.*.*` tags.
+
 ## Release Stop Conditions
 
 Do not ship an external-facing release if any of these are true:
