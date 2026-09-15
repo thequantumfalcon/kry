@@ -174,7 +174,7 @@ async function loadDemo(vectorPath, label, storyText) {
     const raw = await (await fetch(vectorPath)).text();
     // Seed the textarea with the RAW input text — re-serializing would change number
     // spellings and (correctly) break the self-hash. Same extraction as cli.mjs.
-    const m = raw.match(/"input":\s*([\s\S]*?),\n\s*"expected"/);
+    const m = raw.match(/"input":\s*([\s\S]*?),\r?\n\s*"expected"/);
     if (!m) throw new Error("vector shape");
     $("in").value = m[1];
     setAnchor(JSON.parse(raw).input_anchor, label);

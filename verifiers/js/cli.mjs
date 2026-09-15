@@ -39,7 +39,7 @@ function runVectors(dir) {
       inputText = spec.input_raw_text;
     } else {
       // re-extract the exact input JSON text so numbers are preserved verbatim
-      const m = raw.match(/"input":\s*([\s\S]*?),\n\s*"expected"/);
+      const m = raw.match(/"input":\s*([\s\S]*?),\r?\n\s*"expected"/);   // \r?: a CRLF checkout must not fall back
       inputText = m ? m[1] : JSON.stringify(spec.input);
     }
     const got = spec.input_anchor !== undefined
