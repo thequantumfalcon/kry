@@ -71,6 +71,16 @@ PRIVATE_KEY_WORDS = {
     "content", "conversation", "conversations", "chat", "transcript", "dialog",
     "dialogue", "body",
 }
+# Provider usage fields the savings report and reconciler read. The four text fields set the price and
+# are allowed only with a documented value (or null), so free text under these names is still rejected;
+# cache_creation holds the 5-minute/1-hour write split, token counts only.
+PRICE_FIELD_VALUES = {
+    "service_tier": {"standard", "priority", "priority_on_demand", "batch", "flex", "flex_discount"},
+    "speed": {"standard", "fast"},
+    "inference_geo": {"global", "us", "not_available"},
+    "context_window": {"0-200k", "200k-1M"},
+}
+PROVIDER_USAGE_KEYS = {"cache_creation", *PRICE_FIELD_VALUES}
 # Bounded schemas — usage logs and provider exports must carry ONLY documented fields, so an
 # UNRECOGNIZED key holding a string/dict/list value (which could smuggle prompt content under a
 # generic name like msg/text/data/note/query) is rejected. Token keys are exempted separately.
@@ -79,13 +89,13 @@ USAGE_LOG_ALLOWED_KEYS = {
     "cache_hit", "cached", "displacement", "holdout", "model", "model_name",
     "avoided_model", "served_model", "usage", "tokens_saved", "evidence_tier",
     "ts", "timestamp", "time", "seq", "saved", "cost", "treated",
-} | USAGE_LOG_PUBLIC_TOKEN_KEYS
+} | USAGE_LOG_PUBLIC_TOKEN_KEYS | PROVIDER_USAGE_KEYS
 PROVIDER_EXPORT_ALLOWED_KEYS = {
     "id", "request_id", "requestid", "generation_id", "gen_id", "model", "model_name",
     "provider", "provider_name", "object", "type", "index", "created", "created_at", "ts", "timestamp",
     "finish_reason", "native_finish_reason", "usage", "cost", "total_cost",
-} | PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS   # provider_name: kry_or_fetch.to_export_record emits it (the
-                                       # project's own OpenRouter export must pass its own privacy gate)
+} | PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS | PROVIDER_USAGE_KEYS   # provider_name: kry_or_fetch.to_export_record
+                                       # emits it (the project's own OpenRouter export must pass its own privacy gate)
 
 
 def _json_key_label(value) -> str:
@@ -126,6 +136,18 @@ def _private_key_errors(
                 )
                 if is_private:
                     errors.append(f"{source_label} contains private field {child_path}")
+                    if len(errors) >= limit:
+                        return
+                elif (
+                    allowed_keys is not None
+                    and key_label in PRICE_FIELD_VALUES
+                    and item is not None
+                    and not (isinstance(item, str) and item in PRICE_FIELD_VALUES[key_label])
+                ):
+                    # The value is not echoed: an undocumented value may itself be private text.
+                    errors.append(
+                        f"{source_label} field {child_path} has an undocumented value "
+                        f"(allowed: {', '.join(sorted(PRICE_FIELD_VALUES[key_label]))}, or null)")
                     if len(errors) >= limit:
                         return
                 elif (

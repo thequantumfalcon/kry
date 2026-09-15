@@ -451,6 +451,12 @@ bodies, raw provider payloads, or zero provider records before writing the manif
 It also refuses zero provider token totals before writing the manifest, and
 `--write-corpus-manifest` applies the same check to both the usage log and
 provider export before writing the corpus manifest.
+Usage logs and provider exports may carry only documented fields.
+
+The provider's usage fields are accepted:
+- `cache_creation` (token counts only)
+- `service_tier`, `speed`, `inference_geo` and `context_window`, each only with a documented value
+  or null
 
 ## Provider Export Manifest Schema
 
