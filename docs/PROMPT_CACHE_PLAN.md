@@ -100,7 +100,8 @@ and leaves `saved_kry`, `veracity`, the chain and the corpus untouched.
 **A1. Dated input price basis.** New module `src/kry/kry_prompt_cache.py`, stdlib only:
 
 - Per-model base input price, cache read price, 5-minute write price and 1-hour write price, copied
-  from the sealed pages. Each entry records `source` (URL), `as_of` (2026-09-15) and the page SHA-256.
+  from the sealed pages. The table records its `as_of` date (2026-09-15) once, with every source URL
+  and page SHA-256 (`PRICE_SOURCES`).
 - Models are matched by an explicit table of provider model ids (for example `claude-opus-5` →
   Claude Opus 5), not by substring. An unrecognized model is reported as unpriced and excluded.
 - Kept separate from `_MODEL_OUTPUT_USD_PER_M`, so Stage A cannot change minting or verification.
@@ -151,8 +152,10 @@ unpriced until their cached-input rates are sealed.
 - Modifier records excluded; the JSON block shape and label.
 - With `--strict-baseline`, the prompt-cache block keeps its label and list-price dollars while the
   existing self-reported cache-hit savings are zeroed, and the two are never combined in any total.
-- The block never changes `saved_kry`, the veracity block or the mint log: run the same log with and
-  without cache fields and compare.
+- The block never changes `saved_kry`, spend, efficiency, veracity, by-kind or by-class figures: run
+  the same log with and without cache fields and compare. The block does not touch the mint path. The
+  separate prompt-count fix (finding 3.2) does intentionally change `metered_tokens` on new
+  displacement receipts whose usage reports cache tokens.
 
 **A6. Validation.**
 
