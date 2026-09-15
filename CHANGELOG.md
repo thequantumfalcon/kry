@@ -41,8 +41,9 @@ _Nothing yet._
   §3.5: a `veracity` key that is absent or not a JSON object is INVALID; each of `by_tier`,
   `anchored_kry`, `self_reported_kry` and `veracity_floor` must be present (an absent one used to
   skip its check); `by_tier` is compared as a map with equal key sets; and every declared-vs-derived
-  numeric comparison uses one absolute tolerance of `1e-9`. `scripts/kry_verify.py` previously
-  accepted a `total_kry` or veracity value up to `0.01` from the derived one. Missing required
+  numeric comparison uses one absolute tolerance of `1e-9`. Both Python verifiers previously
+  accepted a `total_kry`, `anchored_kry`, `self_reported_kry` or `veracity_floor` up to `0.01` from
+  the derived value; the JS verifier used `1e-9` and `1e-4` for those fields. Missing required
   envelope keys (§3.1) are now reported by name, and an unrecognized `hash_version` fails closed.
   **Compatibility:** an attestation that omits a required field, or whose declared totals differ
   from the derived values by more than `1e-9`, now verifies INVALID where it could previously pass.
@@ -78,14 +79,14 @@ _Nothing yet._
   prompts, gateway rows and generated packets the docs walk a user through creating at the repo
   root, plus `vectors/.mintwork/`.
 
-### Security (release path)
+### Security (release job split)
 
 - **The release gate no longer runs next to the signing credential** —
   `.github/workflows/release.yml` is split into a read-only `gate` job and a `publish` job that
   `needs: gate`. Only `publish` holds `id-token: write` and runs in the `release` environment, and
   its only package install is the hash-pinned build frontend. Both jobs have timeouts.
 
-### Documentation
+### Documentation (specs and contributor guidance)
 
 - **Acceptance-gate specs** — `docs/KRY_ADEQUACY_GATE_SPEC.md` and
   `docs/KRY_CORRECTNESS_LAYER_SPEC.md` describe the measurement behind
