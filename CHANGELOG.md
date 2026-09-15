@@ -66,6 +66,13 @@ _Nothing yet._
     values or null, so they cannot carry other text.
   - Tests: `tests/test_artifact_privacy.py`.
 
+### Documentation
+
+- `docs/PROMPT_CACHE_PLAN.md` now says Stage A shipped in 0.1.5 and Stage B is not implemented; it
+  still said nothing was implemented.
+- The README's real-world validation limit names the one real reconciliation (n=52 free-tier calls,
+  token counts only) instead of saying every result is on synthetic or internal data.
+
 ## [0.1.4] - 2026-09-14
 
 ### Added
