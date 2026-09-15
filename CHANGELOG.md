@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.3] - 2026-09-14
+
 ### Added (distribution surface)
 
 - **LiteLLM integration** (`scripts/kry_litellm_callback.py` + `docs/KRY_LITELLM.md`) — a
@@ -29,6 +33,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   demos fetch, and SPEC.md, staged into `_site` and published on every push to main
   (digest-pinned actions, harden-runner, minimal permissions). The site is the verify
   surface only, not a repo mirror.
+
+### Changed (SPEC v1.3 — the veracity rules made derivable)
+
+- **All three verifiers now fail closed on absent or loosely matched veracity fields** —
+  `scripts/kry_verify.py`, `src/kry/kry_attest.py` and `verifiers/js/verify.mjs` follow SPEC v1.3
+  §3.5: a `veracity` key that is absent or not a JSON object is INVALID; each of `by_tier`,
+  `anchored_kry`, `self_reported_kry` and `veracity_floor` must be present (an absent one used to
+  skip its check); `by_tier` is compared as a map with equal key sets; and every declared-vs-derived
+  numeric comparison uses one absolute tolerance of `1e-9`. Both Python verifiers previously
+  accepted a `total_kry`, `anchored_kry`, `self_reported_kry` or `veracity_floor` up to `0.01` from
+  the derived value; the JS verifier used `1e-9` and `1e-4` for those fields. Missing required
+  envelope keys (§3.1) are now reported by name, and an unrecognized `hash_version` fails closed.
+  **Compatibility:** an attestation that omits a required field, or whose declared totals differ
+  from the derived values by more than `1e-9`, now verifies INVALID where it could previously pass.
+  No existing vector changes verdict: the current JS verifier passes all 36 cases of the v0.1.2
+  corpus. The corpus grows to 46 cases (10 new `savings/adversarial` vectors).
+
+### Changed (tooling)
+
+- **The lint rule set is pinned** — `pyproject.toml` sets ruff's `select` to
+  `["E4", "E7", "E9", "F"]`, ruff's pre-0.16 default, so a ruff upgrade (0.16 widened the default)
+  no longer changes what the lint gate checks. `scripts/kry_release_verify.py` reads the dev tool
+  pins from `pyproject.toml` instead of keeping its own copy.
+- **The differential fuzz reaches absent-field cases** — `verifiers/diff_fuzz.py` gains envelope
+  field-deletion and reseal mutation classes, and CI runs it with a fresh seed per run
+  (`KRY_FUZZ_SEED`). The runs are recorded in `docs/evidence/spec_v1_sc2_run.md`.
+
+### Fixed (review hardening)
+
+- **Minting no longer credits an already-credited event again** — `_find_t1_receipt_for_gen` and
+  `_find_measurement_receipt_for_tee` (`src/kry/kry_mint.py`) raised on a legitimate zero-value row
+  (a free-tier `avoided_model`, every `tier_promotion`), which aborted the scan; the caller read
+  that as "no prior receipt" and minted fresh full value. Zero-value rows are now skipped one row at
+  a time. `verify_chain` now also rejects two v6+ receipts sharing a hash-bound `receipt_id`, which
+  both public verifiers already rejected. Tests: `tests/test_mint_receipt_lookup.py`.
+- **Importing a kry module no longer writes to disk** — `_kry_data_dir()` created `kry_data/` at
+  import time, so a bare import wrote into the caller's working directory and raised
+  `PermissionError` under a read-only one. Writers now create the directory when they first need
+  it. Tests: `tests/test_import_hygiene.py`.
+- **The wheel and source tarball are publishable** — `build_backend.py` writes the metadata a
+  published package needs, ships the license text and `src/kry/py.typed`, and builds a source
+  tarball that rebuilds the wheel on its own. Tests: `tests/test_build_backend.py`.
+- **Operator artifacts are ignored** — `.gitignore` now covers the provider exports, usage logs,
+  prompts, gateway rows and generated packets the docs walk a user through creating at the repo
+  root, plus `vectors/.mintwork/`.
+
+### Security (release job split)
+
+- **The release gate no longer runs next to the signing credential** —
+  `.github/workflows/release.yml` is split into a read-only `gate` job and a `publish` job that
+  `needs: gate`. Only `publish` holds `id-token: write` and runs in the `release` environment, and
+  its only package install is the hash-pinned build frontend. Both jobs have timeouts.
+
+### Documentation (specs and contributor guidance)
+
+- **Acceptance-gate specs** — `docs/KRY_ADEQUACY_GATE_SPEC.md` and
+  `docs/KRY_CORRECTNESS_LAYER_SPEC.md` describe the measurement behind
+  `scripts/kry_gate_specificity.py` and `scripts/kry_correctness_layer.py`, with the labeled seed at
+  `docs/evidence/adequacy_gate/labeled_seed.jsonl`. `docs/CLAIMS_BOUNDARY.md` records
+  correctness-anchored accepted savings as blocked, and `tests/test_public_claims.py` guards tracked
+  files against private host identifiers.
+- **SPEC.md states its own version** — the header said v1.0 while Annex C documented later
+  revisions; it now gives the current version and the first-published date. The "A+" alias is
+  retired from the live docs in favour of `production_ready`; dated records keep their wording.
+  Annex C and `docs/SPEC_DEVELOPMENT.md` now say v1.3 added ten vectors, not five, and Annex C
+  names the rule each one pins (#64).
+- **Contributor guidance** — `AGENTS.md`, a contributions policy in `CONTRIBUTING.md`, and
+  `.github/release.yml`, which sorts GitHub's generated release notes by PR label.
 
 ### Fixed (Windows portability)
 
@@ -513,7 +585,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/thequantumfalcon/kry/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/thequantumfalcon/kry/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/thequantumfalcon/kry/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thequantumfalcon/kry/releases/tag/v0.1.0
