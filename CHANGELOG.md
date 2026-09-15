@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ones, so a window holding receipts minted with the old count is checked more loosely; the reconciler's
   docstring says to reconcile such windows per request. `tests/test_reconcile_anthropic_cache.py`, plus an
   end-to-end mint-and-reconcile test in `tests/test_savings_report_prompt_cache.py`. 6 tests.
+- **Bundles accept provider usage as the provider reports it** — the bundle privacy gate allows only
+  documented usage-log and provider-export fields.
+  - It rejected `cache_creation`, `service_tier`, `speed` and `inference_geo`, which provider usage
+    objects carry, so a real usage log could not be bundled.
+  - Those fields are now accepted, along with `context_window` from organization usage reports.
+  - `cache_creation` may hold only token counts. The four text fields accept only their documented
+    values or null, so they cannot carry other text.
+  - Tests: `tests/test_artifact_privacy.py`.
 
 ## [0.1.4] - 2026-09-14
 
