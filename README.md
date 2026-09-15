@@ -364,9 +364,11 @@ capability matrix, not defects:
  writers on one host with a local data dir; for multi-node, prefer per-node state + chain
  reconciliation over one shared mutable file (`src/kry/_locks.py` documents this; a platform
  with neither lock primitive warns once and falls back to in-process locks only).
-- **Real-world validation** — every result here is on synthetic or internal data until a
- real provider export is reconciled. "Tested on synthetic data" ≠ "validated on real
- traffic," and this README will not blur the two.
+- **Real-world validation** — apart from one small real reconciliation (**n=52** free-tier
+ `:free`, $0 self-traffic, token counts checked against the provider's records, which grounds
+ that the calls existed, not that dollars were saved), every result here is on synthetic or
+ internal data. "Tested on synthetic data" ≠ "validated on real traffic," and this README will
+ not blur the two.
 
 ---
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.5] - 2026-09-15
+
 ### Added
 
 - **The savings report shows the provider prompt-cache discount** — `scripts/kry_savings_report.py`
@@ -61,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `cache_creation` may hold only token counts. The four text fields accept only their documented
     values or null, so they cannot carry other text.
   - Tests: `tests/test_artifact_privacy.py`.
+
+### Documentation
+
+- `docs/PROMPT_CACHE_PLAN.md` now says Stage A shipped in 0.1.5 and Stage B is not implemented; it
+  still said nothing was implemented.
+- The README's real-world validation limit names the one real reconciliation (n=52 free-tier calls,
+  token counts only) instead of saying every result is on synthetic or internal data.
 
 ## [0.1.4] - 2026-09-14
 
@@ -674,7 +685,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/thequantumfalcon/kry/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thequantumfalcon/kry/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/thequantumfalcon/kry/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/thequantumfalcon/kry/compare/v0.1.1...v0.1.2
