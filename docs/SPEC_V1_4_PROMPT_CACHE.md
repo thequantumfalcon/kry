@@ -100,6 +100,10 @@ Sealed at 2026-09-15T04:21:04Z; hashes are in `PROMPT_CACHE_PLAN.md` §2.
 
 ## 6. Separate candidate: refresh the output price basis
 
+**Status:** implemented after 0.1.5 as its own change (see the CHANGELOG under Unreleased). Exact
+current ids were added ahead of the class entries; every existing multiplier and vector verdict is
+unchanged, and the published set grew from 30 to 40 values.
+
 Not part of the prompt-cache profile, but found in the same investigation.
 
 - `PRICE_BASIS_AS_OF` is 2026-06-03. `_MODEL_OUTPUT_USD_PER_M` and its copy in `scripts/kry_verify.py`
@@ -130,7 +134,8 @@ practice (the SC2 differential fuzz and the release gate), added here as require
 1. Should `price_ref` point at a price file per release, or at one file that only grows?
 2. Should negative savings (writes never read back) be mintable as zero, rejected, or recorded as spend?
 3. Should the batch, US-only and fast-mode modifiers be profile fields, or out of scope for v1.4?
-4. Should the output price refresh (§6) ship before, with, or independently of v1.4?
+4. Should the output price refresh (§6) ship before, with, or independently of v1.4? Answered:
+   independently, as a separate change after Stage A.
 
 ## 9. Considered and rejected
 

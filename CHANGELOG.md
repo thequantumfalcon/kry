@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+
+- **Current provider models are valued at their list price** — the output price table in
+  `src/kry/kry_token.py` matched model ids by substring against class entries dated 2026-06-03, so
+  Sonnet 5 and Sonnet 4.6 minted at the $7.50 Sonnet estimate and Fable 5.1 and Haiku 4.5 at the
+  $1.25 floor. That under-credited savings; it never over-credited them.
+  - Exact provider ids now come first, at the list prices checked on 2026-09-15: Fable 5 and 5.1
+    $50, Sonnet 5 $10, Sonnet 4.6 and 4.5 $15, Haiku 4.5 $5. Opus 5 already matched the $25 entry.
+  - Every older entry is unchanged, so receipts minted at the older prices still verify. Every
+    multiplier legal in 0.1.5 stays legal, and 0.5 stays illegal.
+  - The published set in `vectors/primitives/legal_multipliers.json` grows from 30 to 40 values,
+    regenerated from the reference; the standalone verifier's copy and the browser page's inlined list
+    match it. No other conformance vector changes.
+  - Each price now records its own date; `PRICE_BASIS_AS_OF` is the newest one.
+  - Tests: `tests/test_output_price_refresh.py`.
 
 ## [0.1.5] - 2026-09-15
 

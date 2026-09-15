@@ -36,7 +36,7 @@ KRY external verification — attestation
   receipts:        2 (recomputed from links)
   total_kry:       1480.0 (recomputed from links, not the declared field)
   veracity_floor:  0.0 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
-  price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
   VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
 ```
 
@@ -62,7 +62,7 @@ KRY external verification — attestation
   receipts:        2 (recomputed from links)
   total_kry:       1481.0 (recomputed from links, not the declared field)
   veracity_floor:  0.0 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
-  price basis:     $25.0/M frontier, as of 2026-06-03 (magnitude recomputed from the public price table)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
   VERDICT: INVALID
     - seq 1: chain link broken — receipt inserted/removed/altered
     - total_kry mismatch: declared 1480.0, chain sums to 1481.0
