@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -26,6 +28,9 @@ def _copy_minimal_checkout(tmp_path: Path) -> Path:
     shutil.copy2(ROOT / "README.md", src / "README.md")
     shutil.copy2(ROOT / "LICENSE.md", src / "LICENSE.md")
     shutil.copytree(ROOT / "src" / "kry", src / "src" / "kry")
+    # the stranger verifier ships as a standalone module, so a checkout without it cannot build
+    (src / "scripts").mkdir()
+    shutil.copy2(ROOT / "scripts" / "kry_verify.py", src / "scripts" / "kry_verify.py")
     return src
 
 
@@ -52,16 +57,22 @@ def _run(cmd: list[str], *, cwd: Path | None = None):
     )
 
 
-def _install_and_import(tmp_path: Path, *, editable: bool):
+def _install(tmp_path: Path, *, editable: bool) -> tuple[Path, Path]:
+    """(checkout, venv) with the minimal checkout pip-installed into a fresh venv, offline."""
     checkout = _copy_minimal_checkout(tmp_path)
     venv = tmp_path / ("venv-editable" if editable else "venv-wheel")
     _run([sys.executable, "-m", "venv", str(venv)])
-    py = _venv_python(venv)
-    install_cmd = [str(py), "-m", "pip", "install", "--no-index"]
+    install_cmd = [str(_venv_python(venv)), "-m", "pip", "install", "--no-index"]
     if editable:
         install_cmd.append("-e")
     install_cmd.append(str(checkout))
     _run(install_cmd)
+    return checkout, venv
+
+
+def _install_and_import(tmp_path: Path, *, editable: bool):
+    checkout, venv = _install(tmp_path, editable=editable)
+    py = _venv_python(venv)
     out = subprocess.check_output(
         [str(py), "-c", "import kry; print(kry.__file__)"],
         env=_clean_python_env(),
@@ -173,7 +184,7 @@ def test_sdist_is_a_valid_tarball_that_rebuilds_the_wheel(tmp_path):
         payload = {member.name: tar.extractfile(member).read() for member in tar.getmembers()}
     assert all(name.startswith(f"{prefix}/") for name in payload)
     for required in ("PKG-INFO", "pyproject.toml", "build_backend.py", "README.md",
-                     "LICENSE.md", "src/kry/__init__.py", "src/kry/py.typed"):
+                     "LICENSE.md", "src/kry/__init__.py", "src/kry/py.typed", "scripts/kry_verify.py"):
         assert f"{prefix}/{required}" in payload
 
     # unpacked by hand rather than extractall(): tarfile's extraction `filter` is not available
@@ -189,3 +200,79 @@ def test_sdist_is_a_valid_tarball_that_rebuilds_the_wheel(tmp_path):
     )
     rebuilt = zipfile.ZipFile(extracted / prefix / "dist" / f"{prefix}-py3-none-any.whl")
     assert "kry/py.typed" in rebuilt.namelist()
+    assert "kry_verify.py" in rebuilt.namelist()
+
+
+def _declared_scripts() -> dict[str, str]:
+    with (ROOT / "pyproject.toml").open("rb") as handle:
+        return tomllib.load(handle)["project"]["scripts"]
+
+
+def _console_script(venv: Path, name: str) -> Path:
+    return venv / "Scripts" / f"{name}.exe" if os.name == "nt" else venv / "bin" / name
+
+
+def _run_command(script: Path, *args: str, cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run([str(script), *args], cwd=cwd, env=_clean_python_env(), capture_output=True,
+                          text=True, encoding="utf-8", errors="replace")
+
+
+def test_declared_commands_are_the_verifier_and_the_demo():
+    assert _declared_scripts() == {"kry-verify": "kry_verify:console_main", "kry-try": "kry.try_demo:main"}
+
+
+def test_wheel_ships_the_stranger_verifier_as_a_standalone_module(tmp_path):
+    archive = _built_wheel(tmp_path)
+    assert archive.read("kry_verify.py") == (ROOT / "scripts" / "kry_verify.py").read_bytes()
+    entry_points = archive.read(f"{_dist_info(archive)}/entry_points.txt").decode("utf-8")
+    assert entry_points.splitlines() == ["[console_scripts]"] + [
+        f"{name} = {target}" for name, target in _declared_scripts().items()]
+
+
+def test_stranger_verifier_imports_nothing_from_kry():
+    # Shipping it as an importable module must not erode the boundary that makes it a stranger's check.
+    tree = ast.parse((ROOT / "scripts" / "kry_verify.py").read_text(encoding="utf-8"))
+    modules = {alias.name for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names}
+    modules |= {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module}
+    assert not {m for m in modules if m == "kry" or m.startswith("kry.")}, sorted(modules)
+
+
+def test_editable_wheel_loads_the_verifier_from_the_checkout(tmp_path):
+    archive = _built_wheel(tmp_path, editable=True)
+    shim = archive.read("kry_verify.py").decode("utf-8")
+    assert repr(str(ROOT / "scripts" / "kry_verify.py")) in shim
+    assert f"{_dist_info(archive)}/entry_points.txt" in archive.namelist()
+
+
+def test_installed_commands_mint_verify_and_catch_an_edited_number(tmp_path):
+    _, venv = _install(tmp_path, editable=False)
+    work = tmp_path / "work"
+    work.mkdir()
+    demo = _run_command(_console_script(venv, "kry-try"), "--out", "att.json", cwd=work)
+    assert demo.returncode == 0, demo.stdout + demo.stderr
+    assert "SYNTHETIC" in demo.stdout
+    assert "VERDICT: VALID" in demo.stdout
+
+    verify = _console_script(venv, "kry-verify")
+    att_path = work / "att.json"
+    att = json.loads(att_path.read_text(encoding="utf-8"))
+    att_path.write_text(json.dumps(att), encoding="utf-8")      # control: re-serialized, unchanged
+    control = _run_command(verify, "att.json", cwd=work)
+    assert control.returncode == 0, control.stdout + control.stderr
+
+    att["links"][0]["kry_minted"] += 1
+    att_path.write_text(json.dumps(att), encoding="utf-8")
+    edited = _run_command(verify, "att.json", cwd=work)
+    assert edited.returncode == 1, edited.stdout + edited.stderr
+    assert "VERDICT: INVALID" in edited.stdout
+
+
+def test_editable_install_commands_run_from_the_checkout(tmp_path):
+    _, venv = _install(tmp_path, editable=True)
+    work = tmp_path / "work"
+    work.mkdir()
+    demo = _run_command(_console_script(venv, "kry-try"), "--out", "att.json", cwd=work)
+    assert demo.returncode == 0, demo.stdout + demo.stderr
+    assert "VERDICT: VALID" in demo.stdout
+    again = _run_command(_console_script(venv, "kry-verify"), "att.json", cwd=work)
+    assert again.returncode == 0, again.stdout + again.stderr

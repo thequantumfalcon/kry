@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Added
+
+- **`pip install kry-attest` installs two commands** — `kry-verify` runs the stdlib stranger verifier
+  (`scripts/kry_verify.py`). It ships in the wheel as its own top-level module, `kry_verify`, so it
+  still imports nothing from `kry`, and a new test checks that. `kry-try` mints a throwaway receipt chain
+  from two synthetic, self-reported events, attests it, and verifies it in a separate process. Until
+  now the wheel carried only the `kry` library, so an installed user had nothing to run without a
+  checkout. An editable install loads `kry_verify` from the checkout. `tests/test_build_backend.py`
+  installs both the wheel and an editable checkout into fresh virtual environments and runs both
+  commands, including a check that an edited number verifies INVALID. `tests/test_try_demo.py` covers
+  the checkout path and the demo's refusal to run once the ledger modules are already imported. 8 tests.
+- **PyPI publishing** — the Release workflow now builds an sdist alongside the wheel, and a new `pypi`
+  job runs after the GitHub Release. It uploads only a wheel and sdist whose SHA-256 values match the
+  release's `checksums.txt`, through PyPI trusted publishing (no API token), from a `pypi` environment
+  that requires approval. The GitHub Release also carries the sdist.
 
 - **The JS CLI verifies a single attestation against the published multipliers** —
   `node verifiers/js/cli.mjs <attestation.json>`, the command the README gives outsiders, never
@@ -19,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- `docs/VERIFY_FIRST_RECEIPT.md` walks a new user through installing, making a demo receipt, verifying
+  it, editing a number to see it fail, and checking it in the browser. The README Quickstart links it.
+- `docs/AUDIT_2026_06_23.md` no longer names the branch the audit ran on.
 - The browser verify page now says its verifier passes the 46-vector KRY-SPEC v1.3 corpus; it still
   said 36 vectors and v1.2.
 - `kry_pqc/README.md` no longer points to `kry_pqc/PLAN.md`, which was never in the repository; the

@@ -31,6 +31,7 @@ It does NOT prove VERACITY (that the underlying efficiency events happened) — 
 is the veracity_floor's job to disclose, not this script's to certify.
 
 Usage:
+    kry-verify attestation.json                  # after `pip install kry-attest`
     python3 scripts/kry_verify.py attestation.json
     python3 scripts/kry_verify.py attestation.json --registry kry_data/kry_settlement_registry.jsonl --party A --offer 5000
 """
@@ -826,6 +827,14 @@ def main(argv: list[str] | None = None) -> int:
         for e in errors:
             print(f"    - {e}")
     return 0 if ok else 1
+
+
+def console_main() -> int:
+    """Entry point for the `kry-verify` command installed by `pip install kry-attest`."""
+    for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
+    return main()
 
 
 if __name__ == "__main__":

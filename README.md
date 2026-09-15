@@ -207,6 +207,10 @@ witness a call that was never made. KRY makes that limit a first-class, labeled 
 No runtime package dependencies. `pip install -e .` works without build-time
 downloads. Tests use `pytest` and lint uses `ruff`.
 
+**To see a receipt verified without cloning:** `python3 -m pip install kry-attest`, then run `kry-try`
+and `kry-verify`. [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about
+five minutes. The steps below use a checkout.
+
 ```bash
 # 0) Install the package from this checkout (no runtime dependencies)
 python3 -m pip install -e .
