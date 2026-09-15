@@ -93,3 +93,8 @@ It runs a second, independent implementation (JavaScript) entirely in the page; 
 
 To produce receipts from your own gateway logs, clone the repository and follow the
 [README Quickstart](../README.md#quickstart), starting with `scripts/kry_savings_report.py`.
+
+If your logs carry Anthropic prompt-cache usage (`cache_read_input_tokens`,
+`cache_creation_input_tokens`), the report also shows a separate prompt-cache block: the discount the
+provider gave, at dated list prices. That figure is reported only. It is not minted, not attested, and
+never added to the savings a receipt carries.

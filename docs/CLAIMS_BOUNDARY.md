@@ -63,6 +63,11 @@ subject is void.
  whether the receipt is intact. Unblocking external verified-savings therefore requires the gate's
  specificity re-measured on the counterparty's own traffic, not just a provider export.
  See `docs/KRY_ADEQUACY_GATE_SPEC.md` and `docs/KRY_CORRECTNESS_LAYER_SPEC.md`.
+- Prompt-cache savings as attested or reconciled savings: the savings report's prompt-cache block
+ values provider-reported usage at dated list prices. It is not minted, not attested, and not
+ reconciled against an invoice, and flat-rate subscription usage makes its dollars list-price
+ equivalents only. Attesting it needs the SPEC v1.4 candidate profile
+ (`docs/SPEC_V1_4_PROMPT_CACHE.md`) and a provider usage export.
 
 Required evidence:
 

@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **The savings report shows the provider prompt-cache discount** — `scripts/kry_savings_report.py`
+  never read provider cache fields, so prompt caching, often the largest saving in agentic workloads,
+  reported as zero. The report now carries a separate `prompt_cache` block (JSON) and text section.
+  - It values Anthropic usage (`cache_read_input_tokens`, `cache_creation_input_tokens` and its
+    5-minute and 1-hour split) at list prices from a dated table in the new
+    `src/kry/kry_prompt_cache.py`. Every price source is recorded with the SHA-256 of the page it was
+    copied from.
+  - It is labeled "not minted, not attested, self-reported" and is never added to `saved_kry`,
+    `efficiency_ratio` or veracity. The block leaves every minted figure unchanged, and a test checks
+    that.
+  - Model ids not in the table, batch or priority tier, fast mode, and US-only inference are excluded
+    and counted. Writes without a TTL split are priced at the 1-hour rate, so the saving is never
+    overstated. A cache that is written but never read shows as a negative saving.
+  - It reproduces the provider's worked example: 40,000 Opus 5 cache-read tokens cost $0.02 instead of
+    $0.20.
+  - Plan and candidate spec: `docs/PROMPT_CACHE_PLAN.md`, `docs/SPEC_V1_4_PROMPT_CACHE.md`. Tests:
+    `tests/test_prompt_cache.py`, `tests/test_savings_report_prompt_cache.py`. 33 tests.
+
+### Changed
+
+- **The report's SPEND uses real prices for provider model ids** — `spend_cost` charges any model
+  without a `SPEND_RATES` prefix at the Opus rate. That overstated Sonnet 5 by 2.5x and understated the
+  Fable models by half. The report now uses `SPEND_RATES` for gateway ids and the dated list output
+  price for exact provider model ids. Any other model is counted in `unpriced_spend_calls` and left out
+  of SPEND. `spend_cost` itself is unchanged, so ledger routing charges still treat unknown models at
+  the frontier rate, and the report's paid/free classification still follows it.
+
+### Fixed
+
+- **Anthropic prompt counts include cache reads and writes** — `scripts/kry_reconcile.py` and the
+  savings report's `normalize` read Anthropic `input_tokens` as the whole prompt, but it excludes cache
+  reads and writes. A `provider_metered` receipt on a cached request therefore carried and was checked
+  against the uncached input only. Both now use
+  `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`. Receipts minted with the old
+  count still reconcile and are reported in `matched_legacy_uncached_prompt`. OpenAI-style prompt counts
+  already include cached tokens and are unchanged. `tests/test_reconcile_anthropic_cache.py`. 6 tests.
 
 ## [0.1.4] - 2026-09-14
 

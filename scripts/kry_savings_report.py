@@ -55,8 +55,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kry.kry_baseline import wilson_interval  # noqa: E402
+from kry.kry_prompt_cache import output_price_usd_per_m  # noqa: E402
+from kry.kry_prompt_cache import summarize as summarize_prompt_cache  # noqa: E402
 from kry.kry_token import (  # noqa: E402
     EARN_RATES,
+    FRONTIER_USD_PER_M_OUTPUT,
+    SPEND_RATES,
     USD_PER_KRY,
     net_value_multiplier,
     spend_cost,
@@ -146,6 +150,10 @@ def normalize(rec: dict) -> dict | None:
     u = rec.get("usage", rec)
     prompt = (u.get("prompt_tokens") or u.get("tokens_prompt")
               or u.get("input_tokens") or u.get("native_tokens_prompt") or 0)
+    if not (u.get("prompt_tokens") or u.get("tokens_prompt")) and "input_tokens" in u:
+        # Anthropic reports cache reads and writes outside input_tokens; the whole prompt is the sum.
+        prompt = (_safe_tokens(u.get("input_tokens")) + _safe_tokens(u.get("cache_read_input_tokens", 0))
+                  + _safe_tokens(u.get("cache_creation_input_tokens", 0)))
     completion = (u.get("completion_tokens") or u.get("tokens_completion")
                   or u.get("output_tokens") or u.get("native_tokens_completion") or 0)
     try:
@@ -173,6 +181,29 @@ def normalize(rec: dict) -> dict | None:
     }
 
 
+def _report_spend(model: str, completion: int) -> tuple[float, bool]:
+    """(KRY, priced) for the report's SPEND. Gateway ids in SPEND_RATES keep their rate; an exact
+    provider model id uses its dated list output price; anything else is unpriced and not charged.
+    spend_cost itself still charges unknown models the frontier rate, which keeps routing costs
+    fail-closed in the ledger, but that fallback is not a real price and would skew this report."""
+    if any(model.startswith(prefix) or model == prefix for prefix in SPEND_RATES):
+        return spend_cost(model, completion), True
+    price = output_price_usd_per_m(model)
+    if price is not None:
+        return completion * float(price) / FRONTIER_USD_PER_M_OUTPUT, True
+    return 0.0, False
+
+
+def _provider_calls(records: list[dict]):
+    """(model, usage) for each record that was a real provider call. A cache hit served by the
+    gateway made no call, so it carries no provider cache usage."""
+    for rec in records:
+        n = normalize(rec)
+        if n is None or n["cache_hit"]:
+            continue
+        yield (n["served_model"] or n["model"]), rec.get("usage", rec)
+
+
 def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
     """Compute the savings report (read-only — no minting, no persisted state).
 
@@ -197,6 +228,7 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
 
     spend_kry = 0.0
     holdout_cost_kry = 0.0
+    unpriced_spend_calls = 0
     treated: list[dict] = []
     displacements: list[dict] = []
     by_kind = {"cache_hit": 0, "holdout": 0, "displacement": 0, "paid_call": 0,
@@ -207,11 +239,12 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
         b = bucket(cls)
         if n["holdout"]:
             by_kind["holdout"] += 1
-            cost = spend_cost(n["model"], n["completion"])
+            cost, priced = _report_spend(n["model"], n["completion"])
+            unpriced_spend_calls += not priced
             spend_kry += cost
             holdout_cost_kry += cost
             b["holdout_n"] += 1
-            if cost > 0:                      # the forced call genuinely hit a PAID model
+            if spend_cost(n["model"], n["completion"]) > 0:   # the forced call genuinely hit a PAID model
                 b["holdout_paid_n"] += 1
         elif n["cache_hit"]:
             by_kind["cache_hit"] += 1
@@ -220,10 +253,13 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
         elif n["served_model"] and n["avoided_model"] and n["served_model"] != n["avoided_model"]:
             by_kind["displacement"] += 1
             displacements.append(n)
-            spend_kry += spend_cost(n["served_model"], n["completion"])  # the cheap leg is real spend
+            cost, priced = _report_spend(n["served_model"], n["completion"])
+            unpriced_spend_calls += not priced
+            spend_kry += cost                  # the cheap leg is real spend
         else:
-            cost = spend_cost(n["model"], n["completion"])
-            by_kind["paid_call" if cost > 0 else "free_call"] += 1
+            by_kind["paid_call" if spend_cost(n["model"], n["completion"]) > 0 else "free_call"] += 1
+            cost, priced = _report_spend(n["model"], n["completion"])
+            unpriced_spend_calls += not priced
             spend_kry += cost
 
     # Pass 2 — value the treated cache hits against the measured baseline.
@@ -268,6 +304,7 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
         "saved_usd": round(saved_kry * USD_PER_KRY, 4),       # retained dollars
         "spend_kry": round(spend_kry, 2),
         "spend_usd": round(spend_kry * USD_PER_KRY, 4),
+        "unpriced_spend_calls": unpriced_spend_calls,
         "efficiency_ratio": round(saved_kry / total_flow, 4) if total_flow else 0.0,
         "veracity": {
             "self_reported_kry": round(tier_kry["self_reported"], 2),
@@ -293,6 +330,8 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
             }
             for cls, b in sorted(by_class.items())
         },
+        # Reported beside the savings above, never added to them: not minted, not attested.
+        "prompt_cache": summarize_prompt_cache(_provider_calls(records)),
     }
 
 
@@ -360,6 +399,19 @@ def _print(report: dict) -> None:
         print(f"  holdout measurement:  {h['classes_measured']} class(es) measured; "
               f"cost {h['measurement_cost_kry']:,.2f} KRY (${h['measurement_cost_usd']:,.4f}) "
               f"— the price of veracity")
+    if report["unpriced_spend_calls"]:
+        print(f"  unpriced calls:       {report['unpriced_spend_calls']} (no spend rate or dated list "
+              f"price for the model; not counted in SPEND)")
+    pc = report["prompt_cache"]
+    r = pc["records"]
+    print(f"  prompt cache:         {pc['label']} (list prices as of {pc['price_basis_as_of']})")
+    if r["priced"]:
+        pct = "—" if pc["saving_pct_of_input_cost"] is None else f"{pc['saving_pct_of_input_cost']:.2%}"
+        print(f"    saving:             ${pc['saving_usd']:,.4f} of ${pc['without_caching_usd']:,.4f} "
+              f"input-side cost without caching ({pct})")
+    print(f"    records:            priced {r['priced']}, unpriced {r['unpriced']}, "
+          f"modifier-excluded {r['modifier_excluded']}, malformed {r['malformed']}; "
+          f"1-hour write price assumed for {r['ttl_assumed_1h']}")
     print("  by request-class:")
     for cls, b in report["by_class"].items():
         ph = "—" if b["p_hat"] is None else f"{b['p_hat']:.0%} (CI≥{b['ci_lo']:.0%})"

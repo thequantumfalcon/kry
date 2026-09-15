@@ -72,9 +72,17 @@ Raw pages were fetched and hashed at 2026-09-15T04:21:04Z. Figures below are cop
    `normalize_provider_record` reads `input_tokens` as the prompt count. For Anthropic that excludes
    cached tokens, so a `provider_metered` receipt on a cached request is compared against uncached
    input only.
+   **Decision (Stage A):** both the reconciler and the savings report's `normalize` count the whole
+   Anthropic prompt. Receipts minted with the old count still match and are reported separately as
+   legacy matches.
 3. **Spend and value disagree for unmatched models.** `spend_cost` charges any model with no
    `SPEND_RATES` prefix at the Opus rate, while `value_multiplier` gives unknown models 0.05. This skews
    the report's efficiency ratio.
+   **Decision (Stage A):** fixed in the report, not in `spend_cost`. `spend_cost` also prices routing in
+   the ledger (`spend`, `can_afford`), where charging unknown models the frontier rate keeps routing
+   fail-closed. The report now uses `SPEND_RATES` for gateway ids, the dated list output price for exact
+   provider model ids, and counts anything else as an unpriced call left out of SPEND. The paid/free
+   classification still follows `spend_cost`, so the analysis and mint paths stay aligned.
 
 ## 4. Non-goals
 
