@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The LiteLLM callback mints receipts for auto-router savings** —
+  `scripts/kry_litellm_callback.py` minted only response-cache hits.
+  - A request LiteLLM's auto-router sends to a cheaper model now mints a `short_circuit` receipt, the
+    event the savings report mints for a displacement. The avoided model is the router's
+    `savings_baseline_model`; the served model is the one that ran; tokens are output tokens.
+  - Nothing is minted for the router's internal calls, when the baseline served the request, or
+    when the route is not cheaper at kry's published prices.
+  - Receipts are `self_reported`: the counterfactual is the router configuration. LiteLLM's
+    `autorouter_savings` and `saved_cache_cost` figures are recorded as context, not evidence.
+  - The routing decision's `signals` and keyword fields quote the caller's prompt and are never
+    copied.
+  - Tests: `tests/test_litellm_callback.py` (7 new).
+
 ### Changed
 
 - **Current provider models are valued at their list price** — the output price table in
