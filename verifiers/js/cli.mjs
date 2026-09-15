@@ -3,8 +3,9 @@
 //   node cli.mjs <attestation.json>              # verify one; prints VALID/INVALID, exit 0/1
 //   node cli.mjs --vectors <dir>                 # run the whole conformance corpus
 //   node cli.mjs --batch <ndjson> [mult.json]    # one verdict per line (differential fuzz)
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { verdict, verdictWithAnchor, canon, canonF64, parse, Num, setMultipliers, SENT_SAVINGS } from "./verify.mjs";
 
 function runVectors(dir) {
@@ -69,6 +70,14 @@ if (arg === "--vectors") {
   }
   process.stdout.write(out.join("\n") + "\n");
 } else if (arg) {
+  // SPEC 3.4.1: magnitude checks MUST use the published multiplier set. Load it from this checkout's
+  // corpus, as --vectors does; without it verify.mjs falls back to {1.0} and rejects real attestations.
+  const multPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "vectors", "primitives", "legal_multipliers.json");
+  if (existsSync(multPath)) {
+    setMultipliers(JSON.parse(readFileSync(multPath, "utf8")).multipliers);
+  } else {
+    console.error(`warning: ${multPath} not found; magnitude checks use the default multiplier set {1.0}`);
+  }
   const text = readFileSync(arg, "utf8");
   const anchorPath = process.argv[3];             // SPEC 3.8: optional published-anchor JSON
   const v = anchorPath ? verdictWithAnchor(text, JSON.parse(readFileSync(anchorPath, "utf8"))) : verdict(text);
