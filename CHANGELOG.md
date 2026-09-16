@@ -22,6 +22,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     copied.
   - Tests: `tests/test_litellm_callback.py` (7 new).
 
+- **The prompt-cache report values OpenAI calls** (`docs/PROMPT_CACHE_PLAN.md` A4) — the report-only
+  `prompt_cache` block priced Anthropic models only, so an OpenAI call was counted as unpriced.
+  - GPT-5.6 and later are priced from the sealed pricing page at the standard tier's short-context
+    rates: cached input at 0.1x and cache writes at 1.25x the base input rate.
+  - OpenAI reports cache tokens inside `input_tokens` (`input_tokens_details.cached_tokens` and
+    `.cache_write_tokens`, or the `prompt_tokens` pair on Chat Completions), the opposite of
+    Anthropic; the ordinary tokens are the remainder. Both request shapes are read.
+  - A record stating any other `service_tier` (`flex`, `fast`, `priority`, `ultrafast`, `auto`,
+    `batch`) is excluded and counted. Batch result bodies carry no marker, so a batch export must be
+    tagged `service_tier: "batch"`; it bills at 50%, so an untagged batch record would be valued at
+    twice its true saving.
+  - Long-context rates are exactly 2x the short-context ones and the page states no threshold for
+    them, so such a call's saving is understated, never overstated. The `gpt-daybreak-*-latest`
+    aliases stay unpriced because the page repoints them at new models.
+  - Each price source now records its own `as_of`; `PRICE_BASIS_AS_OF` is the newest.
+  - Still report-only: nothing here mints, attests, or changes a verifier verdict.
+  - The artifact privacy gate accepts OpenAI's usage shape: its documented `service_tier` values and
+    the `input_tokens_details` / `prompt_tokens_details` / `output_tokens_details` objects, which carry
+    token counts only. Free text under any of those names, or smuggled inside one of the objects, is
+    still rejected, and no rejected value is echoed.
+  - Tests: `tests/test_prompt_cache.py` (10 new, including the guide's own worked example) and
+    `tests/test_artifact_privacy.py` (7 new, fixtures taken from a real response).
+
 ### Changed
 
 - **Current provider models are valued at their list price** — the output price table in

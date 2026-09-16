@@ -1,7 +1,7 @@
 # Plan: valuing provider prompt caching
 
-**Status:** Stage A (the report-only `prompt_cache` block) shipped in 0.1.5 (#69). Stage B (the attested
-form) is not implemented.
+**Status:** Stage A (the report-only `prompt_cache` block) shipped in 0.1.5 (#69), with A4 (OpenAI
+models) following it. Stage B (the attested form) is not implemented.
 **Companion:** [`SPEC_V1_4_PROMPT_CACHE.md`](SPEC_V1_4_PROMPT_CACHE.md), the spec development sheet for the
 attested (Stage B) form.
 
