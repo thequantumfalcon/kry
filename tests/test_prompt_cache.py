@@ -65,7 +65,7 @@ def test_split_that_does_not_add_up_is_malformed():
 
 def test_unknown_models_are_unpriced_and_the_haiku_snapshot_is_priced():
     assert pc.value_record("claude-mythos-5-1", _usage())["status"] == "unpriced"
-    assert pc.value_record("gpt-5.6-sol", _usage())["status"] == "unpriced"
+    assert pc.value_record("gpt-5.5", _usage())["status"] == "unpriced"
     assert pc.value_record(None, _usage())["status"] == "unpriced"
     assert pc.value_record("claude-haiku-4-5-20251001", _usage())["model"] == "claude-haiku-4-5"
 
@@ -149,6 +149,64 @@ def test_price_table_follows_the_documented_multipliers():
 def test_output_price_is_exact_or_none():
     assert pc.output_price_usd_per_m("claude-sonnet-5") == Decimal("10")
     assert pc.output_price_usd_per_m("or/anthropic/claude-opus-4.8") is None
+
+
+def _openai_usage(input_tokens, cached=0, write=0, **fields):
+    return {"input_tokens": input_tokens,
+            "input_tokens_details": {"cached_tokens": cached, "cache_write_tokens": write}, **fields}
+
+
+def test_openai_guide_example_values_the_cache_read_request():
+    # The guide's request 2, on gpt-5.6-sol ($4/M input): 12,000 read at 0.1x, 3,000 written at 1.25x.
+    r = pc.value_record("gpt-5.6-sol", _openai_usage(15_000, cached=12_000, write=3_000))
+    assert r["status"] == "priced"
+    assert (r["without_caching_usd"], r["actual_usd"], r["saving_usd"]) == (
+        Decimal("0.06"), Decimal("0.0198"), Decimal("0.0402"))
+    assert (r["input"], r["cache_read"], r["cache_write_5m"]) == (0, 12_000, 3_000)
+
+
+def test_openai_write_only_request_is_a_negative_saving():
+    # The guide's request 1: the whole prompt is written at 1.25x and nothing has been read back yet.
+    assert pc.value_record("gpt-5.6-sol", _openai_usage(12_000, write=12_000))["saving_usd"] == Decimal("-0.012")
+
+
+def test_openai_chat_completions_shape_is_read_too():
+    chat = {"prompt_tokens": 15_000,
+            "prompt_tokens_details": {"cached_tokens": 12_000, "cache_write_tokens": 3_000}}
+    assert pc.value_record("gpt-5.6-sol", chat)["saving_usd"] == Decimal("0.0402")
+
+
+@pytest.mark.parametrize("tier", ["flex", "fast", "priority", "ultrafast", "auto", "batch"])
+def test_openai_non_standard_tiers_are_excluded(tier):
+    usage = _openai_usage(15_000, cached=12_000, service_tier=tier)
+    assert pc.value_record("gpt-5.6-sol", usage)["status"] == "modifier_excluded"
+
+
+@pytest.mark.parametrize("usage", [
+    {"input_tokens_details": {"cached_tokens": 5}},        # no input count
+    _openai_usage(1_000, cached=900, write=200),           # cached + written exceed the prompt
+    _openai_usage(-1), _openai_usage(10, cached=True),
+    {"input_tokens": 10, "input_tokens_details": "garbage"},
+])
+def test_openai_malformed_usage_is_counted_not_valued(usage):
+    assert pc.value_record("gpt-5.6-sol", usage)["status"] == "malformed"
+
+
+@pytest.mark.parametrize("usage", [_openai_usage(2_000, cached=1_000),
+                                   _openai_usage(2_000, cached=1_000, service_tier="default")])
+def test_openai_standard_and_absent_tier_are_priced(usage):
+    assert pc.value_record("gpt-5.6-sol", usage)["status"] == "priced"
+
+
+def test_openai_price_table_follows_the_documented_multipliers():
+    for model, (base, cached, write, _out) in pc._OPENAI_PRICES.items():
+        assert Decimal(cached) == Decimal(base) / 10, model
+        assert Decimal(write) == Decimal(base) * Decimal("1.25"), model
+
+
+@pytest.mark.parametrize("model", ["gpt-daybreak-blue-latest", "gpt-5.5", "gpt-4o", "gpt-5-mini"])
+def test_moving_aliases_and_pre_5_6_models_stay_unpriced(model):
+    assert pc.value_record(model, _openai_usage(1_000))["status"] == "unpriced"
 
 
 def test_module_imports_nothing_that_mints():

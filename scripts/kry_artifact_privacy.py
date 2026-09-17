@@ -12,6 +12,13 @@ PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS = {
     "prompt_tokens",
     "tokens_prompt",
     "input_tokens",
+    # OpenAI reports its counters in these objects (token counts only): cache reads and writes on the
+    # input side, reasoning tokens on the output side. Every real response carries the output one.
+    # `prompt_tokens_details` is listed here so the private-word rule does not read its "prompt" as
+    # prompt content; a string smuggled under a new name inside any of them is still rejected.
+    "input_tokens_details",
+    "prompt_tokens_details",
+    "output_tokens_details",
     "completion_tokens",
     "tokens_completion",
     "output_tokens",
@@ -75,7 +82,9 @@ PRIVATE_KEY_WORDS = {
 # are allowed only with a documented value (or null), so free text under these names is still rejected;
 # cache_creation holds the 5-minute/1-hour write split, token counts only.
 PRICE_FIELD_VALUES = {
-    "service_tier": {"standard", "priority", "priority_on_demand", "batch", "flex", "flex_discount"},
+    # Anthropic's values, then OpenAI's documented set ("default" is its word for standard).
+    "service_tier": {"standard", "priority", "priority_on_demand", "batch", "flex", "flex_discount",
+                     "default", "auto", "fast", "ultrafast"},
     "speed": {"standard", "fast"},
     "inference_geo": {"global", "us", "not_available"},
     "context_window": {"0-200k", "200k-1M"},

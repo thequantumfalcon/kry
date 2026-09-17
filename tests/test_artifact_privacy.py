@@ -89,3 +89,38 @@ def test_price_fields_accept_only_documented_values(field, tmp_path):
 def test_cache_creation_carries_only_token_counts():
     usage = {**_PROVIDER_USAGE, "cache_creation": {"ephemeral_5m_input_tokens": 1, "note": "a private prompt"}}
     assert _usage_log_privacy_errors([{"model": "claude-opus-5", "usage": usage}])
+
+
+# OpenAI reports its cache counters in a nested object and names the standard tier "default".
+# Copied from a real response (2026-09-16); `prompt_tokens_details` is the Chat Completions spelling.
+_OPENAI_USAGE = {
+    "input_tokens": 5897, "input_tokens_details": {"cached_tokens": 5894, "cache_write_tokens": 0},
+    "output_tokens": 5, "output_tokens_details": {"reasoning_tokens": 0}, "total_tokens": 5902,
+    "service_tier": "default",
+}
+
+
+def test_usage_log_privacy_passes_openai_cache_fields():
+    responses = {"id": "o1", "model": "gpt-5.6-luna", "usage": _OPENAI_USAGE}
+    chat = {"id": "o2", "model": "gpt-5.6-luna", "usage": {
+        "prompt_tokens": 15_000, "completion_tokens": 2,
+        "prompt_tokens_details": {"cached_tokens": 12_000, "cache_write_tokens": 3_000}}}
+    assert _usage_log_privacy_errors([responses, chat]) == []
+
+
+def test_provider_export_privacy_passes_openai_cache_fields(tmp_path):
+    export = _export(tmp_path, [{"id": "o1", "model": "gpt-5.6-luna", "usage": _OPENAI_USAGE}])
+    assert _provider_export_privacy_errors(export) == []
+
+
+@pytest.mark.parametrize("tier", ["default", "auto", "fast", "ultrafast"])
+def test_openai_service_tier_values_are_documented(tier):
+    record = {"model": "gpt-5.6-luna", "usage": {**_OPENAI_USAGE, "service_tier": tier}}
+    assert _usage_log_privacy_errors([record]) == []
+
+
+@pytest.mark.parametrize("details", ["input_tokens_details", "prompt_tokens_details"])
+def test_openai_token_details_carry_only_token_counts(details):
+    # The nested object is allowed for its counts; free text under a new name inside it is not.
+    usage = {**_OPENAI_USAGE, details: {"cached_tokens": 1, "note": "a private prompt"}}
+    assert _usage_log_privacy_errors([{"model": "gpt-5.6-luna", "usage": usage}])
