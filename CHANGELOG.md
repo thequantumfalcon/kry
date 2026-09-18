@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `savings/adversarial/unknown_tier_claims_anchored`, both INVALID. The corpus grows from 46 to 48.
   - Both gaps were found by writing a fresh verifier from `SPEC.md` and the corpus alone, with no
     access to the reference implementation, and recording every point where the text left a choice.
+  - That review is recorded in `docs/SPEC_REVIEW_2026_09_17.md`: 25 points where the text leaves a
+    choice, of which these two were verdict-affecting and are fixed here, eight remain open, and the
+    corpus corrected none of them. It also names three blind spots in the corpus itself.
 
 - **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
   re-extracted each vector's raw input with a regex that required `,\n` before `"expected"`. On CRLF
