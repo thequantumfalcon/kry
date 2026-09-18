@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     was already skipped; a test pins that it can never reach the priced count.
   - Tests: `tests/test_savings_report_prompt_cache.py` (4 new).
 
+- **The LiteLLM callback is tested inside a real LiteLLM** — `tests/test_litellm_callback.py` feeds the
+  extractor hand-built events, which cannot catch a mismatch with the gateway itself.
+  `tests/test_litellm_integration.py` runs LiteLLM's own cache, callback dispatch and usage objects
+  with `mock_response`, so it needs no API key and spends nothing. Skipped where litellm is absent.
+  - Verified against the real package: a response-cache hit mints a `cache_hit` receipt and a request
+    carrying a `routing_decision` mints a `short_circuit` receipt; the chain verifies and the
+    prompt-quoting `signals` field never reaches a receipt.
+  - Two behaviours the run pinned, now documented in `docs/KRY_LITELLM.md`: LiteLLM dispatches success
+    events on a background thread, so a short-lived caller must wait before reading the ledger; and an
+    ordinary call arrives with `cache_hit` absent or `None`, never `False`.
+
 ### Changed
 
 - **Current provider models are valued at their list price** — the output price table in
