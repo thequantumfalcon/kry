@@ -44,6 +44,40 @@ Fifteen further items are lower-risk (shape and strictness questions: what `by_t
 tier takes, whether `3.0` satisfies "integer", whether unknown envelope keys are allowed, what an
 action `chain_tip` means with zero links, and so on).
 
+## Found afterwards, by building the chains the corpus never contains
+
+The corpus has no pre-v7 chain, so nothing checked whether the two verifiers agree on one. Building
+valid v4, v5 and v6 chains with the reference's own block builder and running both verifiers gave:
+
+| Document | Python | JS | JS's reasons |
+|---|---|---|---|
+| v4, v5, v6, v7 with canonical literals | VALID | VALID | — |
+| v4 with `1e3` in place of `1000.0` | VALID | INVALID | chain broken, then `attestation_hash` mismatch |
+| v5 with `1e3` in place of `1000.0` | VALID | INVALID | `attestation_hash` mismatch only |
+
+Two distinct things, and the second is wider than the v4 question that prompted the test.
+
+1. **v4's chain hash is literal-dependent, and v5 fixes it.** The v5 chain survives the re-spelling —
+   `canon_f64` binds the value, not the text — while v4's breaks. That is the documented reason v5
+   exists, now demonstrated rather than assumed.
+2. **The outer `attestation_hash` is literal-dependent at every version, v7 included.** `canon` is
+   defined as `json.dumps` over the **parsed value**, which a Python verifier implements directly. A
+   verifier in a language without separate integer and float types cannot: after parsing, `1000.0` and
+   `1000` are the same value, so re-serializing would render Python's `1000.0` as `1000` and reject
+   every Python-minted attestation. The JS verifier therefore preserves the literal it received — the
+   only workable choice — and the two agree on any document whose literals are already canonical, which
+   includes everything kry mints and the whole corpus.
+
+Neither implementation can adopt the other's rule without breaking real documents, so §2.1 now states
+the missing requirement: **the wire form must already be canonical**, and a verifier MAY reject input
+spelled otherwise. The divergence produces a false INVALID, never a false VALID, so it cannot inflate a
+claim — but it is exactly the cross-implementation agreement the two verifiers exist to demonstrate.
+
+**Still open here:** a Python verifier accepts non-canonical literals where the JS one rejects them.
+Making Python reject them too would give identical verdicts on every input; it would also start
+rejecting hand-edited or third-party-formatted documents it accepts today. That is a behaviour change,
+so it is left as a decision rather than folded into a documentation change.
+
 ## Corpus blind spots this exposed
 
 - **Every vector is `hash_version` 7.** Four version branches the spec makes mandatory are untested.
