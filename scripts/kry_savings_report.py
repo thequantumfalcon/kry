@@ -194,17 +194,30 @@ def _report_spend(model: str, completion: int) -> tuple[float, bool]:
     return 0.0, False
 
 
-def _provider_calls(records: list[dict]):
+def _batch_origin(rec: dict) -> bool:
+    """Whether a record came from a provider Batch API export. Both providers key their batch result
+    rows by `custom_id`. Batch bills at 50%, so valuing such a record at standard rates would report
+    twice the true saving; tagging it lets the usual price-modifier rule exclude and count it.
+    A record that both looks batch-billed and claims another tier is read as batch: the two
+    disagree, and only one of the readings can overstate the saving."""
+    return bool(rec.get("custom_id")) or rec.get("batch") is True
+
+
+def _provider_calls(records: list[dict], batch: bool = False):
     """(model, usage) for each record that was a real provider call. A cache hit served by the
-    gateway made no call, so it carries no provider cache usage."""
+    gateway made no call, so it carries no provider cache usage. Batch-billed records are tagged so
+    they are excluded rather than priced at standard rates."""
     for rec in records:
         n = normalize(rec)
         if n is None or n["cache_hit"]:
             continue
-        yield (n["served_model"] or n["model"]), rec.get("usage", rec)
+        usage = rec.get("usage", rec)
+        if (batch or _batch_origin(rec)) and isinstance(usage, dict):
+            usage = {**usage, "service_tier": "batch"}
+        yield (n["served_model"] or n["model"]), usage
 
 
-def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
+def analyze(records: list[dict], strict_baseline: bool = False, batch: bool = False) -> dict:
     """Compute the savings report (read-only — no minting, no persisted state).
 
     strict_baseline (external-facing mode): value cache-hit classes WITHOUT a measured holdout at 0
@@ -331,7 +344,7 @@ def analyze(records: list[dict], strict_baseline: bool = False) -> dict:
             for cls, b in sorted(by_class.items())
         },
         # Reported beside the savings above, never added to them: not minted, not attested.
-        "prompt_cache": summarize_prompt_cache(_provider_calls(records)),
+        "prompt_cache": summarize_prompt_cache(_provider_calls(records, batch)),
     }
 
 
@@ -427,13 +440,16 @@ def main(argv: list[str] | None = None) -> int:
                    help="write the savings into the KRY mint chain (operator's own ledger)")
     p.add_argument("--attest", default=None,
                    help="with --mint: write a public attestation JSON here (verify with kry_verify.py)")
+    p.add_argument("--batch", action="store_true",
+                   help="every record in this log was billed through a provider Batch API (50% of "
+                        "standard): value nothing in the prompt-cache block at standard rates")
     p.add_argument("--strict-baseline", action="store_true",
                    help="value cache-hit savings WITHOUT a measured holdout at 0 (external reports — "
                         "never present un-validated savings as dollars)")
     args = p.parse_args(argv)
 
     records = _load_records(args.usage_log)
-    report = analyze(records, strict_baseline=args.strict_baseline)
+    report = analyze(records, strict_baseline=args.strict_baseline, batch=args.batch)
 
     if args.json:
         print(_json_dumps(report, indent=2))
