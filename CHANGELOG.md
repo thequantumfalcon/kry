@@ -127,6 +127,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shares the same extraction and the same fix. No vector or verdict changes.
   - Tests: `tests/test_js_vectors_crlf.py` (fail on the previous runner, pass now).
 
+### Documentation
+
+- **Six spec ambiguities pinned to what the verifiers already do** (`docs/SPEC_REVIEW_2026_09_17.md`) —
+  each was checked against the code first; no verifier changed and no verdict moves.
+  - §3 now states which profile a document belongs to: `kind` of `kry_action_attestation` is verified
+    under §4, everything else under §3, dispatching on the document rather than on the `kind` wrapper a
+    vector file adds around it.
+  - §3.4 states that the pre-v4 rules are **live, not vestigial**: `hash_version <= 3`, or an absent
+    field meaning `1`, is legacy and verified with the §3.3 formula. Only a version above 7, or a
+    non-integer, is unrecognized — and such a link is INVALID, its declared `chain_hash` becomes the
+    next link's `prev`, and it is excluded from every derivation.
+  - §3.4 states that duplicate hash-bound `receipt_id`s are INVALID for every verifier, not only one
+    claiming the optional overlay profile.
+  - §3.8 states that the anchor resolves to the **first** link whose `seq` equals `count`, since `seq`
+    is bound by no hash and is not required to be unique.
+  - §3.7 defines `position` as the link's index in `links`, not its `seq`.
+
+
 ## [0.1.5] - 2026-09-15
 
 ### Added
