@@ -45,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests: `tests/test_prompt_cache.py` (10 new, including the guide's own worked example) and
     `tests/test_artifact_privacy.py` (7 new, fixtures taken from a real response).
 
+- **Batch-billed traffic is excluded from the prompt-cache block** — a Batch API call bills at 50%,
+  so valuing one at standard rates reports twice the true saving. The report now recognises a batch
+  record by the `custom_id` key both providers put on batch result rows (or an explicit `batch: true`)
+  and tags it so the existing price-modifier rule excludes and counts it. A record that looks
+  batch-billed but claims another tier is read as batch: the two readings disagree and only one of
+  them can overstate. `--batch` marks a whole log, for an export that kept no per-row marker.
+  - A raw batch result row nests the call under `response.body`, so it carries no model to price and
+    was already skipped; a test pins that it can never reach the priced count.
+  - Tests: `tests/test_savings_report_prompt_cache.py` (4 new).
+
 - **The LiteLLM callback is tested inside a real LiteLLM** — `tests/test_litellm_callback.py` feeds the
   extractor hand-built events, which cannot catch a mismatch with the gateway itself.
   `tests/test_litellm_integration.py` runs LiteLLM's own cache, callback dispatch and usage objects
@@ -73,6 +83,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests: `tests/test_output_price_refresh.py`.
 
 ### Fixed
+
+- **A current-version link can no longer skip the magnitude checks by omitting its inputs** — the
+  magnitude check exempted any link declaring neither `tokens_saved` nor `earn_rate`, on the grounds
+  that a legacy receipt exposes no inputs. The exemption was unbounded, so a modern link could omit
+  them, skip both the published-rate and the published-multiplier check, and mint an arbitrary
+  `kry_minted` that still verified. From `hash_version` 4 the economic block is bound into
+  `chain_hash`, so the exemption now stops there: a v4+ link that omits either input is INVALID.
+  Fixed in all three implementations (`scripts/kry_verify.py`, `src/kry/kry_attest.py`,
+  `verifiers/js/verify.mjs`).
+  - Every link in the corpus already declares both inputs, so no existing vector or verdict changes.
+  - `SPEC.md` §3.4.1 now states the version bound. §3.5 now states that ANCHORED tiers are exactly the
+    enumerated set, so an unknown tier string counts toward `total_kry` but never toward
+    `anchored_kry`: it cannot claim a `veracity_floor` of `1.0`. The reference verifiers already
+    behaved that way; only the spec text was permissive.
+  - New vectors: `savings/adversarial/magnitude_inputs_omitted` and
+    `savings/adversarial/unknown_tier_claims_anchored`, both INVALID. The corpus grows from 46 to 48.
+  - Both gaps were found by writing a fresh verifier from `SPEC.md` and the corpus alone, with no
+    access to the reference implementation, and recording every point where the text left a choice.
+  - That review is recorded in `docs/SPEC_REVIEW_2026_09_17.md`: 25 points where the text leaves a
+    choice, of which these two were verdict-affecting and are fixed here, eight remain open, and the
+    corpus corrected none of them. It also names three blind spots in the corpus itself.
+
+- **The two verifiers rounded differently, and could reject each other's documents** — SPEC's
+  `round(x, n)` is round-half-even on the exact binary value, which is what Python's `round()` does.
+  `verifiers/js/verify.mjs` rounded by scaling (`Math.round(x * 1e4) / 1e4`); the multiply injects its
+  own error, so roughly **4% of five-decimal magnitudes** rounded to a different value — for example
+  `2122.59595` gave `2122.5959` in Python and `2122.596` in JS. That gap is 1e-4, four decades above
+  the 1e-9 comparison tolerance, so each verifier would have called some of the other's valid
+  attestations INVALID. It affects `total_kry`, `usd_equivalent`, every `by_tier` value, `anchored_kry`
+  and `veracity_floor`.
+  - JS now expands the exact decimal value and rounds it half-even. Checked against the reference on
+    91,997 values, including dyadic values that hit the genuine half-even tie: 0 divergences. The
+    project's differential fuzz (20,000 cases) also reports 0.
+  - Neither the corpus nor the fuzzer had ever produced such a value, so nothing caught this.
+    `tests/test_js_rounding_parity.py` pins it: 350 of its 2,097 cases fail against the previous code.
+  - `SPEC.md` now states the rounding rule and warns against rounding by scaling.
 
 - **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
   re-extracted each vector's raw input with a regex that required `,\n` before `"expected"`. On CRLF

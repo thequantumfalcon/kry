@@ -1,0 +1,67 @@
+{
+  "id": "unknown_tier_claims_anchored",
+  "kind": "savings_attestation",
+  "description": "link0 carries an invented evidence_tier and the attestation claims floor 1.0",
+  "input": {
+    "receipts": 2,
+    "total_kry": 2000.0,
+    "usd_equivalent": 0.05,
+    "chain_head": "0435960fcd137a82e59ed754b2517d446eccf4f4bea766fe0137aa24e42b4e64",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 2
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "b6d168b2a7404f0274740bf3c440b77e4be1e4af38687f8e2857b9a4ca861525",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "definitely_legit_tier",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "baaa6e1d04098a1b9ab6e2e4e1c63cac86b272a4a8f240c3d39b2cccecdffb7d",
+        "chain_hash": "0435960fcd137a82e59ed754b2517d446eccf4f4bea766fe0137aa24e42b4e64",
+        "sealed_evidence": "5bc40d50825de711",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "definitely_legit_tier": 1000.0,
+        "self_reported": 1000.0
+      },
+      "anchored_kry": 2000.0,
+      "self_reported_kry": 1000.0,
+      "veracity_floor": 1.0
+    },
+    "attestation_hash": "6d253171e143a101cd77a89c5d7fa361678f5c518900b3d45d8bb029b2f65318"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "anchored_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.0000 \u2014 trust surface misstated"
+    ]
+  },
+  "rationale": "ANCHORED tiers are the enumerated set of Annex B. An unknown tier string counts toward total_kry and by_tier but never toward anchored_kry, so a claimed veracity_floor of 1.0 must be INVALID."
+}
