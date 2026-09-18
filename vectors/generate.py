@@ -220,6 +220,46 @@ def gen_savings() -> None:
         "input": a, "expected": verdict_savings(a),
         "rationale": "Chain + totals are self-consistent; only the public magnitude arithmetic is illegal."})
 
+    # adversarial: a current-version link that omits its magnitude inputs. The exemption for links
+    # that expose no inputs exists for pre-F2 receipts; unbounded, it lets a modern link mint any
+    # amount while skipping both the published-rate and the multiplier check.
+    # The hashed block reads these with a 0.0 default, so zeroing them and then dropping the keys
+    # leaves chain_hash byte-identical to what a minter omitting them would produce.
+    o = copy.deepcopy(base)
+    o["links"][0]["tokens_saved"] = 0.0
+    o["links"][0]["earn_rate"] = 0.0
+    o["links"][0]["kry_minted"] = 1_000_000.0
+    o = rechain(o)
+    o["links"][0].pop("tokens_saved")
+    o["links"][0].pop("earn_rate")
+    reseal(o)
+    write("savings/adversarial", "magnitude_inputs_omitted", {
+        "kind": "savings_attestation",
+        "description": "v7 link drops tokens_saved and earn_rate, then mints 1,000,000 KRY",
+        "input": o, "expected": verdict_savings(o),
+        "rationale": "From v4 the economic block is hash-bound, so a v4+ link must declare "
+                     "tokens_saved and earn_rate; the legacy exemption covers pre-v4 receipts only. "
+                     "Without that bound the magnitude checks are skipped and the mint is unbounded."})
+    assert verdict_savings(o)["verdict"] == "INVALID"
+
+    # adversarial: a tier string this spec does not define must not count as anchored. The chain is
+    # self-consistent around the invented tier; only the veracity block overstates.
+    u = copy.deepcopy(base)
+    u["links"][0]["evidence_tier"] = "definitely_legit_tier"
+    u = rechain(u)
+    u["veracity"]["anchored_kry"] = u["total_kry"]
+    u["veracity"]["self_reported_kry"] = round(u["total_kry"] - u["links"][0]["kry_minted"], 4)
+    u["veracity"]["veracity_floor"] = 1.0
+    reseal(u)
+    write("savings/adversarial", "unknown_tier_claims_anchored", {
+        "kind": "savings_attestation",
+        "description": "link0 carries an invented evidence_tier and the attestation claims floor 1.0",
+        "input": u, "expected": verdict_savings(u),
+        "rationale": "ANCHORED tiers are the enumerated set of Annex B. An unknown tier string counts "
+                     "toward total_kry and by_tier but never toward anchored_kry, so a claimed "
+                     "veracity_floor of 1.0 must be INVALID."})
+    assert verdict_savings(u)["verdict"] == "INVALID"
+
     # adversarial: event_type relabel (v7 binds event_type -> chain breaks)
     b = copy.deepcopy(base)
     b["links"][0]["event_type"] = "compression"

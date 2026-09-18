@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 36,
+  "count": 38,
   "vectors": [
     {
       "id": "canon_f64",
@@ -29,6 +29,16 @@
     },
     {
       "id": "magnitude_illegal_multiplier",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "magnitude_inputs_omitted",
+      "category": "savings/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "unknown_tier_claims_anchored",
       "category": "savings/adversarial",
       "verdict": "INVALID"
     },
