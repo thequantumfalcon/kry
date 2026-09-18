@@ -84,6 +84,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     choice, of which these two were verdict-affecting and are fixed here, eight remain open, and the
     corpus corrected none of them. It also names three blind spots in the corpus itself.
 
+- **The two verifiers rounded differently, and could reject each other's documents** — SPEC's
+  `round(x, n)` is round-half-even on the exact binary value, which is what Python's `round()` does.
+  `verifiers/js/verify.mjs` rounded by scaling (`Math.round(x * 1e4) / 1e4`); the multiply injects its
+  own error, so roughly **4% of five-decimal magnitudes** rounded to a different value — for example
+  `2122.59595` gave `2122.5959` in Python and `2122.596` in JS. That gap is 1e-4, four decades above
+  the 1e-9 comparison tolerance, so each verifier would have called some of the other's valid
+  attestations INVALID. It affects `total_kry`, `usd_equivalent`, every `by_tier` value, `anchored_kry`
+  and `veracity_floor`.
+  - JS now expands the exact decimal value and rounds it half-even. Checked against the reference on
+    91,997 values, including dyadic values that hit the genuine half-even tie: 0 divergences. The
+    project's differential fuzz (20,000 cases) also reports 0.
+  - Neither the corpus nor the fuzzer had ever produced such a value, so nothing caught this.
+    `tests/test_js_rounding_parity.py` pins it: 350 of its 2,097 cases fail against the previous code.
+  - `SPEC.md` now states the rounding rule and warns against rounding by scaling.
+
 - **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
   re-extracted each vector's raw input with a regex that required `,\n` before `"expected"`. On CRLF
   files it fell back to re-serializing the input, which respells numbers such as `1.0`, so four

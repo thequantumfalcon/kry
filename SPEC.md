@@ -186,6 +186,8 @@ If `evidence_tier == "provider_metered"`: `ts` MUST be a numeric value ≥ 0, an
 
 A `veracity` key that is **present but not a JSON object** (`null`, a number, a string, an array) is INVALID — it is neither a declared trust surface nor "no claim". An absent `veracity` is likewise INVALID (§3.1). `by_tier` is compared as a **map**: the declared key set MUST equal the derived key set (an invented or dropped tier is a mismatch even when the summary numbers still add up).
 
+**Rounding.** Every `round(x, n)` in this spec means round-half-even applied to the **exact** binary value of `x` (Python's `round()`). Do not round by scaling — `Math.round(x * 1e4) / 1e4` is a different function, because the multiply injects its own error; on roughly 4% of five-decimal magnitudes it lands on the other side, which is four decades above the tolerance below and flips the verdict. Expand the exact value and round its decimal digits.
+
 **Numeric comparison tolerance.** Every declared-vs-derived numeric comparison in §3.1 and §3.5 — `total_kry`, `usd_equivalent`, each `by_tier` value, `anchored_kry`, `self_reported_kry`, `veracity_floor` — uses one absolute tolerance: **`1e-9`**. Compare against the rounded derivation this spec mandates (`round(x, 4)`, or `round(x, 6)` for `usd_equivalent`), so the smallest real discrepancy is `1e-6`; `1e-9` sits three decades below that and above IEEE-754 accumulation noise, which makes it strict enough to reject any misstatement and loose enough to survive re-summing in another language. This tolerance does NOT apply to the values this spec pins separately: the `1e-6` rate and `1e-3` multiplier bounds of §3.4.1, the `-0.01` outcome guard of §3.7, and the `0.01` action floor of §4.1/§4.4.
 
 ### 3.6 Versioning / fail-closed

@@ -159,8 +159,24 @@ const SENT_ACTION = "ffffffffffffffff";
 const get = (m, k, d = undefined) => (m instanceof Map ? (m.has(k) ? m.get(k) : d) : (k in m ? m[k] : d));
 const numval = (x, d = undefined) => (x instanceof Num ? x.val : (typeof x === "number" ? x : d));
 const isNumLike = (x) => x instanceof Num || (typeof x === "number" && !Number.isNaN(x));
-const r4 = (x) => Math.round(x * 1e4) / 1e4;
-const r6 = (x) => Math.round(x * 1e6) / 1e6;
+// SPEC round(x, n): round-half-even applied to the EXACT binary value, as Python's round() does.
+// Rounding by scaling (Math.round(x * 1e4) / 1e4) is not the same function: the multiply injects its
+// own error, so ~4% of five-decimal magnitudes land on the other side and the two implementations
+// disagree by 1e-4 — four decades above the 1e-9 comparison tolerance. toFixed(100) is specified to
+// expand the exact value, which every magnitude in range has well inside 100 fractional digits.
+function roundDec(x, n) {
+  if (!Number.isFinite(x)) return x;
+  const neg = x < 0;
+  const [ip, fp = ""] = Math.abs(x).toFixed(100).split(".");
+  const rest = fp.slice(n);
+  let digits = BigInt(ip + fp.slice(0, n));
+  const first = rest.charCodeAt(0) - 48;
+  if (first > 5 || (first === 5 && (/[1-9]/.test(rest.slice(1)) || digits % 2n === 1n))) digits += 1n;
+  const out = Number(digits) / 10 ** n;
+  return neg ? -out : out;
+}
+const r4 = (x) => roundDec(x, 4);
+const r6 = (x) => roundDec(x, 6);
 // SPEC 3.5 (P-TOL): the ONE absolute tolerance for every 3.1/3.5 derived-vs-declared numeric
 // comparison, shared verbatim with scripts/kry_verify.py and kry.kry_attest. Those values are all
 // SPEC-mandated round(x,4) / round(x,6), so the smallest REAL discrepancy is 1e-6; 1e-9 sits three
@@ -477,4 +493,4 @@ function explain(rawText, anchor) {
 
 // ── exports ───────────────────────────────────────────────────────────────────
 function setMultipliers(arr) { MULTIPLIERS = arr; }   // published price-multiplier set (SPEC §3.4.1)
-export { verdict, verdictWithAnchor, anchorErrors, explain, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS };
+export { verdict, verdictWithAnchor, anchorErrors, explain, canon, canonF64, sha256, parse, Num, setMultipliers, SENT_SAVINGS, roundDec };
