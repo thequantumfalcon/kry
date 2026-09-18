@@ -441,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--attest", default=None,
                    help="with --mint: write a public attestation JSON here (verify with kry_verify.py)")
     p.add_argument("--batch", action="store_true",
-                   help="every record in this log was billed through a provider Batch API (50% of "
+                   help="every record in this log was billed through a provider Batch API (50%% of "
                         "standard): value nothing in the prompt-cache block at standard rates")
     p.add_argument("--strict-baseline", action="store_true",
                    help="value cache-hit savings WITHOUT a measured holdout at 0 (external reports — "
