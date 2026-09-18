@@ -45,6 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests: `tests/test_prompt_cache.py` (10 new, including the guide's own worked example) and
     `tests/test_artifact_privacy.py` (7 new, fixtures taken from a real response).
 
+- **Batch-billed traffic is excluded from the prompt-cache block** — a Batch API call bills at 50%,
+  so valuing one at standard rates reports twice the true saving. The report now recognises a batch
+  record by the `custom_id` key both providers put on batch result rows (or an explicit `batch: true`)
+  and tags it so the existing price-modifier rule excludes and counts it. A record that looks
+  batch-billed but claims another tier is read as batch: the two readings disagree and only one of
+  them can overstate. `--batch` marks a whole log, for an export that kept no per-row marker.
+  - A raw batch result row nests the call under `response.body`, so it carries no model to price and
+    was already skipped; a test pins that it can never reach the priced count.
+  - Tests: `tests/test_savings_report_prompt_cache.py` (4 new).
+
 ### Changed
 
 - **Current provider models are valued at their list price** — the output price table in
