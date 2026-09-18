@@ -129,6 +129,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- **§2.1 states that an attestation's wire form must already be canonical** — `canon` is defined as
+  `json.dumps` over the parsed value, which a Python verifier implements directly but a verifier in a
+  language without separate integer and float types cannot: after parsing it cannot tell `1000.0` from
+  `1000`, so re-serializing would reject every Python-minted attestation. Such a verifier can only
+  preserve the literal it received, and the two agree on any document whose literals are already
+  canonical — the corpus and everything kry mints.
+  - Found by building the pre-v7 chains the corpus does not contain. With one number re-spelled as
+    `1e3`, the Python verifier says VALID and the JS one says INVALID at **every** version: v4 breaks
+    in the chain hash (which is why v5's `canon_f64` exists — now demonstrated rather than assumed),
+    and v5 through v7 break in the outer `attestation_hash`.
+  - The divergence is a false INVALID, never a false VALID, so it cannot inflate a claim. A minter must
+    emit canonical literals; a verifier MAY reject others.
+  - Recorded with its reproduction in `docs/SPEC_REVIEW_2026_09_17.md`.
+
 - **Six spec ambiguities pinned to what the verifiers already do** (`docs/SPEC_REVIEW_2026_09_17.md`) —
   each was checked against the code first; no verifier changed and no verdict moves.
   - §3 now states which profile a document belongs to: `kind` of `kry_action_attestation` is verified

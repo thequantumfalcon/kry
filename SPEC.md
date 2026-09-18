@@ -39,6 +39,8 @@ Encoding primitives (§2) are pinned by `vectors/primitives/`; a conformant veri
 4. **`NaN`, `Infinity`, `-Infinity` are forbidden** — both on parse (reject → PARSE_ERROR) and on output.
 5. Numbers are emitted in their JSON form (integers without a decimal point; e.g. `1.5`, `true`, `null` unchanged).
 
+**The wire form must already be canonical.** An attestation's numeric literals MUST be exactly what this serialization would emit — `1000.0`, not `1e3` or `1000.00`, and `1000` for an integer. A verifier MAY reject an attestation whose literals are spelled otherwise, and one written in a language without distinct integer and float types MUST be allowed to: after parsing, such a language cannot tell `1000.0` from `1000`, so it can only reproduce the preimage by preserving the literal it received. A minter that re-spells a number — or a pipeline that reformats the JSON in transit — changes the `attestation_hash` preimage for those verifiers while a Python verifier, which re-serializes the parsed value, still accepts it. Emitting canonical literals is the minter's responsibility; the corpus is canonical throughout.
+
 Worked examples (from `vectors/primitives/canonical_json.json`):
 
 | input | `canon` output |
