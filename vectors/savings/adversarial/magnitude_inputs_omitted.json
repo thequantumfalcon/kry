@@ -1,0 +1,63 @@
+{
+  "id": "magnitude_inputs_omitted",
+  "kind": "savings_attestation",
+  "description": "v7 link drops tokens_saved and earn_rate, then mints 1,000,000 KRY",
+  "input": {
+    "receipts": 2,
+    "total_kry": 1001000.0,
+    "usd_equivalent": 25.025,
+    "chain_head": "dc70caff314dd4c656b9921989697f0e55ba70f07966ac9bf9bd6c0c3afd30b3",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 2
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "1d60ea555fe17c777669b6c379375236c81b490abff7d584adfa6d6b388d60e5",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "baaa6e1d04098a1b9ab6e2e4e1c63cac86b272a4a8f240c3d39b2cccecdffb7d",
+        "chain_hash": "dc70caff314dd4c656b9921989697f0e55ba70f07966ac9bf9bd6c0c3afd30b3",
+        "sealed_evidence": "5bc40d50825de711",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 1001000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 1001000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "d02c86dee617c5b8fdd9e0b8087092a32dcfa3a606f3682180122d35cb19c84f"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: hash_version 7 link must declare tokens_saved and earn_rate \u2014 the legacy exemption covers pre-v4 receipts only"
+    ]
+  },
+  "rationale": "From v4 the economic block is hash-bound, so a v4+ link must declare tokens_saved and earn_rate; the legacy exemption covers pre-v4 receipts only. Without that bound the magnitude checks are skipped and the mint is unbounded."
+}

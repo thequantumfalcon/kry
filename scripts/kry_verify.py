@@ -242,6 +242,13 @@ def _magnitude_errors(link: dict) -> list[str]:
     # (0 × 0 × M = 0) — a positive kry_minted is fabricated (zero-rate magnitude bypass).
     # Only a genuine legacy link that OMITS the inputs is honestly uncheckable.
     declares_inputs = "earn_rate" in link and "tokens_saved" in link
+    # F2 legacy exemption is bounded by version: v4 is where the economic block (tokens_saved,
+    # earn_rate, kry_minted) became hash-bound, so a v4+ link that omits its inputs is not an
+    # honestly-uncheckable legacy receipt — it is a modern receipt dodging the magnitude check.
+    hv = link.get("hash_version")
+    if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 4 and not declares_inputs:
+        return [f"seq {link.get('seq')}: hash_version {hv} link must declare tokens_saved and "
+                f"earn_rate — the legacy exemption covers pre-v4 receipts only"]
     if ts <= 0 or rate <= 0:
         if declares_inputs and kry_minted > 0:
             return [f"seq {link.get('seq')}: kry_minted {kry_minted} with tokens_saved={ts} "

@@ -174,7 +174,7 @@ A link that DECLARES both `earn_rate` and `tokens_saved` MUST satisfy `kry_minte
 - If `tokens_saved <= 0` or `earn_rate <= 0`: a declared-input link with `kry_minted > 0` → INVALID (zero-rate magnitude bypass); otherwise skip.
 - Else `implied = kry_minted / (tokens_saved × earn_rate)`. If `implied` is not within `1e-3` of any **published multiplier** → INVALID (non-public price). The authoritative published-multiplier set is `vectors/primitives/legal_multipliers.json` (`multipliers` array); a conformant verifier MUST use that set. It includes `1.0` (frontier) and excludes `0.5` (see `vectors/savings/adversarial/magnitude_illegal_multiplier.json`).
 
-A link that omits its inputs is legacy and honestly uncheckable — skip (do not fail).
+A link that omits its inputs is checkable only where this spec does not bind them. From `hash_version` 4 the economic block (`tokens_saved`, `earn_rate`, `kry_minted`) is bound into `chain_hash`, so a link with `hash_version >= 4` that omits `tokens_saved` or `earn_rate` → INVALID (see `vectors/savings/adversarial/magnitude_inputs_omitted.json`). Without that bound the two checks above are skipped and `kry_minted` is unconstrained. Only a pre-v4 link, or one carrying no `hash_version`, may omit its inputs: that is legacy and honestly uncheckable — skip (do not fail).
 
 #### 3.4.2 Tier schema
 
@@ -182,7 +182,7 @@ If `evidence_tier == "provider_metered"`: `ts` MUST be a numeric value ≥ 0, an
 
 ### 3.5 Veracity
 
-`veracity` MUST be an object with `by_tier` (`{tier: round(Σ kry_minted for that tier, 4)}`), `anchored_kry` (`round(Σ kry_minted over ANCHORED tiers, 4)`), `self_reported_kry` (`round(Σ kry_minted for self_reported, 4)`), and `veracity_floor` (`round(anchored_kry / total_kry, 4)`, or `0.0` if `total_kry == 0`). ANCHORED tiers are all tiers except `self_reported` (Annex B). A conformant verifier re-derives these from the links and MUST report INVALID on mismatch.
+`veracity` MUST be an object with `by_tier` (`{tier: round(Σ kry_minted for that tier, 4)}`), `anchored_kry` (`round(Σ kry_minted over ANCHORED tiers, 4)`), `self_reported_kry` (`round(Σ kry_minted for self_reported, 4)`), and `veracity_floor` (`round(anchored_kry / total_kry, 4)`, or `0.0` if `total_kry == 0`). ANCHORED tiers are exactly those enumerated in Annex B other than `self_reported`. Any other string — a typo, or a tier this spec does not define — is NOT anchored: it still counts toward `total_kry` and appears in `by_tier`, but it MUST NOT contribute to `anchored_kry`. A verifier that treats any non-`self_reported` string as anchored lets an invented tier name claim a `veracity_floor` of `1.0`; §4.4 states the same fail-closed rule for the action profile. A conformant verifier re-derives these from the links and MUST report INVALID on mismatch.
 
 A `veracity` key that is **present but not a JSON object** (`null`, a number, a string, an array) is INVALID — it is neither a declared trust surface nor "no claim". An absent `veracity` is likewise INVALID (§3.1). `by_tier` is compared as a **map**: the declared key set MUST equal the derived key set (an invented or dropped tier is a mismatch even when the summary numbers still add up).
 

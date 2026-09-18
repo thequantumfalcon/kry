@@ -353,6 +353,9 @@ function magnitudeErrors(link) {
   const declares = has(link, "earn_rate") && has(link, "tokens_saved");
   const km = numval(get(link, "kry_minted"), NaN), ts = numval(get(link, "tokens_saved", 0), 0), rate = numval(get(link, "earn_rate", 0), 0);
   if (!(km >= 0) || !(ts >= 0) || !(rate >= 0)) return ["magnitude: bad number"];
+  // The legacy exemption is bounded by version: v4 is where the economic block became hash-bound,
+  // so a v4+ link omitting its inputs is dodging the magnitude check, not honestly uncheckable.
+  if (numval(get(link, "hash_version", 0), 0) >= 4 && !declares) return ["magnitude: v4+ link omits inputs"];
   if (ts <= 0 || rate <= 0) return (declares && km > 0) ? ["magnitude: kry from zero inputs"] : [];
   const et = get(link, "event_type", "");
   const pub = et in EARN_RATES ? EARN_RATES[et] : 0.5;

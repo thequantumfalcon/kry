@@ -63,6 +63,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A current-version link can no longer skip the magnitude checks by omitting its inputs** — the
+  magnitude check exempted any link declaring neither `tokens_saved` nor `earn_rate`, on the grounds
+  that a legacy receipt exposes no inputs. The exemption was unbounded, so a modern link could omit
+  them, skip both the published-rate and the published-multiplier check, and mint an arbitrary
+  `kry_minted` that still verified. From `hash_version` 4 the economic block is bound into
+  `chain_hash`, so the exemption now stops there: a v4+ link that omits either input is INVALID.
+  Fixed in all three implementations (`scripts/kry_verify.py`, `src/kry/kry_attest.py`,
+  `verifiers/js/verify.mjs`).
+  - Every link in the corpus already declares both inputs, so no existing vector or verdict changes.
+  - `SPEC.md` §3.4.1 now states the version bound. §3.5 now states that ANCHORED tiers are exactly the
+    enumerated set, so an unknown tier string counts toward `total_kry` but never toward
+    `anchored_kry`: it cannot claim a `veracity_floor` of `1.0`. The reference verifiers already
+    behaved that way; only the spec text was permissive.
+  - New vectors: `savings/adversarial/magnitude_inputs_omitted` and
+    `savings/adversarial/unknown_tier_claims_anchored`, both INVALID. The corpus grows from 46 to 48.
+  - Both gaps were found by writing a fresh verifier from `SPEC.md` and the corpus alone, with no
+    access to the reference implementation, and recording every point where the text left a choice.
+
 - **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
   re-extracted each vector's raw input with a regex that required `,\n` before `"expected"`. On CRLF
   files it fell back to re-serializing the input, which respells numbers such as `1.0`, so four
