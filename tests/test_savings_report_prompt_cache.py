@@ -165,3 +165,42 @@ def test_holdout_and_displacement_spend_follow_the_same_rules(sr):
     assert rep["spend_kry"] == 400.0
     assert rep["unpriced_spend_calls"] == 2
     assert rep["by_class"]["y"]["tier"] == "provider_metered"
+
+
+# Batch API traffic bills at 50%. Valuing it at standard rates would report twice the true saving,
+# so such records are excluded and counted (docs/PROMPT_CACHE_PLAN.md non-goals).
+_OPENAI_BATCH_USAGE = {"input_tokens": 6_000, "output_tokens": 5,
+                       "input_tokens_details": {"cached_tokens": 5_000, "cache_write_tokens": 0}}
+
+
+def test_batch_rows_are_excluded_not_valued_at_standard_rates(sr):
+    plain = {"id": "p", "model": "gpt-5.6-luna", "usage": _OPENAI_BATCH_USAGE}
+    by_custom_id = {"custom_id": "request-1", "model": "gpt-5.6-luna", "usage": _OPENAI_BATCH_USAGE}
+    by_flag = {"id": "b2", "batch": True, "model": "gpt-5.6-luna", "usage": _OPENAI_BATCH_USAGE}
+    records = sr.analyze([plain, by_custom_id, by_flag])["prompt_cache"]["records"]
+    assert (records["priced"], records["modifier_excluded"]) == (1, 2)
+
+
+def test_batch_origin_wins_over_a_contradictory_tier(sr):
+    # The row says standard but carries a batch result key; only one reading can overstate.
+    rec = {"custom_id": "request-1", "model": "gpt-5.6-luna",
+           "usage": {**_OPENAI_BATCH_USAGE, "service_tier": "default"}}
+    assert sr.analyze([rec])["prompt_cache"]["records"]["modifier_excluded"] == 1
+
+
+def test_batch_flag_marks_the_whole_log(sr):
+    records = [_opus5_call(), {"id": "o", "model": "gpt-5.6-luna", "usage": _OPENAI_BATCH_USAGE}]
+    loose = sr.analyze(records)["prompt_cache"]["records"]
+    flagged = sr.analyze(records, batch=True)["prompt_cache"]["records"]
+    assert loose["priced"] == 2 and loose["modifier_excluded"] == 0
+    assert flagged["priced"] == 0 and flagged["modifier_excluded"] == 2
+
+
+def test_raw_batch_result_rows_carry_no_model_and_are_skipped(sr):
+    # A provider's batch output nests the completion under `response.body`, so there is no model to
+    # price. The record is skipped rather than valued — it must never reach the priced count.
+    raw = {"id": "batch_req_1", "custom_id": "request-1",
+           "response": {"status_code": 200, "body": {"model": "gpt-5.6-luna",
+                                                     "usage": _OPENAI_BATCH_USAGE}}}
+    assert sr.analyze([raw])["prompt_cache"]["records"] == {
+        "priced": 0, "unpriced": 0, "modifier_excluded": 0, "malformed": 0, "ttl_assumed_1h": 0}
