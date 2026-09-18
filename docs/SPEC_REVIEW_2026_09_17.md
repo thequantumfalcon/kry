@@ -20,17 +20,25 @@ That is the headline: a clean corpus run is not evidence of an unambiguous spec.
 
 | G10 | §3.5 | `round(x, 4)` pinned no rounding mode — and the two implementations had already diverged: the JS verifier rounded by scaling (`Math.round(x * 1e4) / 1e4`), which injects float error, so **~4% of five-decimal magnitudes** rounded differently from the Python reference (e.g. `2122.59595` → `2122.5959` vs `2122.596`). Either verifier would have rejected a document the other accepted. The corpus never caught it, and neither did the differential fuzzer. | JS now rounds the exact decimal expansion half-even; verified against the reference on 91,997 values including dyadic ties, 0 divergences. §3.5 states the rule and warns against rounding by scaling. |
 
+## Clarified in the spec text (no behaviour change)
+
+Each of these was checked against the code first, and the text now states what all three verifiers
+already do. No verifier was modified and no verdict moves.
+
+| # | Section | What the text now says | Evidence in the code |
+|---|---------|------------------------|----------------------|
+| G1 | §3 | A document whose `kind` is `kry_action_attestation` is verified under §4, everything else under §3 — and dispatch is on the document, not on the wrapper a vector file adds. | The JS verifier dispatches on exactly that field; the standalone Python verifier implements §3 only. |
+| G5 | §3.3/§3.4/§3.6 | The pre-v4 rules are **live, not vestigial**: `hash_version <= 3`, or an absent field (meaning `1`), is legacy and verified with the §3.3 formula, restricted by step 4 and §3.4.1. | All three verifiers reject only a version **above** 7, and each carries a comment saying legacy support is deliberate. The earlier reading of these rules as unreachable was wrong: the "fail closed" sentence is conditional on a verifier that implements only 4..7. |
+| G6 | §3.4 | An unrecognized version makes the link INVALID, its **declared** `chain_hash` becomes `prev`, and the link is excluded from `total_kry`, `event_type_counts` and the tier sums. | The reference sets `prev = chain_hash` and skips the link before any derivation. |
+| G7 | §3.8 | The anchor resolves to the **first** link whose `seq` equals `count`; `seq` is bound by no hash and need not be unique. | The reference takes the first match; a last-match verifier returns the opposite verdict on a duplicate-`seq` document. |
+| G8 | §3.4 | Duplicate hash-bound `receipt_id`s are INVALID for **every** verifier, not only one claiming the overlay profile. | The check sits in the main per-link loop, outside the profile. |
+| G9 | §3.7 | `position` is the link's **index in `links`**, not its `seq`. | The reference enumerates links and stores the index. |
+
 ## Open, verdict-affecting
 
 | # | Section | What is unsettled |
 |---|---------|-------------------|
-| G1 | §3 vs §4 | Nothing says which profile a document belongs to. The savings envelope has no `kind`; the action profile requires one. Every vector *file* carries a `kind` wrapper that is **not part of the document**, so an implementer who dispatches on the wrapper passes the corpus and fails on real input. |
 | G4 | §3.3 | The `hash_version == 4` branch hashes "the raw JSON numbers", which is host-language dependent: `1000` and `1000.0` produce different chain hashes, and a JS verifier cannot verify a Python-minted v4 chain. **The corpus is 100% v7**, so the v4–v6 branches are entirely untested. |
-| G5 | §3.3/§3.4 vs §3.6 | Rules for `hash_version <= 3` are unreachable, because any version outside 4..7 is already INVALID. An implementer cannot tell whether they are vestigial. |
-| G6 | §3.4 step 7 | When a link's version is unrecognized, step 3 cannot run, and no rule says whether the link still counts toward the totals or what `prev` becomes. The reference drops it from every derivation; the spec never says so. Verifiers that report *which* checks failed will disagree here. |
-| G7 | §3.8 | The anchor lookup keys on `seq`, which no hash binds and no rule constrains to be unique. The corpus itself contains two links sharing `seq: 2`, and first-match and last-match verifiers return opposite verdicts on the same inputs. |
-| G8 | §3.7 | Receipt-id uniqueness is stated inside the *optional* overlay profile, so on a document with duplicate ids and no `supersedes`, a verifier claiming the profile says INVALID and one not claiming it says VALID — both conformant. |
-| G9 | §3.7 | "position" is never defined (index, or `seq`?). The corpus cannot discriminate, because `seq == index + 1` everywhere except the duplicate-`seq` vector. |
 
 Fifteen further items are lower-risk (shape and strictness questions: what `by_tier` key a non-string
 tier takes, whether `3.0` satisfies "integer", whether unknown envelope keys are allowed, what an

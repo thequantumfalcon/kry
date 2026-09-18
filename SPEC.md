@@ -82,6 +82,8 @@ Worked examples (`vectors/primitives/canon_f64.json`):
 
 ## 3. Savings attestation
 
+**Which profile a document belongs to.** A document whose `kind` is `"kry_action_attestation"` is verified under §4; every other document is verified under §3. Dispatch on the document itself — a vector *file* wraps the document in its own `kind` field, which is not part of the attestation, so a verifier that dispatches on the wrapper passes the corpus and fails on real input. A verifier may implement §3 only, and then rejects an action attestation as malformed.
+
 ### 3.1 Envelope
 
 An attestation is a JSON object with these fields (all MUST be present):
@@ -165,7 +167,9 @@ Parse the input as JSON, rejecting `NaN`/`Infinity` (§2.1) → PARSE_ERROR on f
 6. **Tier schema** (§3.4.2).
 7. Set `prev` to the value **recomputed** in step 3 (re-derive the chain from genesis; do not carry a link's declared `chain_hash` forward).
 
-A verifier that understands only `hash_version` in `4..7` (this spec) MUST fail closed (INVALID) on any other value.
+**Legacy and unrecognized versions.** This spec defines the v4–v7 block shapes **and** the pre-v4 formula of §3.3, so a link whose `hash_version` is `<= 3` — or absent, which means `1` — is legacy: it is verified with that formula and is further restricted by step 4 (it cannot carry an anchored tier) and by §3.4.1 (it may omit its magnitude inputs). Those rules are live, not vestigial. A version **above 7**, or one that is not an integer, is unrecognized: the link is INVALID, its **declared** `chain_hash` becomes `prev` for the next link, and the link is excluded from every derivation — `total_kry`, `event_type_counts` and the §3.5 tier sums. A verifier that implements only `4..7` MUST instead fail closed on any value outside that range.
+
+**Receipt-id uniqueness (every verifier, not just the §3.7 profile).** A `receipt_id` that is a non-empty string on a link with `hash_version >= 6` MUST be unique within the attestation; a duplicate hash-bound id is INVALID. This holds whether or not the verifier claims the overlay profile, so two verifiers cannot disagree on a document that carries duplicate ids and no `supersedes`.
 
 #### 3.4.1 Magnitude (public arithmetic)
 
@@ -200,7 +204,7 @@ A **promotion** re-tiers value that was already minted: a ZERO-value `tlsn_attes
 
 The overlay is an optional conformance **profile**. A verifier claiming it MUST, during the §3.4 scan:
 
-1. Build a map `receipt_id → (tier, kry_minted, position)` over links whose `receipt_id` is a non-empty **string** and whose `hash_version >= 6` (a v4/v5 id is not hash-bound and MUST NOT enter the map). A duplicate hash-bound id is an ERROR (INVALID) — the lookup would be ambiguous.
+1. Build a map `receipt_id → (tier, kry_minted, position)`, where `position` is the link's **index in `links`** (not its `seq`), over links whose `receipt_id` is a non-empty **string** and whose `hash_version >= 6` (a v4/v5 id is not hash-bound and MUST NOT enter the map). A duplicate hash-bound id is an ERROR (INVALID) — the lookup would be ambiguous.
 2. Collect a promotion `(supersedes, tier, position)` for every link with `evidence_tier ∈ {tlsn_attested, tee_attested}`, a non-empty **string** `supersedes`, and `kry_minted <= 0`. A positive-value link is NOT a promotion — it keeps its own value only.
 
 After the scan, in link order, for each collected promotion: look up `supersedes` in the map; skip if absent; skip unless the target's position is **strictly earlier** than the promotion's (a forward reference is a capture attack); skip unless the target's value is positive; otherwise subtract the value from the target's tier, add it to the promoting tier, and **delete** the map entry (a receipt is promoted at most once). Afterwards no tier total may be below `-0.01` (**outcome guard** — the overlay is a pure transfer; a negative tier is an ERROR). The §3.5 comparison then runs against the **overlaid** totals.
@@ -224,7 +228,7 @@ A verifier claiming this profile takes the anchor as a **second input** and, in 
 the §3.4 verdict, MUST check: a malformed anchor (wrong `schema`, non-integer/negative
 `count`, `tip` not a 64-char string) is INVALID; if `count == 0`, `tip` must equal the genesis
 value (§3.3), else INVALID; otherwise the attestation must contain a link whose `seq` equals
-`count` — **no such link means the chain is shorter than the published anchor
+`count` — the **first** such link in link order, since `seq` is bound by no hash (§3.3) and this spec does not require it to be unique or equal to the position — — **no such link means the chain is shorter than the published anchor
 (rollback/re-mint/truncation): INVALID** — and that link's `chain_hash` must equal `tip` —
 **a mismatch is a retroactive re-mint: INVALID**.
 
