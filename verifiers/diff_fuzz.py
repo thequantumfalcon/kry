@@ -102,6 +102,46 @@ def build_action(n, tiers):
             "veracity": {"veracity_floor": round(anchored / len(links), 4) if links else 0.0}}
 
 
+def build_savings_at_version(hash_version, n=2):
+    """A VALID savings attestation whose links carry a PRE-v7 hash_version.
+
+    Every base above is minted at the current version, so the v4-v6 block shapes that SPEC 3.3 still
+    defines never reached either verifier through this harness: a mutated hash_version only ever
+    breaks a v7 chain, which both verifiers then reject for the same trivial reason. These are built
+    from the minter's own block builder, so each link is self-consistent and the mutations below
+    exercise the older shapes for real.
+    """
+    prev = "0" * 64
+    links, total, counts = [], 0.0, {}
+    for i in range(n):
+        link = {"seq": i + 1, "receipt_id": f"KRY-{i + 1:08d}", "event_type": "cache_hit",
+                "evidence_tier": "self_reported", "ts": 1_700_000_000.0 + i,
+                "tokens_saved": 1000.0, "earn_rate": 1.0, "kry_minted": 1000.0,
+                "hash_version": hash_version, "supersedes": None,
+                "receipt_hash": hashlib.sha256(f"v{hash_version}-r{i}".encode()).hexdigest()}
+        block = km._v4_public_block(
+            hash_version=hash_version, tokens_saved=link["tokens_saved"], ts=link["ts"],
+            evidence_tier=link["evidence_tier"], metered_tokens=None,
+            kry_minted=link["kry_minted"], earn_rate=link["earn_rate"], supersedes=None,
+            receipt_id=link["receipt_id"], event_type=link["event_type"])
+        link["chain_hash"] = hashlib.sha256(
+            f"{prev}:{link['receipt_hash']}:{block}".encode()).hexdigest()
+        prev = link["chain_hash"]
+        total += link["kry_minted"]
+        counts[link["event_type"]] = counts.get(link["event_type"], 0) + 1
+        links.append(link)
+    att = {"receipts": len(links), "chain_valid": True, "links": links,
+           "total_kry": round(total, 4), "usd_equivalent": round(total * 0.000025, 6),
+           "event_type_counts": counts, "chain_head": prev,
+           "veracity": {"by_tier": {"self_reported": round(total, 4)}, "anchored_kry": 0.0,
+                        "self_reported_kry": round(total, 4), "veracity_floor": 0.0},
+           "attestation_hash": ""}
+    att["attestation_hash"] = ka._attestation_hash(att)
+    ok, errors = kv.verify_attestation(att)
+    assert ok, f"v{hash_version} base must be VALID before it is worth mutating: {errors}"
+    return att
+
+
 CACHE = {"event_type": "cache_hit", "tokens_saved": 1000, "avoided_model": "gh/claude-opus-4.8"}
 DISP = {"event_type": "short_circuit", "tokens_saved": 1000, "avoided_model": "or/deepseek/deepseek-v4-pro",
         "evidence_tier": "provider_metered", "metered_tokens": [100, 400]}
@@ -116,6 +156,8 @@ def bases():
                                 {**DISP, "detail": "disp/or/deepseek-v4-pro/openrouter:gen-x", "evidence": "m0"}]))
     except Exception:
         pass
+    for _hv in (4, 5, 6):          # the block shapes no vector and no other base exercises
+        b.append(build_savings_at_version(_hv, 2))
     b.append(build_action(1, ["self_reported"]))
     b.append(build_action(3, ["self_reported", "server_witnessed", "attested"]))
     return b
