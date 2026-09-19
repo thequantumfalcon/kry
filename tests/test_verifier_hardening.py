@@ -225,16 +225,19 @@ def test_hardening_vectors_in_python(path):
 
 @pytest.mark.parametrize("vector_id", ["overflowing_tokens", "invalid_unicode_escape", "unescaped_tab",
                                         "veracity_floor_string", "valid_v7"])
-def test_stranger_cli_reports_vector_verdict(vector_id, tmp_path):
+@pytest.mark.parametrize("stdio_encoding", ["utf-8", "cp1252"])
+def test_stranger_cli_reports_vector_verdict(vector_id, stdio_encoding, tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTHONIOENCODING", stdio_encoding)
     vector = json.loads((_ROOT / "vectors/hardening" / f"{vector_id}.json").read_text(encoding="utf-8"))
     path = tmp_path / "attestation.json"
     path.write_text(vector["input_raw_text"], encoding="utf-8")
     result = subprocess.run([sys.executable, str(_ROOT / "scripts/kry_verify.py"), str(path)],
-                            capture_output=True, text=True, encoding="utf-8")
+                            capture_output=True)
     expected = vector["expected"]["verdict"]
     assert result.returncode == (0 if expected == "VALID" else 1)
-    assert f"VERDICT: {expected}" in result.stdout
-    assert result.stderr == ""
+    # Verdicts are ASCII in either console encoding; surrounding prose need not be UTF-8.
+    assert f"VERDICT: {expected}".encode("ascii") in result.stdout
+    assert result.stderr == b""
 
 
 def test_stranger_cli_distinguishes_unreadable_file_from_json_error(tmp_path, capsys):
