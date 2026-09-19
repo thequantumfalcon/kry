@@ -98,7 +98,7 @@ def _canon_f64(x) -> str:
     verifier yields a clean hash MISMATCH rather than crashing. Mirrors kry_mint._canon_f64."""
     try:
         f = float(x)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return _V5_BAD
     if f != f or f in (float("inf"), float("-inf")):
         return _V5_BAD

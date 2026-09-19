@@ -1,6 +1,6 @@
 # KRY-SPEC v1.3 — Receipt & Attestation Verification
 
-**Status:** normative, versioned. **Version:** v1.3 (2026-08-01); first published v1.0 (2026-07-04) — see Annex C. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
+**Status:** normative, versioned. **Version:** v1.3 (2026-08-01), corrected 2026-09-19; first published v1.0 (2026-07-04) — see Annex C for the approved compatibility decision. **Supersedes:** `docs/KRY_TOKEN_SPEC.md` v0.1 (descriptive; predates hash v7 and the action layer).
 **Reference implementation:** `src/kry/` + `scripts/kry_verify.py` + `scripts/kry_action_verify.py`.
 **Conformance corpus:** `vectors/` (generated from the reference code by `vectors/generate.py`).
 
@@ -21,7 +21,7 @@ A conforming verifier MUST **fail closed**: any parse error, unknown version, mi
 An implementation is **conformant** iff, given only this document and the `vectors/` corpus (and NOT `src/kry`), for every vector it reproduces the `expected.verdict` from the vector's `input` (or `input_raw_text`):
 - `VALID` — all checks pass.
 - `INVALID` — at least one check fails (the reference also emits human-readable reasons; reproducing the exact reason strings is NOT required, only the verdict).
-- `PARSE_ERROR` — the input is not standard JSON (e.g. contains `NaN`/`Infinity`) and MUST be rejected before verification.
+- `PARSE_ERROR` — the input is malformed JSON, contains `NaN`/`Infinity`, or a float literal overflows binary64 (e.g. `1e309`), and MUST be rejected before verification.
 
 Encoding primitives (§2) are pinned by `vectors/primitives/`; a conformant verifier MUST reproduce every `expected_hex` / `expected_bytes` there.
 
@@ -36,10 +36,10 @@ Encoding primitives (§2) are pinned by `vectors/primitives/`; a conformant veri
 1. **Object keys sorted** lexicographically by Unicode code point, at **every** nesting level.
 2. **No insignificant whitespace** — item separator `,`, key/value separator `:`.
 3. **Non-ASCII escaped** as `\uXXXX` (lowercase hex; astral code points as UTF-16 surrogate pairs). ASCII control/quote/backslash escaped per JSON.
-4. **`NaN`, `Infinity`, `-Infinity` are forbidden** — both on parse (reject → PARSE_ERROR) and on output.
+4. **`NaN`, `Infinity`, `-Infinity` are forbidden** — both on parse (reject → PARSE_ERROR) and on output. Float literals that overflow to infinity are also PARSE_ERROR. Integer literals retain their exact integer value; an integer outside finite binary64 range is INVALID when consumed as an economic quantity.
 5. Numbers are emitted in their JSON form (integers without a decimal point; e.g. `1.5`, `true`, `null` unchanged).
 
-**The wire form must already be canonical.** An attestation's numeric literals MUST be exactly what this serialization would emit — `1000.0`, not `1e3` or `1000.00`, and `1000` for an integer. A verifier MAY reject an attestation whose literals are spelled otherwise, and one written in a language without distinct integer and float types MUST be allowed to: after parsing, such a language cannot tell `1000.0` from `1000`, so it can only reproduce the preimage by preserving the literal it received. A minter that re-spells a number — or a pipeline that reformats the JSON in transit — changes the `attestation_hash` preimage for those verifiers while a Python verifier, which re-serializes the parsed value, still accepts it. Emitting canonical literals is the minter's responsibility; the corpus is canonical throughout.
+**Canonicalize parsed values, not raw literals.** Preserve whether each number is an integer literal or a float literal (a decimal point or exponent makes it a float). Integers serialize exactly, with integer `-0` normalized to `0`. Floats are parsed to binary64 and emitted with Python's shortest round-tripping representation: scientific notation for decimal exponents below -4 or at least 16, a signed exponent with at least two digits, and `.0` on integral floats in fixed notation. Float negative zero remains `-0.0`. Thus `1e3`, `1000.00`, and `1000.0` all canonicalize to `1000.0`; integer `1000` remains distinct. A parser without separate numeric types MUST retain this literal-type distinction. Hashing the received literal verbatim is not conformant. Equivalent float respellings MUST produce the same hash and verdict, including the v4 public block.
 
 Worked examples (from `vectors/primitives/canonical_json.json`):
 
@@ -143,7 +143,7 @@ if hash_version >= 7: B["event_type"] = event_type or ""           # string
 public_block = canon(B)
 ```
 
-For `hash_version == 4`, `B` is the same but the four numeric fields (`tokens_saved`, `ts`, `kry_minted`, `earn_rate`) are the raw JSON numbers, not `canon_f64`. (v4 is legacy; the vectors are v7.)
+For `hash_version == 4`, `B` is the same but the four numeric fields (`tokens_saved`, `ts`, `kry_minted`, `earn_rate`) are JSON numbers canonicalized by §2.1, not `canon_f64` strings.
 
 The **chain hash** is:
 
@@ -192,13 +192,15 @@ If `evidence_tier == "provider_metered"`: `ts` MUST be a numeric value ≥ 0, an
 
 A `veracity` key that is **present but not a JSON object** (`null`, a number, a string, an array) is INVALID — it is neither a declared trust surface nor "no claim". An absent `veracity` is likewise INVALID (§3.1). `by_tier` is compared as a **map**: the declared key set MUST equal the derived key set (an invented or dropped tier is a mismatch even when the summary numbers still add up).
 
-**Rounding.** Every `round(x, n)` in this spec means round-half-even applied to the **exact** binary value of `x` (Python's `round()`). Do not round by scaling — `Math.round(x * 1e4) / 1e4` is a different function, because the multiply injects its own error; on roughly 4% of five-decimal magnitudes it lands on the other side, which is four decades above the tolerance below and flips the verdict. Expand the exact value and round its decimal digits.
+**Rounding.** Every `round(x, n)` in this spec means round-half-even applied to the **exact** binary64 value of `x` (Python's `round()`). Expand the value, round its decimal digits, then convert that decimal result to binary64 once. Scaling before rounding or converting a rounded scaled integer to binary64 before division introduces another rounding and can change the verdict. Large finite values whose binary64 representation has no fractional part remain unchanged. The receipt-level rounding vectors in `vectors/hardening/` cover genuine four- and six-place ties and large magnitudes.
+
+Every declared numeric summary MUST be a finite JSON number, not a string, boolean, null, array, or object. The same finite-number requirement applies to economic inputs; overflow must yield a rejection, never a crash or a skipped comparison.
 
 **Numeric comparison tolerance.** Every declared-vs-derived numeric comparison in §3.1 and §3.5 — `total_kry`, `usd_equivalent`, each `by_tier` value, `anchored_kry`, `self_reported_kry`, `veracity_floor` — uses one absolute tolerance: **`1e-9`**. Compare against the rounded derivation this spec mandates (`round(x, 4)`, or `round(x, 6)` for `usd_equivalent`), so the smallest real discrepancy is `1e-6`; `1e-9` sits three decades below that and above IEEE-754 accumulation noise, which makes it strict enough to reject any misstatement and loose enough to survive re-summing in another language. This tolerance does NOT apply to the values this spec pins separately: the `1e-6` rate and `1e-3` multiplier bounds of §3.4.1, the `-0.01` outcome guard of §3.7, and the `0.01` action floor of §4.1/§4.4.
 
 ### 3.6 Versioning / fail-closed
 
-`hash_version` is an integer. A verifier that does not understand a link's `hash_version` MUST fail closed (INVALID), never guess. Versions are additive and monotonic within a chain (§3.4 step 2). This spec defines v4–v7; v5+ is the language-neutral (`canon_f64`) form and is what the corpus uses.
+`hash_version` is an integer. A verifier that does not understand a link's `hash_version` MUST fail closed (INVALID), never guess. Versions are additive and monotonic within a chain (§3.4 step 2). This spec defines v4–v7; v5+ uses language-neutral `canon_f64`. The corpus includes valid v4–v7 chains.
 
 ### 3.7 Promotion-overlay profile (optional, normative when claimed)
 
@@ -295,7 +297,7 @@ Then `chain_tip` MUST equal the final re-derived hash and `action_count == len(l
 
 ### 4.4 Veracity floor + tier coercion
 
-Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED = {T1, T2}; any other tier string is non-anchored (fail closed). A link that claims an anchored tier but carries **no** `server_evidence_commit` is a forgery and MUST be **coerced to `self_reported`** for the floor (and SHOULD warn). `veracity_floor = round(anchored / total, 4)` over the coerced tiers, `0.0` if empty. If the attestation declares a `veracity_floor` that differs from the re-derived value by `> 0.01` → INVALID.
+Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED = {T1, T2}; any other tier string is non-anchored (fail closed). A link that claims an anchored tier but carries **no** `server_evidence_commit` is a forgery and MUST be **coerced to `self_reported`** for the floor (and SHOULD warn). `veracity_floor = round(anchored / total, 4)` over the coerced tiers, `0.0` if empty. If present, the declared floor MUST be a finite JSON number; a difference from the re-derived value of `> 0.01` → INVALID. An absent floor remains optional.
 
 ---
 
@@ -314,6 +316,7 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **v1.3 correction (2026-09-19, owner-approved):** reject nonfinite economic inputs, nonnumeric trust summaries, malformed JSON and wrong-profile documents; normalize parsed numeric values and Unicode key order consistently; round large values without intermediate binary rounding; skip unknown-version links in derivations while rejecting the document. This deliberately changes acceptance of inputs previously accepted by a buggy implementation. Equivalent float respellings and correctly rounded large receipts become consistently accepted. No hash version changes; existing vector bytes and verdicts remain unchanged. New cases are additive under `vectors/hardening/`. See [the compatibility decision](docs/VERIFIER_COMPATIBILITY_2026_09_19.md).
 - **v1.3 (2026-08-01):** §3.5 made **derivable**. Three rules that were previously implied or delegated are now stated: (a) a `veracity` key present but not a JSON object is INVALID, and `by_tier` is compared as a map with equal key sets; (b) every §3.5 field (`by_tier`, `anchored_kry`, `self_reported_kry`, `veracity_floor`) MUST be present — an absent one is INVALID, not a skipped check; (c) the numeric comparison tolerance is pinned at **1e-9** as a number, replacing "tolerance as in the reference", with the separately-pinned constants of §3.4.1/§3.7/§4 explicitly excluded. Prompted by a differential-fuzz run whose expanded mutation space (reseal + envelope field deletion) found the two implementations disagreeing on exactly these absent-key cases. Ten vectors added under `vectors/savings/adversarial/`: five pin the absent-key cases (`veracity_{by_tier,anchored_kry,self_reported_kry,veracity_floor}_missing`, `event_type_counts_missing`); `veracity_null` and `veracity_missing` pin rule (a) and the §3.1 presence of `veracity`; `total_kry_missing`, `hash_version_above_range` and `empty_chain_head_not_genesis` pin existing §3.1, §3.4 and §3.6 rules. Additive: every v1.0–v1.2 vector and verdict is unchanged.
 - **v1.2 (2026-07-21):** §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor becomes an optional profile with vectors (`vectors/savings/anchor/` — anchored-valid, trailing-truncation detected, retroactive re-mint detected; the truncation vector verifies VALID standalone, pinning that chain-walking alone cannot see a dropped tail). Anchor vectors carry `input_anchor` as a second verifier input. Additive: every v1.0/v1.1 vector and verdict unchanged.
 - **v1.1 (2026-07-21):** §3.7 promotion overlay promoted from informative to an optional, normatively-specified **profile** with its own vector category (`vectors/savings/overlay/` — one VALID promotion, four adversarial: forward-reference, positive-value promoter, duplicate hash-bound id, double-claim). Non-profile verifiers MUST fail closed on a non-null `supersedes`. Published-anchor semantics remain deferred. Additive: every v1.0 vector and verdict is unchanged.

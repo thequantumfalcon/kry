@@ -696,6 +696,84 @@ def gen_action() -> None:
         "rationale": "Receipt ids must be unique within an attestation."})
 
 
+def gen_hardening() -> None:
+    """Additive regressions for the 2026-09-19 compatibility decision (SPEC Annex C)."""
+    base = build([{**CACHE, "detail": "hardening", "evidence": "u-hardening"}])
+
+    def receipt(value=1000.0, version=7):
+        att = copy.deepcopy(base)
+        att["links"][0].update(tokens_saved=value, kry_minted=value, earn_rate=1.0, hash_version=version)
+        rechain(att)
+        att["usd_equivalent"] = round(att["total_kry"] * .000025, 6)
+        return reseal(att)
+
+    def emit(vid, raw, description, expected):
+        try:
+            att = kv._json_loads(raw)
+        except ValueError:
+            result = {"verdict": "PARSE_ERROR", "reasons": ["invalid JSON or nonfinite float"]}
+        else:
+            result = (verdict_action(att) if att.get("kind") == "kry_action_attestation"
+                      else verdict_savings(att))
+        assert result["verdict"] == expected, (vid, result)
+        write("hardening", vid, {"kind": "raw_json", "description": description,
+                                 "input_raw_text": raw, "expected": result})
+
+    for label, value in [("large_fraction", 902680278377.107), ("large_exponent", 1e21),
+                         ("near_float_limit", 1e308), ("tie4_down", .03125),
+                         ("tie4_up", .09375), ("tie6_down", 312.5), ("tie6_up", 937.5)]:
+        emit("rounding_" + label, canon(receipt(value)),
+             "Receipt totals round the exact binary64 value half-even at four and six places.", "VALID")
+    a = receipt(902680278377.107)
+    a["total_kry"] = 902680278377.1072
+    a["usd_equivalent"] = round(a["total_kry"] * .000025, 6)
+    a["veracity"]["by_tier"]["self_reported"] = a["total_kry"]
+    a["veracity"]["self_reported_kry"] = a["total_kry"]
+    emit("rounding_inflated_total", canon(reseal(a)),
+         "A double-rounded total is not the exact rounded link sum.", "INVALID")
+
+    for version in (4, 5, 6, 7):
+        raw = canon(receipt(version=version))
+        emit(f"valid_v{version}", raw, "Canonical version-specific public block.", "VALID")
+        raw = raw.replace('"tokens_saved":1000.0', '"tokens_saved":1e3')
+        emit(f"float_respelled_v{version}", raw,
+             "An exponent float spelling normalizes to 1000.0 before hashing.", "VALID")
+    a = receipt()
+    a["attestation_hash"] = ""
+    raw = canon(a).replace('"tokens_saved":1000.0', '"tokens_saved":1e3')
+    raw_hash = hashlib.sha256(raw.encode()).hexdigest()
+    raw = raw.replace('"attestation_hash":""', '"attestation_hash":"' + raw_hash + '"')
+    emit("raw_literal_hash", raw, "Hashing raw float spellings is not canonical hashing.", "INVALID")
+
+    for field in ("veracity_floor", "anchored_kry", "self_reported_kry"):
+        a = receipt()
+        a["veracity"][field] = "1.0"
+        emit(field + "_string", canon(reseal(a)), "Trust summaries require JSON numbers.", "INVALID")
+    a = receipt()
+    a["kind"] = "kry_action_attestation"
+    emit("wrong_profile", canon(reseal(a)), "Savings-shaped data cannot claim the action profile.", "INVALID")
+    a = receipt(version=8)
+    a.update(total_kry=0.0, usd_equivalent=0.0, event_type_counts={})
+    a["veracity"].update(by_tier={}, self_reported_kry=0.0)
+    emit("unknown_version_excluded", canon(reseal(a)),
+         "An unknown version is invalid and excluded from totals, counts and tiers.", "INVALID")
+
+    raw = canon(receipt())
+    emit("overflowing_tokens", raw.replace('"tokens_saved":1000.0', '"tokens_saved":1e309'),
+         "A JSON float overflowing binary64 is rejected at parse time.", "PARSE_ERROR")
+    for label, literal in [("invalid_unicode_escape", '"\\uZZZZ"'), ("unescaped_tab", '"a\tb"')]:
+        a = receipt()
+        a["note"] = "placeholder"
+        raw = canon(reseal(a)).replace('"placeholder"', literal)
+        emit(label, raw, "Malformed JSON strings must fail parsing.", "PARSE_ERROR")
+    a = receipt()
+    a["metadata"] = {"\ue000": 0, "\U00010000": 1}
+    emit("unicode_key_order", canon(reseal(a)), "Keys sort by Unicode code point, not UTF-16 units.", "VALID")
+    link, _ = act_link(0, GENESIS)
+    a = act_att([link], "1.0")
+    emit("action_floor_string", canon(a), "A present action floor must be a finite JSON number.", "INVALID")
+
+
 def main() -> None:
     for stale in OUT.rglob("*.json"):
         stale.unlink()
@@ -704,6 +782,7 @@ def main() -> None:
     gen_overlay()
     gen_anchor()
     gen_action()
+    gen_hardening()
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(

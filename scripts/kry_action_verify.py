@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import struct
 import sys
 
@@ -43,8 +44,16 @@ def _reject_json_constant(value: str):
     raise ValueError(f"non-standard JSON constant rejected: {value}")
 
 
+def _json_float(raw: str) -> float:
+    # JSON exponent overflow must fail during parsing, just like literal Infinity.
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("nonfinite JSON float")
+    return value
+
+
 def _json_loads(text: str):
-    return json.loads(text, parse_constant=_reject_json_constant)
+    return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float)
 
 
 def _canon(value) -> str:
@@ -55,7 +64,7 @@ def _canon_f64(x) -> str:
     """REPLICA of kry_action._canon_f64 — EXACT IEEE-754 double, big-endian hex."""
     try:
         f = float(x)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return _V5_BAD
     if f != f or f in (float("inf"), float("-inf")):
         return _V5_BAD
@@ -167,7 +176,15 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
     _v = att.get("veracity")
     v = _v if isinstance(_v, dict) else {}
     claimed = v.get("veracity_floor")
-    if isinstance(claimed, (int, float)):
+    if "veracity_floor" in v:
+        if isinstance(claimed, bool) or not isinstance(claimed, (int, float)):
+            return False, ["veracity_floor must be a finite JSON number"], warnings
+        try:
+            finite = math.isfinite(claimed)
+        except OverflowError:
+            finite = False
+        if not finite:
+            return False, ["veracity_floor must be a finite JSON number"], warnings
         if abs(float(claimed) - derived_floor) > 0.01:
             errors.append(f"veracity_floor mismatch: claimed {claimed}, re-derived {derived_floor}")
             return False, errors, warnings

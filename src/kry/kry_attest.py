@@ -84,8 +84,16 @@ def _reject_json_constant(value: str):
     raise ValueError(f"non-standard JSON constant rejected: {value}")
 
 
+def _json_float(raw: str) -> float:
+    # JSON exponent overflow must fail during parsing, just like literal Infinity.
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("nonfinite JSON float")
+    return value
+
+
 def _json_loads(text: str):
-    return json.loads(text, parse_constant=_reject_json_constant)
+    return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float)
 
 
 def _json_dumps(data: object, **kwargs) -> str:
@@ -100,7 +108,10 @@ def _json_clean(data: object) -> object:
 def _finite_number(value, field: str, *, nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a finite JSON number")
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
     if not math.isfinite(value):
         raise ValueError(f"{field} must be finite")
     if nonnegative and value < 0:
@@ -391,6 +402,8 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
         return False, [f"invalid JSON: {e}"]
     if not isinstance(data, dict):
         return False, ["attestation must be a JSON object"]
+    if data.get("kind") == "kry_action_attestation":
+        return False, ["action attestation requires the action verifier"]
 
     prev_chain = "0" * 64
     prev_link_version = 0

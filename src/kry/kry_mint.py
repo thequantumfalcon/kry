@@ -893,7 +893,7 @@ def _canon_f64(x) -> str:
     hash MISMATCH (clean INVALID), never a crash. Must be byte-identical to the stdlib kry_verify replica."""
     try:
         f = float(x)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return _V5_BAD
     if f != f or f in (float("inf"), float("-inf")):   # NaN / ±inf
         return _V5_BAD

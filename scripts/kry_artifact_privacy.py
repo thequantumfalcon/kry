@@ -14,8 +14,7 @@ PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS = {
     "input_tokens",
     # OpenAI reports its counters in these objects (token counts only): cache reads and writes on the
     # input side, reasoning tokens on the output side. Every real response carries the output one.
-    # `prompt_tokens_details` is listed here so the private-word rule does not read its "prompt" as
-    # prompt content; a string smuggled under a new name inside any of them is still rejected.
+    # These containers are checked against TOKEN_DETAIL_COUNTERS before any input is copied.
     "input_tokens_details",
     "prompt_tokens_details",
     "output_tokens_details",
@@ -24,6 +23,11 @@ PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS = {
     "output_tokens",
     "total_tokens",
     "metered_tokens",
+}
+TOKEN_DETAIL_COUNTERS = {
+    "input_tokens_details": {"cached_tokens", "cache_write_tokens"},
+    "prompt_tokens_details": {"cached_tokens", "cache_write_tokens", "audio_tokens"},
+    "output_tokens_details": {"reasoning_tokens"},
 }
 USAGE_LOG_PUBLIC_TOKEN_KEYS = PROVIDER_EXPORT_PUBLIC_TOKEN_KEYS | {
     "native_tokens_prompt",
@@ -137,6 +141,20 @@ def _private_key_errors(
             for key, item in current.items():
                 key_label = _json_key_label(key)
                 child_path = f"{current_path}.{key}"
+                if key_label in TOKEN_DETAIL_COUNTERS:
+                    # A container name is not permission to publish arbitrary text. Optional
+                    # Chat Completions counters may be null; otherwise counters are integers.
+                    valid = isinstance(item, dict) and all(
+                        name in TOKEN_DETAIL_COUNTERS[key_label]
+                        and ((key_label == "prompt_tokens_details" and count is None)
+                             or (type(count) is int and count >= 0))
+                        for name, count in item.items()
+                    )
+                    if not valid:
+                        errors.append(f"{source_label} field {child_path} must be a token counter object")
+                        if len(errors) >= limit:
+                            return
+                    continue
                 key_words = set(key_label.split("_"))
                 is_private = key_label not in allowed_token_keys and (
                     key_label in PROVIDER_EXPORT_PRIVATE_KEYS

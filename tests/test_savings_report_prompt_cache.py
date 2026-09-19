@@ -204,3 +204,39 @@ def test_raw_batch_result_rows_carry_no_model_and_are_skipped(sr):
                                                      "usage": _OPENAI_BATCH_USAGE}}}
     assert sr.analyze([raw])["prompt_cache"]["records"] == {
         "priced": 0, "unpriced": 0, "modifier_excluded": 0, "malformed": 0, "ttl_assumed_1h": 0}
+
+
+@pytest.mark.parametrize("tier", ["flex", "batch", "priority", "auto", "fast", "ultrafast", [], {}])
+@pytest.mark.parametrize("nested", [None, "default"])
+def test_top_level_billing_tier_survives_usage_extraction(sr, tier, nested):
+    usage = {**_OPENAI_BATCH_USAGE, "service_tier": nested}
+    rec = {"model": "gpt-5.6-luna", "service_tier": tier, "usage": usage}
+    before = copy.deepcopy(rec)
+    block = sr.analyze([rec])["prompt_cache"]
+    assert block["records"]["modifier_excluded"] == 1
+    assert block["records"]["priced"] == 0 and block["saving_usd"] == 0
+    assert rec == before
+
+
+def test_standard_outer_tier_cannot_override_nested_discount(sr):
+    rec = {"model": "gpt-5.6-luna", "service_tier": "default",
+           "usage": {**_OPENAI_BATCH_USAGE, "service_tier": "flex"}}
+    assert sr.analyze([rec])["prompt_cache"]["records"]["modifier_excluded"] == 1
+
+
+@pytest.mark.parametrize("nested", [None, "default"])
+def test_standard_tiers_are_still_priced(sr, nested):
+    rec = {"model": "gpt-5.6-luna", "service_tier": "default",
+           "usage": {**_OPENAI_BATCH_USAGE, "service_tier": nested}}
+    assert sr.analyze([rec])["prompt_cache"]["records"]["priced"] == 1
+
+
+def test_short_context_basis_is_not_a_lower_bound_on_cache_write_savings(sr):
+    rec = {"model": "gpt-5.6-luna", "usage": {"input_tokens": 240_000, "output_tokens": 0,
+           "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 240_000}}}
+    reported = sr.analyze([rec])["prompt_cache"]["saving_usd"]
+    assert reported == -0.012
+    # The long-context input prices are twice the short-context prices: the loss is larger.
+    long_context_saving = 240_000 * (0.4 - 0.5) / 1_000_000
+    assert long_context_saving == pytest.approx(-0.024)
+    assert reported > long_context_saving

@@ -248,7 +248,7 @@ def mutate(att, rng):
 
 def py_verdict(text):
     try:
-        att = json.loads(text, parse_constant=lambda v: (_ for _ in ()).throw(ValueError(v)))
+        att = kv._json_loads(text)
     except Exception:
         return "PARSE_ERROR"
     try:
@@ -262,7 +262,8 @@ def py_verdict(text):
 
 
 MALFORMED = ['{"kind":"kry_action_attestation","action_hash_version":1,"links":[{"kry_minted":NaN}]}',
-             '{"links":[]', '{"receipts":1,"links":[{"ts":Infinity}]}', 'not json', '{"a":']
+             '{"links":[]', '{"receipts":1,"links":[{"ts":Infinity}]}', 'not json', '{"a":',
+             '{"tokens_saved":1e309}', '{"note":"\\uZZZZ"}', '{"note":"a\tb"}']
 
 
 def main():
@@ -280,6 +281,14 @@ def main():
     if WORK.exists():
         shutil.rmtree(WORK)
     ndj = ROOT / "verifiers" / ".fuzz_batch.ndjson"
+    # A broken base makes mutations agree vacuously. Check every base in BOTH implementations.
+    base_texts = [json.dumps(att) for att in base]
+    assert all(py_verdict(text) == "VALID" for text in base_texts)
+    ndj.write_text("\n".join(base_texts) + "\n")
+    checked = subprocess.run(
+        ["node", str(ROOT / "verifiers" / "js" / "cli.mjs"), "--batch", str(ndj), str(MULT)],
+        capture_output=True, text=True, check=True)
+    assert checked.stdout.splitlines() == ["VALID"] * len(base), checked.stdout
     chunk = 50000
     agree = {"VALID": 0, "INVALID": 0, "PARSE_ERROR": 0, "CRASH": 0}
     ndiv = 0

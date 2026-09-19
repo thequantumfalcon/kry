@@ -325,8 +325,8 @@ def test_standalone_verifier_rejects_nonstandard_json_constants(tmp_path, capsys
     assert v.main([str(att_path)]) == 1
     out = capsys.readouterr().out
 
-    assert "VERDICT: INVALID" in out
-    assert "attestation unreadable: non-standard JSON constant rejected: NaN" in out
+    assert "VERDICT: PARSE_ERROR" in out
+    assert "invalid attestation JSON: non-standard JSON constant rejected: NaN" in out
     with pytest.raises(ValueError, match="non-standard JSON constant rejected: NaN"):
         v._read_registry(str(registry_path))
     with pytest.raises(ValueError, match="Out of range float values"):

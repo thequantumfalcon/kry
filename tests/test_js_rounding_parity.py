@@ -29,7 +29,7 @@ def _cases() -> list[tuple[float, int]]:
     for k in range(1, 600):                       # dyadic values: the genuine half-even ties
         cases.append((k / 32, 4))
         cases.append((k / 1024, 4))
-        cases.append((k / 64, 6))
+        cases.append((k / 128, 6))                # odd k have a genuine six-place rounding tie
     return cases
 
 

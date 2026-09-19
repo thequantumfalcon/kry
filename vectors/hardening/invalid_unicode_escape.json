@@ -1,0 +1,12 @@
+{
+  "id": "invalid_unicode_escape",
+  "kind": "raw_json",
+  "description": "Malformed JSON strings must fail parsing.",
+  "input_raw_text": "{\"attestation_hash\":\"2a6ea7344893b0b8def8c9b5ee1acb7cebeac88e4e2b9d263ee171f10c126a8e\",\"chain_head\":\"ae205bf7a6968655206bb7de1435a91423ba3e5e8a20fd6d5b1a408abe9beb4b\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"ae205bf7a6968655206bb7de1435a91423ba3e5e8a20fd6d5b1a408abe9beb4b\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"note\":\"\\uZZZZ\",\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "PARSE_ERROR",
+    "reasons": [
+      "invalid JSON or nonfinite float"
+    ]
+  }
+}

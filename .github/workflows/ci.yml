@@ -73,6 +73,26 @@ jobs:
       - name: Tests
         run: python -m pytest tests/ -q
 
+  litellm-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Install package and integration dependency
+        run: python -m pip install -e ".[dev]" "litellm==1.101.0"
+      - name: Require LiteLLM and exercise its real callback dispatch with mock responses
+        run: |
+          python -c "import litellm"
+          python -m pytest tests/test_litellm_integration.py -q
+
   release-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 20

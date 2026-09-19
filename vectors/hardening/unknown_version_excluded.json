@@ -1,0 +1,12 @@
+{
+  "id": "unknown_version_excluded",
+  "kind": "raw_json",
+  "description": "An unknown version is invalid and excluded from totals, counts and tiers.",
+  "input_raw_text": "{\"attestation_hash\":\"ad424059ccd39cde046d84cd33749197150867ada70d62f82a11ffa6e42e029d\",\"chain_head\":\"f586aebe014958dc04a623b8a1e882bf8def3b20b7549eed13892d20eb53dbac\",\"chain_valid\":true,\"event_type_counts\":{},\"links\":[{\"chain_hash\":\"f586aebe014958dc04a623b8a1e882bf8def3b20b7549eed13892d20eb53dbac\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":8,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":0.0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: unrecognized hash_version 8 \u2014 this verifier understands 7 and below (fail closed)"
+    ]
+  }
+}

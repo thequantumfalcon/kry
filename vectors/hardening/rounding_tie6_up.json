@@ -1,0 +1,10 @@
+{
+  "id": "rounding_tie6_up",
+  "kind": "raw_json",
+  "description": "Receipt totals round the exact binary64 value half-even at four and six places.",
+  "input_raw_text": "{\"attestation_hash\":\"d83769a62a3658332ad0df5e597313e97b57afe00b825f865ac5b12f7e29191a\",\"chain_head\":\"9765ebdd961d5555ef86fe90c304e556e65049e30a135f50aac9745939328d6a\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"9765ebdd961d5555ef86fe90c304e556e65049e30a135f50aac9745939328d6a\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":937.5,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":937.5,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":937.5,\"usd_equivalent\":0.023438,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":937.5},\"self_reported_kry\":937.5,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}

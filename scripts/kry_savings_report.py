@@ -212,6 +212,12 @@ def _provider_calls(records: list[dict], batch: bool = False):
         if n is None or n["cache_hit"]:
             continue
         usage = rec.get("usage", rec)
+        if isinstance(usage, dict) and rec.get("service_tier") is not None:
+            tier = rec["service_tier"]
+            if usage.get("service_tier") is not None and usage["service_tier"] != tier:
+                # Contradictory billing metadata cannot establish the standard price basis.
+                tier = "conflicting_service_tiers"
+            usage = {**usage, "service_tier": tier}
         if (batch or _batch_origin(rec)) and isinstance(usage, dict):
             usage = {**usage, "service_tier": "batch"}
         yield (n["served_model"] or n["model"]), usage
