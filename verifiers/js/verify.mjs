@@ -7,10 +7,9 @@
 // The one cross-language subtlety (SPEC §2.1 / §3.1): the OUTER attestation_hash
 // binds raw JSON numbers, and CPython's json preserves int-vs-float by the presence
 // of a decimal point, which JSON.parse discards. We therefore parse with a
-// number-PRESERVING parser (keep each number's exact source text) and emit that text
-// verbatim in canonical output — reproducing CPython byte-for-byte without emulating
-// its float repr. The INNER chain never needs this: every economic number is bound
-// through canon_f64 (IEEE-754 big-endian hex), which is language-neutral by design.
+// number-PRESERVING parser to distinguish integer from float literals, then serialize
+// the parsed value with Python's numeric spelling. The v5+ INNER chain instead binds
+// economic numbers through canon_f64 (IEEE-754 big-endian hex).
 //
 // This module is environment-agnostic (no Node/DOM APIs, pure-JS SHA-256), so the
 // SAME verifier runs under Node, Deno, and in a browser (see ../web/index.html).
@@ -18,9 +17,12 @@
 
 // ── number-preserving JSON ────────────────────────────────────────────────────
 class Num {                       // preserves the exact source literal of a number
-  constructor(raw) { this.raw = raw; this.val = Number(raw); }
+  constructor(raw) { this.raw = raw; this.val = raw === "-0" ? 0 : Number(raw); }
 }
 function parse(text) {
+  // Validate strings/escapes with the native JSON parser before preserving numeric types.
+  // A permissive string scanner must not turn malformed wire text into a valid document.
+  JSON.parse(text);
   let i = 0;
   const ws = () => { while (i < text.length && " \t\n\r".includes(text[i])) i++; };
   function val() {
@@ -43,7 +45,9 @@ function parse(text) {
     while (i < text.length && "0123456789.eE+-".includes(text[i])) i++;
     const raw = text.slice(start, i);
     if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(raw)) throw new Error("bad number " + raw);
-    return new Num(raw);
+    const n = new Num(raw);
+    if (/[.eE]/.test(raw) && !Number.isFinite(n.val)) throw new Error("nonfinite JSON float");
+    return n;
   }
   function str() {
     i++; let s = "";
@@ -64,6 +68,31 @@ function parse(text) {
 }
 
 // ── canonical serialization (SPEC §2.1) ───────────────────────────────────────
+function canonNumber(n) {
+  if (!/[.eE]/.test(n.raw)) return n.raw === "-0" ? "0" : n.raw; // exact, arbitrary-size integer
+  if (!Number.isFinite(n.val)) throw new Error("nonfinite JSON float");
+  if (Object.is(n.val, -0)) return "-0.0";
+  // Both runtimes choose the nearest shortest round-tripping decimal. Python uses scientific
+  // notation outside [-4, 16), pads the exponent, and retains .0 for fixed integral floats.
+  const [mantissa, exp] = n.val.toExponential().split("e");
+  const exponent = Number(exp);
+  if (exponent < -4 || exponent >= 16)
+    return mantissa + "e" + (exponent < 0 ? "-" : "+") + String(Math.abs(exponent)).padStart(2, "0");
+  const sign = n.val < 0 ? "-" : "";
+  const digits = mantissa.replace("-", "").replace(".", "");
+  const point = exponent + 1;
+  if (point <= 0) return sign + "0." + "0".repeat(-point) + digits;
+  if (point >= digits.length) return sign + digits + "0".repeat(point - digits.length) + ".0";
+  return sign + digits.slice(0, point) + "." + digits.slice(point);
+}
+function compareKeys(a, b) {
+  // Python sorts Unicode code points, not UTF-16 units (astral keys differ from BMP keys).
+  const left = Array.from(a, (c) => c.codePointAt(0)), right = Array.from(b, (c) => c.codePointAt(0));
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return left.length - right.length;
+}
 function escStr(s) {                       // Python json ensure_ascii=True escaping
   let out = '"';
   for (const ch of s) {
@@ -90,16 +119,16 @@ function canon(v) {
   if (v === null) return "null";
   if (v === true) return "true";
   if (v === false) return "false";
-  if (v instanceof Num) return v.raw;                 // preserve exact literal
+  if (v instanceof Num) return canonNumber(v);
   if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(v);
   if (typeof v === "string") return escStr(v);
   if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
   if (v instanceof Map) {
-    const keys = [...v.keys()].sort();                // lexicographic by code unit
+    const keys = [...v.keys()].sort(compareKeys);
     return "{" + keys.map((k) => escStr(k) + ":" + canon(v.get(k))).join(",") + "}";
   }
   if (typeof v === "object") { // plain object built internally (blocks / payloads)
-    const keys = Object.keys(v).sort();
+    const keys = Object.keys(v).sort(compareKeys);
     return "{" + keys.map((k) => escStr(k) + ":" + canon(v[k])).join(",") + "}";
   }
   throw new Error("uncanonicalizable");
@@ -158,21 +187,24 @@ const SENT_ACTION = "ffffffffffffffff";
 // helpers to read Map-or-object fields
 const get = (m, k, d = undefined) => (m instanceof Map ? (m.has(k) ? m.get(k) : d) : (k in m ? m[k] : d));
 const numval = (x, d = undefined) => (x instanceof Num ? x.val : (typeof x === "number" ? x : d));
-const isNumLike = (x) => x instanceof Num || (typeof x === "number" && !Number.isNaN(x));
+const isNumLike = (x) => Number.isFinite(numval(x, NaN));
 // SPEC round(x, n): round-half-even applied to the EXACT binary value, as Python's round() does.
 // Rounding by scaling (Math.round(x * 1e4) / 1e4) is not the same function: the multiply injects its
 // own error, so ~4% of five-decimal magnitudes land on the other side and the two implementations
 // disagree by 1e-4 — four decades above the 1e-9 comparison tolerance. toFixed(100) is specified to
 // expand the exact value, which every magnitude in range has well inside 100 fractional digits.
 function roundDec(x, n) {
-  if (!Number.isFinite(x)) return x;
+  if (!Number.isFinite(x) || x === 0 || Math.abs(x) >= 1e21) return x;
   const neg = x < 0;
   const [ip, fp = ""] = Math.abs(x).toFixed(100).split(".");
   const rest = fp.slice(n);
   let digits = BigInt(ip + fp.slice(0, n));
   const first = rest.charCodeAt(0) - 48;
   if (first > 5 || (first === 5 && (/[1-9]/.test(rest.slice(1)) || digits % 2n === 1n))) digits += 1n;
-  const out = Number(digits) / 10 ** n;
+  // Parse the rounded DECIMAL once: converting the scaled integer to Number first introduces
+  // another binary rounding before division. Above 1e21, binary64 has no fractional digits.
+  const rounded = digits.toString().padStart(n + 1, "0");
+  const out = Number(n === 0 ? rounded : rounded.slice(0, -n) + "." + rounded.slice(-n));
   return neg ? -out : out;
 }
 const r4 = (x) => roundDec(x, 4);
@@ -248,14 +280,16 @@ function verifySavings(att) {
     // SPEC 3.6: hash_version is an INTEGER and this spec understands only 4..7, so an above-7 or
     // non-integer version fails CLOSED - a verifier must never guess an unknown block shape. <= 3
     // stays supported (3.3 legacy prev:receipt_hash formula, 3.4 step 4 pre-v4 tier coercion).
-    // A fractional literal (5.0 / 7.5) is not an integer: CPython's json makes it a float and the
-    // reference coerces it to legacy v1, so match on the literal, not on the numeric value.
+    // Float literals (5.0 / 7.5) are not integer versions: match their type, not just their value.
     const rawHv = get(link, "hash_version");
     let hv = 1;                                       // an ABSENT hash_version is legacy v1, not an error
     if (rawHv !== undefined) {
       if (rawHv instanceof Num && /^-?(0|[1-9][0-9]*)$/.test(rawHv.raw)) hv = rawHv.val;
-      else errs.push(`seq ${numval(seq)}: hash_version must be an integer`);
-      if (hv > 7) errs.push(`seq ${numval(seq)}: unsupported hash_version ${hv} (this spec defines 4..7)`);
+      else { errs.push(`seq ${numval(seq)}: hash_version must be an integer`); prev = ch; continue; }
+      if (hv > 7) {
+        errs.push(`seq ${numval(seq)}: unsupported hash_version ${hv} (this spec defines 4..7)`);
+        prev = ch; continue; // unrecognized links contribute to no derivation (SPEC 3.4)
+      }
     }
     if (hv < prevVer) errs.push("version downgrade");
     prevVer = Math.max(prevVer, hv);
@@ -347,9 +381,11 @@ function verifySavings(att) {
   // this verifier accepted it - the residual differential-fuzz divergence after the by_tier fix.
   if (_ver instanceof Map && !has(_ver, "anchored_kry") && !has(_ver, "externally_anchored_kry"))
     errs.push("veracity.anchored_kry missing");
-  else if (Math.abs(numval(get(ver, "anchored_kry", get(ver, "externally_anchored_kry", 0)), 0) - anchored) > CMP_EPS) errs.push("anchored_kry mismatch");
+  else if (!isNumLike(get(ver, "anchored_kry", get(ver, "externally_anchored_kry")))
+    || Math.abs(numval(get(ver, "anchored_kry", get(ver, "externally_anchored_kry"))) - anchored) > CMP_EPS) errs.push("anchored_kry mismatch");
   if (_ver instanceof Map && !has(_ver, "self_reported_kry")) errs.push("veracity.self_reported_kry missing");
-  else if (Math.abs(numval(get(ver, "self_reported_kry", 0), 0) - selfRep) > CMP_EPS) errs.push("self_reported_kry mismatch");
+  else if (!isNumLike(get(ver, "self_reported_kry"))
+    || Math.abs(numval(get(ver, "self_reported_kry")) - selfRep) > CMP_EPS) errs.push("self_reported_kry mismatch");
   // SPEC 3.5: the floor divides the ROUNDED anchored by the ROUNDED total, so all three
   // implementations derive the identical value from the spec text alone.
   const floor = r4(total) > 0 ? r4(anchored / r4(total)) : 0;
@@ -357,7 +393,8 @@ function verifySavings(att) {
   // check. Gating the comparison on isNumLike() meant a dropped floor verified clean here while the
   // Python reference rejected it (it defaults the key to 0.0 and then mismatches) - a divergence.
   if (_ver instanceof Map && !has(_ver, "veracity_floor")) errs.push("veracity.veracity_floor missing");
-  else if (isNumLike(get(ver, "veracity_floor")) && Math.abs(numval(get(ver, "veracity_floor")) - floor) > CMP_EPS) errs.push("veracity_floor mismatch");
+  else if (!isNumLike(get(ver, "veracity_floor"))
+    || Math.abs(numval(get(ver, "veracity_floor")) - floor) > CMP_EPS) errs.push("veracity_floor mismatch");
   // attestation_hash — canonicalize the whole attestation with the field blanked
   const declAH = get(att, "attestation_hash");
   const clone = cloneWith(att, "attestation_hash", "");
@@ -367,8 +404,8 @@ function verifySavings(att) {
 
 function magnitudeErrors(link) {
   const declares = has(link, "earn_rate") && has(link, "tokens_saved");
-  const km = numval(get(link, "kry_minted"), NaN), ts = numval(get(link, "tokens_saved", 0), 0), rate = numval(get(link, "earn_rate", 0), 0);
-  if (!(km >= 0) || !(ts >= 0) || !(rate >= 0)) return ["magnitude: bad number"];
+  const km = numval(get(link, "kry_minted"), NaN), ts = numval(get(link, "tokens_saved", 0), NaN), rate = numval(get(link, "earn_rate", 0), NaN);
+  if (![km, ts, rate].every((x) => Number.isFinite(x) && x >= 0)) return ["magnitude: bad number"];
   // The legacy exemption is bounded by version: v4 is where the economic block became hash-bound,
   // so a v4+ link omitting its inputs is dodging the magnitude check, not honestly uncheckable.
   if (numval(get(link, "hash_version", 0), 0) >= 4 && !declares) return ["magnitude: v4+ link omits inputs"];
@@ -436,7 +473,8 @@ function verifyAction(att) {
   const _ver = get(att, "veracity");
   const ver = _ver instanceof Map ? _ver : new Map();
   const claimed = get(ver, "veracity_floor");
-  if (isNumLike(claimed) && Math.abs(numval(claimed) - derived) > 0.01) return ["veracity_floor mismatch"];
+  if (has(ver, "veracity_floor") && (!isNumLike(claimed)
+    || Math.abs(numval(claimed) - derived) > 0.01)) return ["veracity_floor mismatch"];
   return errs;
 }
 

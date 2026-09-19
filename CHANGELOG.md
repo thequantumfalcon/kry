@@ -33,9 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `batch`) is excluded and counted. Batch result bodies carry no marker, so a batch export must be
     tagged `service_tier: "batch"`; it bills at 50%, so an untagged batch record would be valued at
     twice its true saving.
-  - Long-context rates are exactly 2x the short-context ones and the page states no threshold for
-    them, so such a call's saving is understated, never overstated. The `gpt-daybreak-*-latest`
-    aliases stay unpriced because the page repoints them at new models.
+  - Long-context input rates are 2x the short-context ones; the page states no threshold.
+    Short-context valuation understates positive savings and the size of cache-write losses, so
+    it is not a lower bound on net savings. The `gpt-daybreak-*-latest` aliases stay unpriced
+    because the page repoints them at new models.
   - Each price source now records its own `as_of`; `PRICE_BASIS_AS_OF` is the newest.
   - Still report-only: nothing here mints, attests, or changes a verifier verdict.
   - The artifact privacy gate accepts OpenAI's usage shape: its documented `service_tier` values and
@@ -69,13 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The LiteLLM callback is tested inside a real LiteLLM** — `tests/test_litellm_callback.py` feeds the
   extractor hand-built events, which cannot catch a mismatch with the gateway itself.
   `tests/test_litellm_integration.py` runs LiteLLM's own cache, callback dispatch and usage objects
-  with `mock_response`, so it needs no API key and spends nothing. Skipped where litellm is absent.
+  with `mock_response`, so it needs no API key and spends nothing. A dedicated `litellm-integration`
+  CI job now installs LiteLLM 1.101.0 explicitly; other environments may skip it when absent.
   - Verified against the real package: a response-cache hit mints a `cache_hit` receipt and a request
     carrying a `routing_decision` mints a `short_circuit` receipt; the chain verifies and the
     prompt-quoting `signals` field never reaches a receipt.
   - Two behaviours the run pinned, now documented in `docs/KRY_LITELLM.md`: LiteLLM dispatches success
     events on a background thread, so a short-lived caller must wait before reading the ledger; and an
-    ordinary call arrives with `cache_hit` absent or `None`, never `False`.
+    ordinary call in the tested 1.101.0 paths arrives with `cache_hit` absent or `None`.
 
 ### Changed
 
@@ -94,6 +96,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests: `tests/test_output_price_refresh.py`.
 
 ### Fixed
+
+- **Verifier validation and rounding (owner-approved compatibility correction).** Reject overflowing
+  floats, malformed JSON strings, nonnumeric trust summaries and wrong-profile documents. Python
+  and JS canonicalize parsed float values and Unicode key order consistently; JS converts rounded
+  decimals once and handles large finite receipts. Unknown-version links are rejected and excluded
+  from derivations. The 27 added vectors preserve every pre-existing vector document and verdict.
+  See `docs/VERIFIER_COMPATIBILITY_2026_09_19.md` for acceptance changes and limitations.
+  The stranger CLI reports malformed or overflowing JSON as `PARSE_ERROR`, with exit code 1;
+  unreadable files and semantically invalid documents still report `INVALID`.
+- **Artifact privacy.** Require the three OpenAI token-detail fields to contain documented counter
+  objects; reject text and invalid counters before copying bundle inputs.
+- **Report billing tiers.** Preserve top-level `service_tier` when extracting nested usage and exclude
+  contradictory declarations; flex/batch traffic cannot silently inherit standard pricing.
 
 - **A current-version link can no longer skip the magnitude checks by omitting its inputs** — the
   magnitude check exempted any link declaring neither `tokens_saved` nor `earn_rate`, on the grounds
@@ -124,11 +139,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the 1e-9 comparison tolerance, so each verifier would have called some of the other's valid
   attestations INVALID. It affects `total_kry`, `usd_equivalent`, every `by_tier` value, `anchored_kry`
   and `veracity_floor`.
-  - JS now expands the exact decimal value and rounds it half-even. Checked against the reference on
-    91,997 values, including dyadic values that hit the genuine half-even tie: 0 divergences. The
-    project's differential fuzz (20,000 cases) also reports 0.
+  - The initial repair passed a reported 91,997-value sample and a 20,000-case fuzz run, but
+    subsequent receipt tests exposed double rounding at large magnitudes and false rejects at
+    1e21 and above. The compatibility correction above closes those reproduced gaps.
   - Neither the corpus nor the fuzzer had ever produced such a value, so nothing caught this.
-    `tests/test_js_rounding_parity.py` pins it: 350 of its 2,097 cases fail against the previous code.
+    `tests/test_js_rounding_parity.py` contained 3,595 comparisons, of which 350 failed against
+    the original scaling implementation. Its six-place dyadic cases were exact, not ties; the
+    new receipt-level regressions cover genuine six-place ties.
   - `SPEC.md` now states the rounding rule and warns against rounding by scaling.
 
 - **The JS corpus runner gives the same verdicts on a CRLF checkout** — `verifiers/js/cli.mjs`
@@ -140,22 +157,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- **§2.1 states that an attestation's wire form must already be canonical** — `canon` is defined as
-  `json.dumps` over the parsed value, which a Python verifier implements directly but a verifier in a
-  language without separate integer and float types cannot: after parsing it cannot tell `1000.0` from
-  `1000`, so re-serializing would reject every Python-minted attestation. Such a verifier can only
-  preserve the literal it received, and the two agree on any document whose literals are already
-  canonical — the corpus and everything kry mints.
-  - Found by building the pre-v7 chains the corpus does not contain. With one number re-spelled as
-    `1e3`, the Python verifier says VALID and the JS one says INVALID at **every** version: v4 breaks
-    in the chain hash (which is why v5's `canon_f64` exists — now demonstrated rather than assumed),
-    and v5 through v7 break in the outer `attestation_hash`.
-  - The divergence is a false INVALID, never a false VALID, so it cannot inflate a claim. A minter must
-    emit canonical literals; a verifier MAY reject others.
-  - Recorded with its reproduction in `docs/SPEC_REVIEW_2026_09_17.md`.
+- **Canonicalization correction.** §2.1 now requires hashing canonical parsed values, retaining
+  integer versus float type. Equivalent float spellings normalize identically. The earlier claim
+  that raw-literal preservation was the only option, and could only cause false rejects, was
+  disproved by raw-hash false accepts. Unicode key ordering also broke the claimed agreement
+  on canonical literals. See `docs/SPEC_REVIEW_2026_09_17.md` for the corrected interpretation.
 
-- **Six spec ambiguities pinned to what the verifiers already do** (`docs/SPEC_REVIEW_2026_09_17.md`) —
-  each was checked against the code first; no verifier changed and no verdict moves.
+- **Six spec rules clarified** (`docs/SPEC_REVIEW_2026_09_17.md`). The original claim of shared
+  behavior was wrong for profile dispatch and unknown-version derivations; the compatibility
+  correction above aligns those implementations. The rules state:
   - §3 now states which profile a document belongs to: `kind` of `kry_action_attestation` is verified
     under §4, everything else under §3, dispatching on the document rather than on the `kind` wrapper a
     vector file adds around it.

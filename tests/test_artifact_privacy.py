@@ -124,3 +124,33 @@ def test_openai_token_details_carry_only_token_counts(details):
     # The nested object is allowed for its counts; free text under a new name inside it is not.
     usage = {**_OPENAI_USAGE, details: {"cached_tokens": 1, "note": "a private prompt"}}
     assert _usage_log_privacy_errors([{"model": "gpt-5.6-luna", "usage": usage}])
+
+
+@pytest.mark.parametrize("field,counter", [
+    ("input_tokens_details", "cached_tokens"),
+    ("prompt_tokens_details", "cache_write_tokens"),
+    ("output_tokens_details", "reasoning_tokens"),
+])
+@pytest.mark.parametrize("value", ["private canary", ["private canary"], None, 7,
+                                    {"id": "private canary"}, {"unknown_counter": 7}])
+def test_token_detail_containers_are_bounded(field, counter, value, tmp_path):
+    record = {"model": "gpt-5.6-luna", "usage": {field: value}}
+    usage_errors = _usage_log_privacy_errors([record])
+    export_errors = _provider_export_privacy_errors(_export(tmp_path, [record]))
+    assert usage_errors and export_errors
+    assert "private canary" not in " ".join(usage_errors + export_errors)
+
+
+@pytest.mark.parametrize("field,counter", [
+    ("input_tokens_details", "cached_tokens"),
+    ("prompt_tokens_details", "cache_write_tokens"),
+    ("output_tokens_details", "reasoning_tokens"),
+])
+@pytest.mark.parametrize("count", ["private canary", True, -1, 1.5, [], {}])
+def test_token_detail_values_are_counters(field, counter, count):
+    assert _usage_log_privacy_errors([{"usage": {field: {counter: count}}}])
+
+
+def test_optional_chat_counters_can_be_null():
+    assert _usage_log_privacy_errors([{"usage": {"prompt_tokens_details": {
+        "cached_tokens": 4, "audio_tokens": None, "cache_write_tokens": None}}}]) == []

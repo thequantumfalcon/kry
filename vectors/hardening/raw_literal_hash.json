@@ -1,0 +1,12 @@
+{
+  "id": "raw_literal_hash",
+  "kind": "raw_json",
+  "description": "Hashing raw float spellings is not canonical hashing.",
+  "input_raw_text": "{\"attestation_hash\":\"f9918b135c9334464aea491566b36bd907682d61c84a278c4e4192ea708403ab\",\"chain_head\":\"ae205bf7a6968655206bb7de1435a91423ba3e5e8a20fd6d5b1a408abe9beb4b\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"ae205bf7a6968655206bb7de1435a91423ba3e5e8a20fd6d5b1a408abe9beb4b\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1e3,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "attestation_hash mismatch \u2014 public metadata may have been altered"
+    ]
+  }
+}

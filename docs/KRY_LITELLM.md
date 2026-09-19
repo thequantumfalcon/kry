@@ -68,8 +68,13 @@ that the baseline would have been called.
   short script that sends a request and immediately reads the ledger will find it empty. Give the
   logger a moment before you read, as `tests/test_litellm_integration.py` does.
 - **Register the logger once, in `callbacks`** (the setting shown above). On a cache hit LiteLLM
-  passes `cache_hit=True`; on an ordinary call the field is absent or `None`, never `False`, which is
+  passes `cache_hit=True`; in the tested 1.101.0 paths an ordinary call's field is absent or `None`, which is
   why the callback tests for `is True` rather than truthiness.
+
+The dedicated `litellm-integration` CI job installs LiteLLM 1.101.0 and runs
+`tests/test_litellm_integration.py` using mocked completions. These tests exercise real cache and
+callback dispatch, without API keys or paid provider calls. The stdlib-only jobs may skip this
+optional module; the integration job requires the dependency to import successfully.
 
 ## Attest and hand it to a stranger
 

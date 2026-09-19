@@ -33,6 +33,11 @@ claimed today) — this file is about what the *wire contract* becomes next.
 
 ## Next revision
 
+The [2026-09-19 compatibility decision](VERIFIER_COMPATIBILITY_2026_09_19.md) is an
+owner-approved correction to v1.3. It explicitly authorizes acceptance changes for the reproduced
+verifier defects, while preserving every existing vector and adding 27 regression vectors.
+It does not introduce a hash version or claim general agreement beyond the exercised cases.
+
 No revision is currently scheduled. §3.7 and §3.8 closed both items v1.0 deferred, and v1.3
 closed the derivability gap the differential fuzz exposed. The remaining candidates below are
 **design decisions awaiting a real external driver** (an independent implementer or user asking

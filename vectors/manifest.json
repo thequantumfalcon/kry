@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 38,
+  "count": 65,
   "vectors": [
     {
       "id": "canon_f64",
@@ -190,6 +190,141 @@
     {
       "id": "duplicate_receipt_id",
       "category": "action/adversarial",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "rounding_large_fraction",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_large_exponent",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_near_float_limit",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_tie4_down",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_tie4_up",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_tie6_down",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_tie6_up",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "rounding_inflated_total",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "valid_v4",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "float_respelled_v4",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "valid_v5",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "float_respelled_v5",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "valid_v6",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "float_respelled_v6",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "valid_v7",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "float_respelled_v7",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "raw_literal_hash",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_floor_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "anchored_kry_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "self_reported_kry_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "wrong_profile",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "unknown_version_excluded",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "overflowing_tokens",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "invalid_unicode_escape",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "unescaped_tab",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "unicode_key_order",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "action_floor_string",
+      "category": "hardening",
       "verdict": "INVALID"
     }
   ]

@@ -68,8 +68,9 @@ _ALIASES = {"claude-haiku-4-5-20251001": "claude-haiku-4-5"}
 # 1.25x write / 0.1x read multipliers for those models, while earlier models have model-dependent
 # cached-input rates and no published cache-write price. The `gpt-daybreak-*-latest` aliases are
 # deliberately absent: the page says they are repointed at new models, so an id would not fix a price.
-# Long-context rates are exactly 2x these, so a long-context call's saving is understated, never
-# overstated — the page states no threshold at which they apply.
+# Long-context input rates are 2x these; the page states no threshold at which they apply.
+# Short-context valuation understates positive savings AND the size of cache-write losses.
+# It is a stated price basis, not a lower bound on net savings.
 _OPENAI_PRICES: dict[str, tuple[str, str, str, str]] = {
     "gpt-6-astra":   ("10", "1", "12.50", "50"),
     "gpt-5.6-sol":   ("4", "0.40", "5", "20"),
@@ -132,7 +133,7 @@ def _value_openai(key: str, usage: object) -> dict:
     if not isinstance(usage, dict):
         return {"status": "malformed", "model": key}
     tier = usage.get("service_tier")
-    if tier is not None and tier not in _OPENAI_STANDARD_TIERS:
+    if tier is not None and (not isinstance(tier, str) or tier not in _OPENAI_STANDARD_TIERS):
         return {"status": "modifier_excluded", "model": key}
     total = _count(usage.get("input_tokens", usage.get("prompt_tokens")))
     details = usage.get("input_tokens_details", usage.get("prompt_tokens_details", {}))

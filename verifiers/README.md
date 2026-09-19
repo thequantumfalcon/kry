@@ -18,8 +18,8 @@ chain is language-neutral by design (`canon_f64`).
 ## `js/cli.mjs` — Node CLI + corpus runner
 
 ```bash
-node js/cli.mjs ../path/to/attestation.json     # prints VERDICT: VALID|INVALID, exit 0/1
-node js/cli.mjs --vectors ../vectors            # run the whole conformance corpus (46/46)
+node js/cli.mjs ../path/to/attestation.json     # prints VERDICT: VALID|INVALID|PARSE_ERROR, exit 0/1
+node js/cli.mjs --vectors ../vectors           # 65 vectors, 75 checks including primitive subcases
 node js/cli.mjs --batch cases.ndjson mult.json  # one verdict per line (used by the fuzzer)
 ```
 
@@ -57,7 +57,7 @@ Each case gets 1–3 mutations, then two steps that decide whether it reaches an
 - **envelope field deletion** — "key absent" is a different branch from "key present but
   wrong" in both verifiers, and the tamper class only produces the second.
 
-**Latest: N=1,000,000 → 0 divergences** (2026-08-01 run 3, with those two classes in the
+**Historical: N=1,000,000 → 0 divergences** (2026-08-01 run 3, with those two classes in the
 mutation space). The intermediate run 2 over the same space showed **2,467** divergences —
 all savings-profile disagreements over a *missing* SPEC §3.1/§3.5 envelope key — which were
 closed by requiring the absent key on whichever side had been skipping the check. The
@@ -67,8 +67,8 @@ three sealed runs, the classification and the minimal reproducers.
 
 ## Status
 
-- **SC2 met at the expanded mutation space**: the JS verifier passes the corpus 46/46 and the
-  10⁶-case fuzz shows 0 divergences with reseal and envelope field-deletion both in the
+- **Corpus: 65 vectors, 75 checks passed.** The historical SC2
+  10⁶-case fuzz showed 0 divergences with reseal and envelope field-deletion both in the
   mutation space. The three run-2 root causes — an absent `veracity.by_tier`, an absent
   `event_type_counts` (`verify.mjs` had no such check at all) and an absent
   `veracity.veracity_floor` — are closed in both verifiers under one SPEC §3.5 rule: every

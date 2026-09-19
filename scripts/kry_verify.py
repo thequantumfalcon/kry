@@ -111,7 +111,7 @@ def _canon_f64(x) -> str:
     way (parse the JSON number to a double, emit its 8 big-endian bytes as hex)."""
     try:
         f = float(x)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return _V5_BAD
     if f != f or f in (float("inf"), float("-inf")):
         return _V5_BAD
@@ -168,11 +168,19 @@ def _reject_json_constant(value: str):
 
 
 def _json_load(f):
-    return json.load(f, parse_constant=_reject_json_constant)
+    return _json_loads(f.read())
+
+
+def _json_float(raw: str) -> float:
+    # JSON exponent overflow must fail during parsing, just like literal Infinity.
+    value = float(raw)
+    if not math.isfinite(value):
+        raise ValueError("nonfinite JSON float")
+    return value
 
 
 def _json_loads(text: str):
-    return json.loads(text, parse_constant=_reject_json_constant)
+    return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float)
 
 
 def _json_dumps(data: object, **kwargs) -> str:
@@ -188,7 +196,10 @@ def _finite_number(value, field: str, *, positive: bool = False,
                    nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a finite JSON number")
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
     if not math.isfinite(value):
         raise ValueError(f"{field} must be finite")
     if positive and value <= 0:
@@ -295,6 +306,8 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
     errors: list[str] = []
     if not isinstance(attestation, dict):
         return False, ["attestation must be a JSON object"]
+    if attestation.get("kind") == "kry_action_attestation":
+        return False, ["action attestation requires the action verifier"]
     links = attestation.get("links", [])
     if not isinstance(links, list):
         errors.append("links must be a JSON list")
@@ -727,6 +740,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with open(args.attestation, encoding="utf-8") as f:
             att = _json_load(f)
+    except ValueError as exc:
+        print("KRY external verification — attestation")
+        print("  VERDICT: PARSE_ERROR")
+        print(f"    - invalid attestation JSON: {exc}")
+        return 1
     except Exception as exc:
         print("KRY external verification — attestation")
         print("  VERDICT: INVALID")

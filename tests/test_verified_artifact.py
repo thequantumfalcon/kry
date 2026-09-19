@@ -3288,6 +3288,23 @@ def test_bundle_refuses_private_usage_log_before_copying_inputs(minted_sample, t
     assert not bundle.exists()
 
 
+@pytest.mark.parametrize("field", ["input_tokens_details", "prompt_tokens_details", "output_tokens_details"])
+@pytest.mark.parametrize("source", ["usage", "provider"])
+def test_bundle_refuses_text_in_token_details_before_copying(minted_sample, tmp_path, field, source):
+    usage_log, att_path, log = minted_sample
+    art = _load(_ARTIFACT, "kry_verified_artifact_token_details")
+    private_path = tmp_path / "private.json"
+    private_path.write_text(json.dumps([{"model": "gpt-5.6-luna", "usage": {
+        "input_tokens": 1, "output_tokens": 1, field: "private canary"}}]), encoding="utf-8")
+    bundle = tmp_path / "packet"
+    with pytest.raises(ValueError, match="bundle input privacy check failed") as exc:
+        art.write_bundle(bundle, str(private_path if source == "usage" else usage_log),
+                         attestation=str(att_path), mint_log=str(log),
+                         provider_export=str(private_path) if source == "provider" else None)
+    assert "private canary" not in str(exc.value)
+    assert not bundle.exists()
+
+
 def test_bundle_refuses_private_provider_export_before_copying_inputs(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_private_provider")
