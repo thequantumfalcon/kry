@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-19
+
+### Compatibility
+
+- Verification is deliberately stricter: some malformed documents and incorrect totals accepted
+  by 0.1.5 are now rejected. No hash version changes; existing vector bytes and verdicts are preserved.
+  See [the compatibility decision](docs/VERIFIER_COMPATIBILITY_2026_09_19.md) before upgrading.
+- The stranger CLI now prints `VERDICT: PARSE_ERROR` for malformed or overflowing JSON, retaining
+  exit code 1. Consumers matching verdict text must recognize this outcome alongside `INVALID`.
+
 ### Added
 
 - **The LiteLLM callback mints receipts for auto-router savings** —
@@ -856,7 +866,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/thequantumfalcon/kry/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/thequantumfalcon/kry/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thequantumfalcon/kry/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/thequantumfalcon/kry/compare/v0.1.2...v0.1.3
