@@ -55,6 +55,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     was already skipped; a test pins that it can never reach the priced count.
   - Tests: `tests/test_savings_report_prompt_cache.py` (4 new).
 
+- **The differential fuzz covers pre-v7 chains** — every base it mutated was minted at the current
+  version, so the v4, v5 and v6 block shapes that `SPEC.md` §3.3 still defines never reached either
+  verifier through the harness: a mutated `hash_version` only breaks a v7 chain, which both verifiers
+  then reject for the same trivial reason. `verifiers/diff_fuzz.py` now also builds valid v4, v5 and v6
+  attestations from the minter's own block builder, and asserts each is VALID before mutating it.
+  - Three of the harness's eight bases are now pre-v7; both verifiers accept all three, so the
+    mutations exercise the older shapes for real rather than agreeing vacuously.
+  - 20,000 cases across three seeds: 0 divergences. CI runs the same harness with a fresh seed each
+    push, so the coverage is continuous.
+  - Test tooling only: no verifier, vector or spec change, and no verdict moves.
+
 - **The LiteLLM callback is tested inside a real LiteLLM** — `tests/test_litellm_callback.py` feeds the
   extractor hand-built events, which cannot catch a mismatch with the gateway itself.
   `tests/test_litellm_integration.py` runs LiteLLM's own cache, callback dispatch and usage objects
