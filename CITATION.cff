@@ -13,8 +13,8 @@ authors:
     email: thequantumfalcon@gmail.com
 repository-code: "https://github.com/thequantumfalcon/kry"
 url: "https://github.com/thequantumfalcon/kry"
-version: "0.1.5"
-date-released: "2026-09-15"
+version: "0.1.6"
+date-released: "2026-09-19"
 license: Apache-2.0
 keywords:
   - llm
