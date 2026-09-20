@@ -56,7 +56,7 @@ kry-try = "kry.try_demo:main"
 # verify an AWS Nitro attestation's ECDSA-P384 signature + X.509 chain (the tee_attested
 # tier). Without it, tee verification fails closed; the rest of KRY is unaffected.
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "ruff==0.16.7"]
+dev = ["pytest==9.1.1", "ruff==0.16.8"]
 tee = ["cryptography>=49.0.0"]
 pqc = ["liboqs-python>=0.15.0"]
 
