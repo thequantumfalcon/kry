@@ -228,6 +228,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/kry-quickstart.XXXXXX")
 export KRY_DATA_DIR="$tmp/kry_data"
 python3 scripts/kry_doctor.py
 # local health check for the verifier/reviewer surface; warns that external evidence is still required
+# (its cryptography/oqs warnings concern the optional TEE and post-quantum tiers; safe to ignore here)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
 # reports SAVED vs SPEND and the veracity_floor (holdout-validated vs self-reported)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
@@ -236,6 +237,9 @@ python3 scripts/kry_verify.py "$tmp/att.json" # the stranger's check — stdlib 
 #   passes). The operator PUBLISHES this anchor out-of-band, then a stranger checks against it:
 python3 scripts/kry_chain_anchor.py export > "$tmp/anchor.json"
 python3 scripts/kry_verify.py "$tmp/att.json" --anchor "$tmp/anchor.json" # re-mint now detectable
+# NOTE: writing anchor.json into $tmp publishes nothing. A stranger can rely on it only once it
+#   sits somewhere you cannot quietly rewrite, placed there BEFORE the attestation is shared.
+#   Skip that step and a full re-mint from an edited log still verifies VALID without --anchor.
 python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
  --attestation "$tmp/att.json" --mint-log "$KRY_DATA_DIR/kry_mint_log.jsonl" --bundle-dir "$tmp/packet"
 python3 scripts/kry_verified_artifact.py --verify-artifact "$tmp/packet/artifact.json"
