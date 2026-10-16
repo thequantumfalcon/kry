@@ -61,12 +61,15 @@ Optional crypto tiers: `pip install -e ".[tee]"` (adds `cryptography` for the `t
 
 ## AI-assisted contributions
 
-Using AI tools is fine — this repository is itself heavily agent-assisted, and
+Using AI tools is fine — this repository is itself heavily agent-assisted, and every change is
+reviewed, tested, and committed by the maintainer, who is responsible for it.
 [`AGENTS.md`](AGENTS.md) documents the conventions an agent must follow. Two conditions:
 
 - **You must fully understand every line you submit** and be able to explain it without AI
   assistance. "The model wrote it" is not an answer to a review comment.
-- **Disclose significant AI use** in the PR description.
+- **Say so in plain words if AI tools did significant work on the patch** — one sentence in the PR
+  description is enough. That is disclosure. Attribution is different and is forbidden (rule 2 in
+  `AGENTS.md`): never list a tool as an author or co-author, and never add a credit footer.
 
 Low-effort, unverified AI output will be closed without review. That is not hostility to the tools;
 it is the same standard the project applies to itself. kry exists to argue that a number you cannot
