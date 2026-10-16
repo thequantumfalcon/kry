@@ -27,8 +27,10 @@ rules below exist to protect that.
 5. **Never commit runtime data.** `KRY_DATA_DIR` (default `./kry_data`) is gitignored; tests isolate
  it via `tests/conftest.py`.
 6. **No AI attribution in any artifact.** No `Co-Authored-By`, no "Generated with …", no AI credit
- in commits, docs, or comments. This is enforced by `.githooks/` and
- `.github/workflows/no-ai-attribution.yml` — it will block a violating commit.
+ in commits, docs, or comments. This is enforced by `.githooks/` (tracked files on pre-commit;
+ the commit message and author/committer identity on commit-msg) and by
+ `.github/workflows/no-ai-attribution.yml` (tracked files, plus every commit in a pull request or
+ push). Enable the hooks once per clone with `git config core.hooksPath .githooks`.
 7. **Evidence discipline: seal → transcribe → interpret.** An evidence doc (`docs/evidence/*`)
  cites the sha256 of the raw run artifact it interprets, recorded *before* analysis; a "Literal
  note" section states what the artifact says (counts, ranges — no verdict) before any
