@@ -85,7 +85,67 @@ def _is_text_candidate(path: Path) -> bool:
     return path.name in {"Dockerfile", "LICENSE", "README"}
 
 
-def main() -> int:
+def _markers_in(text: str) -> list[str]:
+    lowered = text.lower()
+    return [marker for marker in BANNED if marker.lower() in lowered]
+
+
+def _git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=ROOT, text=True,
+                                   encoding="utf-8", errors="replace")
+
+
+# COMMIT-SCOPE: the tracked-file scan below never saw commit messages or commit
+# identities, so a co-author trailer or an AI tool's default git identity passed
+# both the hook and CI while CONTRIBUTING.md said such a commit would be blocked.
+# --message (commit-msg hook) and --commits (CI) apply the same BANNED markers to
+# the message text plus the author and committer identity lines, together with
+# COMMIT_BANNED: trailers an AI coding session appends that the file markers miss.
+COMMIT_BANNED = [
+    "Claude" "-Session:",
+    "claude.ai/" "code/session",
+    "Codex" "-Session:",
+]
+
+
+def _commit_markers_in(text: str) -> list[str]:
+    lowered = text.lower()
+    return _markers_in(text) + [m for m in COMMIT_BANNED if m.lower() in lowered]
+
+
+_SCISSORS = "# ------------------------ >8 ------------------------"
+
+
+def _check_message(path: str) -> list[str]:
+    # Comment lines are checked too: `git commit -m/-F` keeps them in the commit. Only the
+    # verbose diff below git's scissors line is dropped, since git always removes it.
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        message = handle.read().split(_SCISSORS, 1)[0]
+    identity = _git("var", "GIT_AUTHOR_IDENT") + _git("var", "GIT_COMMITTER_IDENT")
+    return [f"commit message or identity: contains disallowed attribution marker ({m!r})"
+            for m in _commit_markers_in(message + "\n" + identity)]
+
+
+def _check_commits(rev_range: str) -> list[str]:
+    findings: list[str] = []
+    for sha in _git("rev-list", rev_range).split():
+        record = _git("show", "-s", "--format=%an <%ae>%n%cn <%ce>%n%B", sha)
+        findings.extend(f"commit {sha[:10]}: contains disallowed attribution marker ({m!r})"
+                        for m in _commit_markers_in(record))
+    return findings
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = [] if argv is None else list(argv)   # no arguments: the tracked-file scan, unchanged
+    if args[:1] in (["--message"], ["--commits"]) and len(args) == 2:
+        findings = (_check_message(args[1]) if args[0] == "--message"
+                    else _check_commits(args[1]))
+        for finding in findings:
+            print(finding, file=sys.stderr)
+        return 1 if findings else 0
+    if args:
+        print("usage: check_attribution.py [--message FILE | --commits RANGE]", file=sys.stderr)
+        return 2
     findings: list[str] = []
     for path in _tracked_files():
         if not path.exists() or not path.is_file() or not _is_text_candidate(path):
@@ -113,4 +173,4 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
