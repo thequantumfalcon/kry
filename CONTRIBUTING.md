@@ -27,8 +27,10 @@ rules below exist to protect that.
 5. **Never commit runtime data.** `KRY_DATA_DIR` (default `./kry_data`) is gitignored; tests isolate
  it via `tests/conftest.py`.
 6. **No AI attribution in any artifact.** No `Co-Authored-By`, no "Generated with …", no AI credit
- in commits, docs, or comments. This is enforced by `.githooks/` and
- `.github/workflows/no-ai-attribution.yml` — it will block a violating commit.
+ in commits, docs, or comments. This is enforced by `.githooks/` (tracked files on pre-commit;
+ the commit message and author/committer identity on commit-msg) and by
+ `.github/workflows/no-ai-attribution.yml` (tracked files, plus every commit in a pull request or
+ push). Enable the hooks once per clone with `git config core.hooksPath .githooks`.
 7. **Evidence discipline: seal → transcribe → interpret.** An evidence doc (`docs/evidence/*`)
  cites the sha256 of the raw run artifact it interprets, recorded *before* analysis; a "Literal
  note" section states what the artifact says (counts, ranges — no verdict) before any
@@ -59,12 +61,15 @@ Optional crypto tiers: `pip install -e ".[tee]"` (adds `cryptography` for the `t
 
 ## AI-assisted contributions
 
-Using AI tools is fine — this repository is itself heavily agent-assisted, and
+Using AI tools is fine — this repository is itself heavily agent-assisted, and every change is
+reviewed, tested, and committed by the maintainer, who is responsible for it.
 [`AGENTS.md`](AGENTS.md) documents the conventions an agent must follow. Two conditions:
 
 - **You must fully understand every line you submit** and be able to explain it without AI
   assistance. "The model wrote it" is not an answer to a review comment.
-- **Disclose significant AI use** in the PR description.
+- **Say so in plain words if AI tools did significant work on the patch** — one sentence in the PR
+  description is enough. That is disclosure. Attribution is different and is forbidden (rule 2 in
+  `AGENTS.md`): never list a tool as an author or co-author, and never add a credit footer.
 
 Low-effort, unverified AI output will be closed without review. That is not hostility to the tools;
 it is the same standard the project applies to itself. kry exists to argue that a number you cannot

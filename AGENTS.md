@@ -24,9 +24,11 @@ If you find yourself writing a sentence that blurs those three, stop and rewrite
 1. **Stdlib only** in `src/kry/` and `scripts/`. No third-party imports, ever. `pytest` and `ruff`
    are dev tools, pinned in `pyproject.toml`. The `tee`/`pqc` extras are opt-in and must never leak
    into the core.
-2. **No AI attribution anywhere** — not in code, comments, docs, commit messages, PR bodies, or
-   release notes. `scripts/check_attribution.py` enforces this via a git hook, a CI workflow, and
-   the release gate. Do not work around it.
+2. **No AI attribution anywhere** — no AI tool as an author, co-author, or credited party in code,
+   comments, docs, commit messages, PR bodies, or release notes. `scripts/check_attribution.py`
+   enforces this via a git hook, a CI workflow, and the release gate. Do not work around it.
+   Attribution is credit. A plain-words statement that AI tools were used is disclosure, and
+   `CONTRIBUTING.md` asks for it.
 3. **`docs/CLAIMS_BOUNDARY.md` is authoritative.** It states what the repo may cause a reader to
    believe. Where any README line, docstring, or demo reads stronger than the boundary, the
    boundary wins — fix the prose, not the boundary.

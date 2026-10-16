@@ -70,3 +70,110 @@ def test_marker_inside_an_mjs_file_is_reported(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "ROOT", tmp_path)
     monkeypatch.setattr(mod, "_tracked_files", lambda: [target])
     assert mod.main() == 1
+
+
+# --- commit scope -------------------------------------------------------------------------------
+# The tracked-file scan never saw commit messages or commit identities: a co-author trailer, an AI
+# coding session's trailer, or an AI tool's default git identity passed the hook and CI. These pin
+# the --message (commit-msg hook) and --commits (CI) modes. Markers are split literals as above.
+import os  # noqa: E402
+import subprocess  # noqa: E402
+
+_OWNER = ("Owner Example", "owner@example.invalid")
+_AI_EMAIL = "noreply@" + "anthropic.com"
+
+
+def _git_env(tmp_path, author=_OWNER, committer=_OWNER):
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(HOME=str(tmp_path), GIT_CONFIG_NOSYSTEM="1",
+               GIT_CONFIG_GLOBAL=str(tmp_path / "no-global-gitconfig"),
+               GIT_AUTHOR_NAME=author[0], GIT_AUTHOR_EMAIL=author[1],
+               GIT_COMMITTER_NAME=committer[0], GIT_COMMITTER_EMAIL=committer[1])
+    return env
+
+
+def _repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, env=_git_env(tmp_path))
+    return repo
+
+
+def _commit(repo, tmp_path, message, author=_OWNER, committer=_OWNER):
+    env = _git_env(tmp_path, author, committer)
+    subprocess.run(["git", "-C", str(repo), "-c", "commit.gpgsign=false", "commit", "-q",
+                    "--allow-empty", "--no-verify", "-m", message], check=True, env=env)
+    return subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                                   env=env, text=True).strip()
+
+
+def _range_result(tmp_path, monkeypatch, message, author=_OWNER):
+    mod = _load()
+    repo = _repo(tmp_path)
+    base = _commit(repo, tmp_path, "chore: base")
+    _commit(repo, tmp_path, message, author=author)
+    monkeypatch.setattr(mod, "ROOT", repo)
+    for key, value in _git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    return mod.main(["--commits", base + "..HEAD"])
+
+
+def test_commits_mode_blocks_a_co_author_trailer(tmp_path, monkeypatch):
+    msg = "fix: x\n\nCo-" "Authored-By: " "Claude Opus <" + _AI_EMAIL + ">\n"
+    assert _range_result(tmp_path, monkeypatch, msg) == 1
+
+
+def test_commits_mode_blocks_an_ai_session_trailer(tmp_path, monkeypatch):
+    msg = "fix: x\n\nClaude" "-Session: https://claude.ai/" "code/session_0123\n"
+    assert _range_result(tmp_path, monkeypatch, msg) == 1
+
+
+def test_commits_mode_blocks_an_ai_default_author_identity(tmp_path, monkeypatch):
+    # a clean message is not enough: an AI tool's default git identity makes it the commit author
+    assert _range_result(tmp_path, monkeypatch, "fix: clean message",
+                         author=("Claude", _AI_EMAIL)) == 1
+
+
+def test_commits_mode_passes_a_clean_owner_commit(tmp_path, monkeypatch):
+    msg = "fix: x\n\nSigned-off-by: Owner Example <owner@example.invalid>\n"
+    assert _range_result(tmp_path, monkeypatch, msg) == 0
+
+
+def test_message_mode_checks_text_and_pending_identity(tmp_path, monkeypatch):
+    mod = _load()
+    repo = _repo(tmp_path)
+    monkeypatch.setattr(mod, "ROOT", repo)
+    marker = "Co-" "Authored-By: " "Claude <" + _AI_EMAIL + ">"
+    clean = tmp_path / "clean.txt"
+    # text below git's scissors line is the verbose diff, which git always drops
+    clean.write_text("fix: x\n# ------------------------ >8 ------------------------\n"
+                     + marker + "\n", encoding="utf-8")
+    trailer = tmp_path / "trailer.txt"
+    trailer.write_text("fix: x\n\n" + marker + "\n", encoding="utf-8")
+    commented = tmp_path / "commented.txt"
+    # `git commit -m/-F` keeps "#" lines, so they are checked like any other line
+    commented.write_text("fix: x\n\n# " + marker + "\n", encoding="utf-8")
+    for key, value in _git_env(tmp_path).items():
+        monkeypatch.setenv(key, value)
+    assert mod.main(["--message", str(clean)]) == 0
+    assert mod.main(["--message", str(trailer)]) == 1
+    assert mod.main(["--message", str(commented)]) == 1
+    for key, value in _git_env(tmp_path, author=("Claude", _AI_EMAIL)).items():
+        monkeypatch.setenv(key, value)
+    assert mod.main(["--message", str(clean)]) == 1
+
+
+def test_unknown_arguments_are_rejected_not_ignored():
+    assert _load().main(["--bogus"]) == 2
+
+
+def test_commit_msg_hook_runs_the_message_check():
+    hook = Path(__file__).resolve().parents[1] / ".githooks" / "commit-msg"
+    assert hook.is_file()
+    assert "check_attribution.py --message" in hook.read_text(encoding="utf-8")
+
+
+def test_ci_workflow_checks_pull_request_commits():
+    wf = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "no-ai-attribution.yml")
+    text = wf.read_text(encoding="utf-8")
+    assert "--commits" in text and "fetch-depth: 0" in text
