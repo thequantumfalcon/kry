@@ -1545,6 +1545,25 @@ def _gate(checks: list[dict], *, fail_names: set[str] | None = None) -> dict:
     return {"status": status, "failed": failed, "checks": checks, "fail_names": sorted(fail_names)}
 
 
+def _gate_scope_note(artifact: dict) -> str | None:
+    """One stderr line for an artifact that exits 0 while some gates read FAIL.
+
+    The exit status is the ship scope (only do_not_ship fails), not the gate
+    rows, so a first-time reader seeing FAIL rows next to exit 0 took the run for
+    broken. Stays off stdout so the artifact JSON remains machine-readable.
+    """
+    if artifact.get("ship_scope") == "do_not_ship":
+        return None
+    failing = sorted(name for name, gate in (artifact.get("gates") or {}).items()
+                     if isinstance(gate, dict) and gate.get("status") == "FAIL")
+    if not failing:
+        return None
+    allowed = (artifact.get("claim_allowed") or {}).get("external_verified_savings")
+    return (f"note: ship_scope={artifact.get('ship_scope')}; gate(s) {', '.join(failing)} "
+            f"read FAIL, which is expected for sample or internal data and is not a run "
+            f"error. external_verified_savings claim allowed: {allowed}.")
+
+
 def _prefixed_failures(gate: dict, prefix: str) -> list[str]:
     return [f"{prefix}:{name}" for name in gate.get("failed", [])]
 
@@ -3292,6 +3311,9 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.out).write_text(text, encoding="utf-8")
     else:
         print(text, end="")
+    note = _gate_scope_note(artifact)
+    if note:
+        print(note, file=sys.stderr)
     return 0 if artifact["ship_scope"] != "do_not_ship" else 1
 
 
