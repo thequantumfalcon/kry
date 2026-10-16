@@ -5883,3 +5883,23 @@ def test_portability_names_posix_absolute_input_as_absolute_on_every_os(tmp_path
            "command_inputs": {"usage_log": "/etc/hostname"}}
     errors = kva._command_input_portability_errors(tmp_path / "artifact.json", art)
     assert errors == ["command_inputs.usage_log must be relative, got absolute path"], errors
+
+
+def test_cli_explains_failing_gates_on_a_zero_exit_internal_artifact(minted_sample, tmp_path, capsys):
+    """An internal or demo artifact exits 0 while its science and external-review
+    gates read FAIL. stderr must say that this is expected and name the failing
+    gates; stdout must stay pure artifact JSON."""
+    usage_log, att_path, log = minted_sample
+    art = _load(_ARTIFACT, "kry_verified_artifact_cli_scope_note")
+
+    result = art.main([str(usage_log), "--attestation", str(att_path), "--mint-log", str(log)])
+
+    captured = capsys.readouterr()
+    artifact = json.loads(captured.out)
+    failing = sorted(name for name, gate in artifact["gates"].items() if gate.get("status") == "FAIL")
+    assert result == 0
+    assert artifact["ship_scope"] != "do_not_ship"
+    assert failing
+    assert f"ship_scope={artifact['ship_scope']}" in captured.err
+    assert all(name in captured.err for name in failing)
+    assert "external_verified_savings claim allowed: False" in captured.err
