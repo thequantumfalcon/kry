@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-10-17
+
 ### Changed
 
 - **The anchor check names what it checked.** `kry_verify.py --anchor` and `kry_chain_anchor.py`
@@ -30,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anchored fraction as operator-asserted. The README transcript now matches the current demo output.
 - `kry_doctor.py`'s `pytest_pythonpath` check said "pytest can import src" even when pytest was
   not installed. It reads the `pyproject.toml` setting, and now says that.
+- `kry_verified_artifact.py` exits 0 on sample or internal data while printing its science and
+  external_review rows as FAIL, by design. It now prints one stderr note naming the ship scope and
+  the failing gates, so the rows are not read as a broken run. Exit codes and stdout JSON are
+  unchanged.
 
 ## [0.1.6] - 2026-09-19
 
@@ -890,7 +896,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/thequantumfalcon/kry/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/thequantumfalcon/kry/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/thequantumfalcon/kry/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/thequantumfalcon/kry/compare/v0.1.3...v0.1.4
