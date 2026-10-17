@@ -6,13 +6,19 @@ computed from a facts table + operation functions, not typed. The prompt gives N
 must DERIVE the facts (spider->8) itself, so these are genuine fact-derivation + multi-step-COMPUTATION items
 (the multi-step wall class) where a cheap one-shot is expected to fail fluently and depth-matched budget may rescue.
 
-Output: docs/evidence/adequacy_gate/rescue_battery.jsonl  ({"prompt":..., "gold":..., "depth_ops":N} per line)
+Output: rescue_battery.jsonl in a fresh run directory ({"prompt":..., "gold":..., "depth_ops":N} per line);
+--write-evidence copies it to docs/evidence/adequacy_gate/.
 Feed it to scripts/kry_rescue_experiment.py (operator-gated real run; free local Ollama or paid API).
 """
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import kry_evidence  # noqa: E402
 
 # fact table (the cheap model must retrieve these — retrieval is free; the COMPUTATION is the wall)
 FACTS = {
@@ -56,9 +62,11 @@ def build():
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     items = build()
-    out = Path(__file__).resolve().parents[1] / "docs/evidence/adequacy_gate/rescue_battery.jsonl"
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out = kry_evidence.run_dir("adequacy_gate") / "rescue_battery.jsonl"
     out.write_text("\n".join(json.dumps(x) for x in items) + "\n", encoding="utf-8")
     # self-check: golds are integers, prompts carry no digits except the literal '2' (no fact leak)
     import re
@@ -69,6 +77,8 @@ def main():
     print(f"wrote {len(items)} items -> {out}")
     print("sample:", json.dumps(items[0]))
     print(f"depth_ops=2 (multi-step) items: {sum(i['depth_ops'] == 2 for i in items)}/{len(items)}")
+    return kry_evidence.publish({"rescue_battery.jsonl": out}, "adequacy_gate", rows=len(items),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":
@@ -76,4 +86,4 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    main()
+    raise SystemExit(main())

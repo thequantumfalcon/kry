@@ -11,11 +11,11 @@ provider-recorded cost, but the token counts are real and the price basis is exp
 Needs OPENAI_API_KEY with billing/credit. stdlib only.
 """
 from __future__ import annotations
-import json, os, sys, urllib.error, urllib.request
-from pathlib import Path
+import argparse, json, os, sys, urllib.error, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_grounded_savings_proof import build_tasks, grade, wilson  # reuse the honest grading
+import kry_evidence
 
 CHEAP, FRONTIER = "gpt-4o-mini", "gpt-4o"
 # STATED OpenAI list prices, USD per 1M tokens (input, output). Verify at openai.com/pricing.
@@ -39,6 +39,9 @@ def cost(model, pt, ct):
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
         sys.exit("OPENAI_API_KEY not set")
@@ -74,15 +77,15 @@ def main():
            "bounded_claim": "Grounded tasks = the easy case for adequacy; not open-ended real traffic. "
                             "Cost is real-tokens x stated public prices, not provider-recorded.",
            "rows": rows}
-    Path("docs/evidence/grounded_proof_openai").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/grounded_proof_openai/grounded_proof.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("grounded_proof_openai") / "grounded_proof.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== VALIDATED SAVINGS (real tokens, objective adequacy, OpenAI) ===")
     print(f"  cheap ({CHEAP}) adequate: {cheap_ok}/{n} = {100*cheap_ok/n:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier correct (sanity):  {front_ok}/{n}")
     print(f"  real frontier cost (avoided): ${sum_front:.6f}   real cheap cost: ${sum_cheap:.6f}")
     print(f"  VALIDATED saving (only where cheap AND frontier both correct — net): ${saving:.6f}")
-    print("  -> docs/evidence/grounded_proof_openai/grounded_proof.json")
-    return 0
+    return kry_evidence.publish({"grounded_proof.json": result}, "grounded_proof_openai", rows=len(rows),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

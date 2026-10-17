@@ -24,6 +24,7 @@ PRIVACY: only digests + counts + costs are written. Raw prompt/response never pe
 rejects them). DELIVERABLE, not a claim: it measures; it does not assert savings until your check confirms them.
 """
 from __future__ import annotations
+import argparse
 import json
 import os
 import sys
@@ -133,4 +134,7 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--selftest", action="store_true", help="the default: mock run, no litellm, no network")
+    _ap.parse_args()
     _selftest()

@@ -14,11 +14,11 @@ company traffic.
   python3 scripts/kry_sql_slice.py [--frontier claude-opus-4-8]   # LIVE cheap-vs-frontier
 """
 from __future__ import annotations
-import json, os, re, sqlite3, sys, time, urllib.error
-from pathlib import Path
+import argparse, json, os, re, sqlite3, sys, time, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_shadow_demo import call, cost, CHEAP, FRONTIER
+import kry_evidence
 
 SCHEMA = """
 CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, country TEXT, signup TEXT);
@@ -103,8 +103,13 @@ def _call(prompt, model, mt=400):
 
 
 def main(argv):
-    dry = "--dry" in argv
-    frontier = argv[argv.index("--frontier") + 1] if "--frontier" in argv else FRONTIER
+    # argparse, not argv scanning: an unrecognised argument (--help included) used to start the LIVE run.
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--dry", action="store_true", help="$0: gold queries as model output")
+    ap.add_argument("--frontier", default=FRONTIER, help=f"frontier model (default {FRONTIER})")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    a = ap.parse_args(argv[1:])
+    dry, frontier = a.dry, a.frontier
     con = build_db()
     schema_txt = SCHEMA.strip()
     print(f"SQL slice probe {'(DRY: gold-as-model, $0)' if dry else f'(LIVE cheap={CHEAP} frontier={frontier})'}  "
@@ -139,7 +144,7 @@ def main(argv):
         "honest_note": "Compare cheap_adequacy here vs code's ~83%: if comparable, the deterministic-check slice "
                        "EXTENDS to SQL (addressable share grows). Synthetic questions; the execute-gate is real.",
     }
-    outdir = Path("docs/evidence/sql_slice"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("sql_slice")
     tag = "dry" if dry else "live"
     (outdir / f"sql_slice_{tag}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(f"\n=== SQL SLICE RECEIPT ({'DRY' if dry else 'LIVE'}) ===")
@@ -147,11 +152,12 @@ def main(argv):
     if not dry:
         print(f"  net cost-reduction: {net}   measured net saving: ${saving:.4f}   spend ${cs+fs:.4f}")
     print(f"  -> {outdir}/sql_slice_{tag}.json")
-    return 0
+    return kry_evidence.publish({f"sql_slice_{tag}.json": outdir / f"sql_slice_{tag}.json"}, "sql_slice",
+                                rows=len(rows), write=a.write_evidence)
 
 
 if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    main(sys.argv)
+    raise SystemExit(main(sys.argv))

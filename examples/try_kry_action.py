@@ -9,6 +9,7 @@ Uses a throwaway temp data dir. Stdlib only.
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -23,6 +24,7 @@ sys.path.insert(0, str(_ROOT / "scripts"))
 
 
 def main() -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     tmp = Path(tempfile.mkdtemp(prefix="kry-action-"))
     os.environ["KRY_DATA_DIR"] = str(tmp / "kry_data")
 

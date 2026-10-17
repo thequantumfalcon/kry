@@ -10,11 +10,12 @@ the synthetic kry_sql_slice (93%/62%) into a real-Spider number. stdlib only (sq
   python3 scripts/kry_spider_slice.py [N] [--budget 3]  # LIVE cheap-vs-frontier
 """
 from __future__ import annotations
-import json, math, os, re, sqlite3, sys, time, urllib.error
+import argparse, json, math, os, re, sqlite3, sys, time, urllib.error
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_shadow_demo import call, cost, CHEAP, FRONTIER
+import kry_evidence
 
 SPIDER = Path(os.environ.get("KRY_SPIDER_DATA", "spider_data"))
 MANIFEST = Path(os.environ.get("KRY_SPIDER_MANIFEST", "spider_manifest.json"))
@@ -75,12 +76,18 @@ def wilson(k, n, z=1.96):
 
 
 def main(argv):
-    dry = "--dry" in argv
-    args = [a for a in argv[1:] if a != "--dry"]
-    budget = 3.0
-    if "--budget" in args:
-        bi = args.index("--budget"); budget = float(args[bi + 1]); args = args[:bi] + args[bi + 2:]
-    nums = [a for a in args if a.isdigit()]; cap = int(nums[0]) if nums else None
+    # argparse, not argv scanning: an unrecognised argument (--help included) used to be ignored, so
+    # asking for usage started the LIVE run (and, with no Spider data, died on a traceback).
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=None, metavar="N", help="first N manifest rows (default: all)")
+    ap.add_argument("--dry", action="store_true", help="$0: gold queries as model output")
+    ap.add_argument("--budget", type=float, default=3.0, help="LIVE spend cap in USD (default 3)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    a = ap.parse_args(argv[1:])
+    dry, budget, cap = a.dry, a.budget, a.n
+    if not (SPIDER / "dev.json").is_file() or not MANIFEST.is_file():
+        sys.exit(f"Spider data not found: need {SPIDER / 'dev.json'} and {MANIFEST} "
+                 "(set KRY_SPIDER_DATA and KRY_SPIDER_MANIFEST)")
     dev = json.load(open(SPIDER / "dev.json", encoding="utf-8"))
     man = json.load(open(MANIFEST, encoding="utf-8")); rows_man = man.get("rows") or man.get("sample")
     if cap:
@@ -88,7 +95,7 @@ def main(argv):
     print(f"Spider slice {'(DRY $0)' if dry else f'(LIVE cheap={CHEAP} frontier={FRONTIER}, cap ${budget})'}  "
           f"rows={len(rows_man)}\n", flush=True)
     cp = fp = 0; cs = fs = saving = 0.0; done = 0; rows = []; mismatch = 0; gold_skip = 0
-    outdir = Path("docs/evidence/spider_slice"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("spider_slice")
     tag = "dry" if dry else "live"
     rowf = open(outdir / f"spider_slice_{tag}.jsonl", "w", buffering=1, encoding="utf-8")
     for m in rows_man:
@@ -130,6 +137,11 @@ def main(argv):
             "cheap_spend_usd": round(cs, 6), "frontier_spend_usd": round(fs, 6),
             "measured_net_saving_usd": round(saving, 6), "net_cost_reduction_rate": round(saving / fs, 4) if fs else None}
     (outdir / f"spider_slice_{tag}.json").write_text(json.dumps(summ, indent=2), encoding="utf-8")
+    names = (f"spider_slice_{tag}.jsonl", f"spider_slice_{tag}.json")
+    status = kry_evidence.publish({name: outdir / name for name in names}, "spider_slice", rows=n,
+                                  write=a.write_evidence)
+    if status:
+        return status
     print(f"\n=== SPIDER SLICE ({'DRY' if dry else 'LIVE'}) ===")
     print(f"  cheap adequacy: {cp}/{n} = {100*cp/n:.0f}% (Wilson95 [{100*lo:.0f}%,{100*hi:.0f}%])  frontier: {fp}/{n}"
           f"  mismatch:{mismatch} gold_skip:{gold_skip}")
@@ -142,4 +154,4 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    main(sys.argv)
+    raise SystemExit(main(sys.argv))

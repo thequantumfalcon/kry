@@ -42,7 +42,10 @@ PROVIDERS (stdlib urllib; no third-party deps — kry is stdlib-only)
 """
 from __future__ import annotations
 
-import json, os, re, urllib.request
+import argparse, json, os, re, sys, urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kry_evidence  # noqa: E402
 
 # --- depth-budget research measured budget ladder (prior research, 14B-arith calibration; SHAPE is the robust finding) ---
 _BUDGET = {1: 20, 2: 50, 3: 120, 4: 120, 5: 300}
@@ -156,6 +159,10 @@ def self_test() -> bool:
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("battery", nargs="?", help="battery.jsonl (required with KRY_RESCUE_RUN=1)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     assert self_test(), "self-test failed"
     print("self-test PASS (mock accounting: kept_fast=1 rescued=1 escalated=1, rescue_rate=0.5)\n")
     prov = os.environ.get("KRY_RESCUE_PROVIDER", "ollama")
@@ -167,8 +174,9 @@ def main():
               "KRY_RESCUE_CHEAP=gpt-4o-mini KRY_RESCUE_FRONTIER=gpt-4o python3 scripts/kry_rescue_experiment.py <battery.jsonl>")
         print("  battery.jsonl = one {\"prompt\":..., \"gold\":...} per line (multi-step items the cheap model fails one-shot).")
         return
-    import sys
-    items = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8") if line.strip()]
+    if not args.battery:
+        ap.error("battery.jsonl is required when KRY_RESCUE_RUN is set")
+    items = [json.loads(line) for line in open(args.battery, encoding="utf-8") if line.strip()]
     providers = {"ollama": _ollama, "openai": _openai, "anthropic": _anthropic}
     defaults = {"ollama": ("qwen2.5:0.5b", "qwen2.5:14b"),
                 "openai": ("gpt-4o-mini", "gpt-4o"),
@@ -179,12 +187,12 @@ def main():
     front = os.environ.get("KRY_RESCUE_FRONTIER", df)
     res = run_battery(items, lambda p, m, t: call(p, m, t), cheap, front)
     res["provider"], res["cheap_model"], res["frontier_model"] = prov, cheap, front
-    out = os.path.join(os.path.dirname(__file__), "..",
-                       "docs/evidence/adequacy_gate/rescue_results.json")
-    with open(out, "w", encoding="utf-8") as f:
+    result = kry_evidence.run_dir("adequacy_gate") / "rescue_results.json"
+    with open(result, "w", encoding="utf-8") as f:
         json.dump(res, f, indent=2)
     print(json.dumps(res, indent=2))
-    print(f"\nwrote {out}")
+    return kry_evidence.publish({"rescue_results.json": result}, "adequacy_gate", rows=res["n"],
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":
@@ -192,4 +200,4 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    main()
+    raise SystemExit(main())

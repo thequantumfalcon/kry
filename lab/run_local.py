@@ -13,6 +13,7 @@ Usage:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -30,6 +31,7 @@ def _run(cmd, **kw):
 
 
 def main() -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     d = Path(tempfile.mkdtemp(prefix="kry_runlocal_"))
     results = []
 

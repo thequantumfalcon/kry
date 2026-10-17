@@ -16,13 +16,13 @@ Cost = real tokens x STATED OpenAI list prices (verify openai.com/pricing).
 Needs OPENAI_API_KEY with credit. stdlib only.  Usage: kry_gsm8k_savings_proof.py [N]
 """
 from __future__ import annotations
-import json, os, re, sys, time, urllib.error, urllib.request
+import argparse, json, os, re, sys, time, urllib.error, urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_grounded_savings_openai import call, cost, CHEAP, FRONTIER, PRICES
 from kry_grounded_savings_proof import wilson
+import kry_evidence
 
 GSM8K_URL = "https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl"
 
@@ -48,10 +48,16 @@ def load_gsm8k():
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=20, metavar="N", help="GSM8K problems (default 20)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
+    n = args.n
+    if n < 1:
+        ap.error("N must be at least 1")
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
         sys.exit("OPENAI_API_KEY not set")
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
     data = load_gsm8k()
     # deterministic sample (no Math.random dependency): stride through the test set
     step = max(1, len(data) // n)
@@ -108,15 +114,15 @@ def main():
                        "tested, frontier-kept is not (so this is cost-avoidance under that assumption, "
                        "and is specific to this cheap/frontier model pair)"],
            "rows": rows}
-    Path("docs/evidence/gsm8k_proof").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/gsm8k_proof/gsm8k_proof.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("gsm8k_proof") / "gsm8k_proof.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== VALIDATED SAVINGS on GSM8K (real benchmark, real paid calls) ===")
     print(f"  cheap ({CHEAP}) adequate: {cheap_ok}/{m} = {100*cheap_ok/m:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier ({FRONTIER}) correct: {front_ok}/{m} = {100*front_ok/m:.0f}%")
     print(f"  real frontier cost (avoided): ${sum_front:.6f}   real cheap cost: ${sum_cheap:.6f}")
     print(f"  VALIDATED saving (only where cheap AND frontier both correct — net): ${saving:.6f}")
-    print("  -> docs/evidence/gsm8k_proof/gsm8k_proof.json")
-    return 0
+    return kry_evidence.publish({"gsm8k_proof.json": result}, "gsm8k_proof", rows=m,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

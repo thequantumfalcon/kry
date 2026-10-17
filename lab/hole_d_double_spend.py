@@ -27,6 +27,7 @@ It prints two phases:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import tempfile
@@ -134,6 +135,7 @@ def lease(authdir: Path, key: str, amount: float, ceiling: float) -> bool:
 # ── the experiment ────────────────────────────────────────────────────────────
 
 def main() -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     root = Path(tempfile.mkdtemp(prefix="kry_lab_"))
     A, B, C, D = (root / n for n in ("nodeA", "nodeB", "nodeC", "nodeD_authority"))
 

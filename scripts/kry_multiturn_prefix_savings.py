@@ -19,8 +19,11 @@ ratio of token counts). Input-side only — output tokens are never cacheable. F
   python3 scripts/kry_multiturn_prefix_savings.py [N_rows]
 """
 from __future__ import annotations
-import json, statistics, sys, time, urllib.parse, urllib.request
+import argparse, json, statistics, sys, time, urllib.parse, urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import kry_evidence  # noqa: E402
 
 WILDCHAT = "allenai/WildChat-1M"
 ANTHROPIC_CACHE_READ = 0.10   # documented: cached reads ≈ 10% of full price (≈90% off)
@@ -31,7 +34,8 @@ def toks(s: str) -> int:
     return max(1, len(s or "") // 4)
 
 
-def pull(n_rows: int, start: int = 0) -> list[list[int]]:
+def pull(n_rows: int, start: int = 0) -> tuple[list[list[int]], str]:
+    """The conversations, and why the pull stopped early (empty when it did not)."""
     out: list[list[int]] = []
     for off in range(start, start + n_rows, 100):
         url = (f"https://datasets-server.huggingface.co/rows?dataset={urllib.parse.quote(WILDCHAT)}"
@@ -48,12 +52,12 @@ def pull(n_rows: int, start: int = 0) -> list[list[int]]:
                 else:
                     time.sleep(1.5 * (attempt + 1))
         if d is None:
-            break
+            return out, f"the WildChat pull gave up at offset {off}"
         for r in d.get("rows", []):
             c = r["row"].get("conversation") or []
             if sum(1 for m in c if m.get("role") == "user") >= 2:   # multi-turn only
                 out.append([toks(m.get("content", "")) for m in c])
-    return out
+    return out, ""
 
 
 def convo_stats(tl: list[int]) -> tuple[int, int]:
@@ -69,9 +73,13 @@ def convo_stats(tl: list[int]) -> tuple[int, int]:
 
 
 def main() -> int:
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 2000
-    start = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-    convos = pull(n, start)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=2000, metavar="N_rows", help="WildChat rows to pull (default 2000)")
+    ap.add_argument("start", nargs="?", type=int, default=0, help="first row offset (default 0)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
+    n, start = args.n, args.start
+    convos, failure = pull(n, start)
     T = C = 0
     fracs = []
     for tl in convos:
@@ -94,15 +102,15 @@ def main() -> int:
                    "assumes standard re-send-full-history multi-turn + provider prefix caching; "
                    "this is the prefix lever, SEPARATE from and additive to the 15.7% exact-match cache"],
     }
-    Path("docs/evidence/prefix_savings").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/prefix_savings/prefix_savings.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("prefix_savings") / "prefix_savings.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"multi-turn convos analysed: {len(convos)} (real WildChat, >=2 user turns)")
     print(f"  aggregate input tokens {T:,} | re-sent prefix (cacheable) {C:,}")
     print(f"  PREFIX-CACHEABLE FRACTION OF INPUT: {frac:.1%}  (median per-convo {med:.1%})")
     print(f"  -> input savings at Anthropic cached-read (~90% off): {frac*(1-ANTHROPIC_CACHE_READ):.1%}")
     print(f"  -> input savings at OpenAI cached-input (~50% off):   {frac*(1-OPENAI_CACHE_INPUT):.1%}")
-    print("  -> docs/evidence/prefix_savings/prefix_savings.json")
-    return 0
+    return kry_evidence.publish({"prefix_savings.json": result}, "prefix_savings", rows=len(convos),
+                                write=args.write_evidence, failure=failure)
 
 
 if __name__ == "__main__":

@@ -45,6 +45,9 @@ from __future__ import annotations
 import argparse, json, os, re, sys, urllib.error, urllib.request
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kry_evidence  # noqa: E402
+
 # (fact phrase, value) — unambiguous, single small integer.
 FACTS = {
     "legs does a spider have": 8, "sides does a triangle have": 3,
@@ -193,7 +196,8 @@ def main() -> int:
     p.add_argument("--provider", default="openai", choices=["openai", "openrouter"])
     p.add_argument("--models", nargs="+", default=["gpt-4o-mini"],
                    help="cheap model id(s) KRY would displace TO")
-    p.add_argument("--out", default="docs/evidence/compute_wall/compute_wall.json")
+    p.add_argument("--out", help="result path (default: a fresh run directory)")
+    p.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
     args = p.parse_args()
     if args.selftest:
         return _selftest()
@@ -208,8 +212,9 @@ def main() -> int:
            "method": "the multi-step wall recalibration on cheap models; numeric single-token gold (no oracle)",
            "reference": "paired-model research, multi-step wall: Opus fast multi~0.13, CoT 1.00",
            "results": results}
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = Path(args.out) if args.out else kry_evidence.run_dir("compute_wall") / "compute_wall.json"
+    result.parent.mkdir(parents=True, exist_ok=True)
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== the multi-step wall on cheap models (FAST/latent vs CoT) ===")
     for r in results:
         gd = r["grid"]
@@ -218,8 +223,8 @@ def main() -> int:
             print(f"    {t:7s}  FAST={gd[t]['fast']:.0%}   CoT={gd[t]['cot']:.0%}")
         print(f"    -> DEEP-tier wall gap (CoT-FAST) = {r['wall_gap']:+.0%}   "
               f"the multi-step wall signature present: {r['wall_present_signature']}")
-    print(f"\n  -> {args.out}")
-    return 0
+    return kry_evidence.publish({"compute_wall.json": result}, "compute_wall", rows=len(results),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

@@ -14,12 +14,12 @@ model's output price (capping a frontier's output saves far more $ than capping 
   python3 scripts/kry_cod_experiment.py [N] [--model claude-sonnet-4-6] [--budget 4]
 """
 from __future__ import annotations
-import json, os, sys, time, urllib.error
-from pathlib import Path
+import argparse, json, os, sys, time, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_shadow_sim import load_mbpp, run_mbpp, _extract
 from kry_shadow_demo import call, cost, FRONTIER, PRICES
+import kry_evidence
 
 ARMS = {
     "verbose": "\n\nThink step by step about the algorithm and the edge cases, then write the complete Python "
@@ -41,14 +41,21 @@ def _call(prompt, model, mt):
 
 
 def main(argv):
-    model = argv[argv.index("--model") + 1] if "--model" in argv else FRONTIER
-    budget = float(argv[argv.index("--budget") + 1]) if "--budget" in argv else 4.0
-    nums = [a for a in argv[1:] if a.isdigit()]
-    N = int(nums[0]) if nums else 50
+    # argparse, not argv scanning: an unrecognised flag (including --help) used to fall through to a
+    # paid run, so a typo or a request for usage started spending.
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=50, metavar="N", help="MBPP problems to run (default 50)")
+    ap.add_argument("--model", default=FRONTIER, choices=sorted(PRICES), help=f"default {FRONTIER}")
+    ap.add_argument("--budget", type=float, default=4.0, help="USD spend cap (default 4)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    a = ap.parse_args(argv[1:])
+    if a.n < 1:
+        ap.error("N must be at least 1")
+    model, budget, N = a.model, a.budget, a.n
     data = load_mbpp(); step = max(1, len(data) // N); data = data[::step][:N]
     out_price = PRICES[model][1]   # USD per 1M output tokens
     print(f"CoD experiment: model={model} (out ${out_price}/1M)  N={len(data)}  arms={list(ARMS)}\n", flush=True)
-    outdir = Path("docs/evidence/cod_experiment"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("cod_experiment")
     rowf = open(outdir / "cod_rows.jsonl", "w", buffering=1, encoding="utf-8")
     rows, spend, done = [], 0.0, 0
     for i, p in enumerate(data):
@@ -98,6 +105,10 @@ def main(argv):
                        "capping reasoning HURT correctness — then it's a tradeoff, not a free saving.",
     }
     (outdir / "cod_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    status = kry_evidence.publish({name: outdir / name for name in ("cod_rows.jsonl", "cod_summary.json")},
+                                  "cod_experiment", rows=n, write=a.write_evidence)
+    if status:
+        return status
     print(f"\n=== CoD RECEIPT ({model}) ===")
     print(f"  pass-rate:  verbose {rate('verbose'):.1%}  cod {rate('cod'):.1%}  terse {rate('terse'):.1%}")
     print(f"  mean out-tok: verbose {mean_ot('verbose'):.0f}  cod {mean_ot('cod'):.0f}  terse {mean_ot('terse'):.0f}")
@@ -112,4 +123,4 @@ if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    main(sys.argv)
+    raise SystemExit(main(sys.argv))

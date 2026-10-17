@@ -19,13 +19,14 @@ Needs OPENAI_API_KEY. Executes model-generated HumanEval solutions in a subproce
   python3 scripts/kry_code_routing_proof.py [N]
 """
 from __future__ import annotations
-import gzip, json, os, re, subprocess, sys, tempfile, urllib.request
+import argparse, gzip, json, os, re, subprocess, sys, tempfile, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_grounded_savings_openai import CHEAP, FRONTIER, PRICES, call, cost
 from kry_grounded_savings_proof import wilson
+import kry_evidence
 
 HUMANEVAL_GZ = "https://github.com/openai/human-eval/raw/master/data/HumanEval.jsonl.gz"
 PROMPT_SUFFIX = ("\n\nComplete this function. Return ONLY the complete Python function "
@@ -88,10 +89,14 @@ def passes(problem: dict, generation: str) -> bool:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=40, metavar="N", help="HumanEval problems (default 40)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
+    n = args.n
     key = os.getenv("OPENAI_API_KEY", "").strip()
     if not key:
         sys.exit("OPENAI_API_KEY not set")
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 40
     data = load_humaneval()[:n]
     print(f"HumanEval routing test: {len(data)} problems  cheap={CHEAP} frontier={FRONTIER}\n")
 
@@ -128,15 +133,15 @@ def main() -> int:
                     "cost = real tokens x stated OpenAI list prices, not provider-recorded",
                     "this validates the ROUTING lever the company estimate excluded"],
     }
-    Path("docs/evidence/code_routing").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/code_routing/code_routing.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("code_routing") / "code_routing.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("=== ROUTING on code (objective test-pass adequacy) ===")
     print(f"  cheap ({CHEAP}) adequate: {cheap_ok}/{m} = {100*cheap_ok/m:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier ({FRONTIER}) pass (sanity): {front_ok}/{m} = {100*front_ok/m:.0f}%")
     print(f"  all-frontier cost ${all_frontier:.4f}  ->  routed cost ${routed:.4f}")
     print(f"  ROUTING SAVINGS: ${savings:.4f} = {100*rate:.0f}% of frontier spend  (failures escalated, charged twice)")
-    print("  -> docs/evidence/code_routing/code_routing.json")
-    return 0
+    return kry_evidence.publish({"code_routing.json": result}, "code_routing", rows=m,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

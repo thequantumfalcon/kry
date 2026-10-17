@@ -18,15 +18,14 @@ counterfactual confound stands. served-checked; objective executed-test scoring 
 """
 from __future__ import annotations
 
-import json, os, sys, time, urllib.error
-from pathlib import Path
+import argparse, json, os, sys, time, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_code_routing_proof import load_humaneval, passes
 from kry_rescue_experiment import _anthropic
+import kry_evidence
 
 CHEAP, FRONTIER = "claude-haiku-4-5-20251001", "claude-sonnet-4-6"
-N = int(sys.argv[1]) if len(sys.argv) > 1 else 40   # full HumanEval = 164 (more cheap-failures -> powered)
 FAST = ("\n\nComplete this function. Return ONLY the complete Python function "
         "(signature + body, needed imports), in a ```python code block, no explanation.")
 REASON = ("\n\nThink step by step about the algorithm and the edge cases, then write the complete Python "
@@ -44,6 +43,13 @@ def _call(prompt, model, max_tokens):
 
 
 def main():
+    # N is parsed here, not at import: int(sys.argv[1]) at module level crashed on --help.
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=40, metavar="N",
+                    help="HumanEval problems (default 40; full HumanEval = 164, more cheap failures -> powered)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
+    N = args.n
     data = load_humaneval()[:N]
     print(f"CODE rescue (HumanEval, executed-test gate): {len(data)} problems  cheap={CHEAP} frontier={FRONTIER}\n")
     rows = []
@@ -76,12 +82,14 @@ def main():
            "sealed_verdict": verdict,
            "honest_scope": f"HumanEval toy functions; n={n}; Haiku/Sonnet; the acceptance-gate measurement counterfactual confound stands; "
                            "deployable gate = executed tests (no oracle).", "rows": rows}
-    Path("docs/evidence/adequacy_gate/rescue_code_results.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("adequacy_gate") / "rescue_code_results.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== CODE RESCUE (deployable gate) ===")
     print(f"  fast_adequacy: {kf}/{n}={out['metrics']['fast_adequacy']}  rescue_rate: {rescued}/{ff}={rate}  "
           f"residual_escalation: {esc}/{n}={out['metrics']['residual_escalation_rate']}  frontier_pass_on_esc: {fp}/{esc}")
     print(f"  SEALED VERDICT: {verdict}")
-    return 0
+    return kry_evidence.publish({"rescue_code_results.json": result}, "adequacy_gate", rows=n,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":
