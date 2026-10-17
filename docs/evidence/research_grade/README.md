@@ -31,4 +31,4 @@ python3 scripts/kry_research_grade.py docs/evidence/research_grade/research_grad
 ## Provenance
 Extracted from the live host-system ledger `kry_data/kry_mint_log.jsonl` (the host system
 that ran the floor); full run record: the operator's private run log. `confirm()`
-fired 50/50 within the 900 s TTL — the stall that expired the first 18 (see `../freetest/`) is broken.
+fired within the 900 s TTL (this bundle holds 52 minted receipts) — the stall that expired the first 18 (see `../freetest/`) is broken.

@@ -472,7 +472,7 @@ prototype < prototype_plus < internally_consistent < research_grade < production
 | Level | Evidence required | KRY today |
 |---|---|---|
 | `internally_consistent` | the synthetic suite is fully green | ✅ cleared |
-| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — `confirm()` 50/50 within TTL; fresh corpus 52/52 @ 1.00 (note ↓). _Scope: **token-count** reconciliation of **n=52 free-tier** (`:free`, $0) self-traffic against the provider's records — it grounds that the calls existed, **not** that dollars were saved._ |
+| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — `confirm()` within TTL; fresh corpus 52/52 @ 1.00 (note ↓). _Scope: **token-count** reconciliation of **n=52 free-tier** (`:free`, $0) self-traffic against the provider's records — it grounds that the calls existed, **not** that dollars were saved._ |
 | `production_ready` | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
 
 **The top label structurally requires external evidence** — the grader refuses to let
@@ -493,9 +493,9 @@ have tooling: run real `provider_metered`/holdout traffic, then
 > cost-avoidance — *model-pair-specific* and assuming the avoided frontier call would have been
 > kept, which is not separately tested; 71% prefix-cacheable, 5-fold/bootstrap). The acceptance gate's correctness specificity was **measured
 > (0% measured)** and a default-off **correctness layer** built + wired. **Committed `research_grade`
-> (2026-06-10):** the host system wired `confirm()` to the general gate, **confirmed 50/50 within TTL** (the
+> (2026-06-10):** the host system wired `confirm()` to the general gate, **confirmed within TTL** (the
 > stall broken), and the fresh corpus reconciled **52/52 at agreement 1.00 → `research_grade`** — graded
-> the `--since` fresh-run window; the all-time ~0.12 is purely OpenRouter-purged legacy gen-ids
+> the `--since` fresh-run window; the all-time ~0.12 is dominated by OpenRouter-purged legacy gen-ids
 > (un-fetchable, **not** refuted). `production_ready` still needs **live** real-world traffic + a real counterparty.
 > Evidence: [docs/evidence/](docs/evidence/) · [research-grade anchor](docs/KRY_RESEARCH_GRADE_ANCHOR.md) ·
 > [first anchor](docs/KRY_FIRST_REAL_ANCHOR.md) · [savings](docs/KRY_SAVINGS_ANALYSIS.md).
