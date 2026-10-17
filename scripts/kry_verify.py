@@ -778,8 +778,8 @@ def main(argv: list[str] | None = None) -> int:
             a_ok, a_errs = False, [f"anchor unreadable: {exc}"]
         ok = ok and a_ok
         errors = errors + [f"anchor: {e}" for e in a_errs]
-        anchor_line = ("PASS — chain still carries the published anchor prefix (no re-mint)"
-                       if a_ok else "FAIL — re-mint/rollback vs the published anchor")
+        anchor_line = ("PASS — chain still carries this anchor's prefix (anchored entries not re-minted)"
+                       if a_ok else "FAIL — re-mint/rollback vs this anchor")
 
     # S7: registry rollback check against a published settlement anchor (out-of-band).
     registry_anchor_line = None

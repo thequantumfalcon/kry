@@ -48,8 +48,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     ok, errors = verify_chain_against_anchor(anchor)
     print("anchor check:",
-          "PASS — chain still carries the published anchor prefix (no re-mint)"
-          if ok else "FAIL — re-mint/rollback vs the published anchor")
+          "PASS — chain still carries this anchor's prefix (anchored entries not re-minted)"
+          if ok else "FAIL — re-mint/rollback vs this anchor")
     for e in errors:
         print(f"  - {e}")
     return 0 if ok else 1
