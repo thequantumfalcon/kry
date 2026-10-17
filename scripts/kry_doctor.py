@@ -131,7 +131,7 @@ def _pytest_config(root: Path) -> dict:
     opts = ((data.get("tool") or {}).get("pytest") or {}).get("ini_options") or {}
     if opts.get("pythonpath") != ["src"]:
         return _check("pytest_pythonpath", FAIL, "pyproject must set [tool.pytest.ini_options] pythonpath = ['src']")
-    return _check("pytest_pythonpath", PASS, "pytest can import src without PYTHONPATH=src")
+    return _check("pytest_pythonpath", PASS, "pyproject sets pytest pythonpath = ['src'] (no PYTHONPATH=src needed once pytest is installed)")
 
 
 def _module_available(module: str, *, required: bool) -> dict:

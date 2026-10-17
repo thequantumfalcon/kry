@@ -10,13 +10,13 @@
 
 ### Don't trust your LLM savings dashboard. Verify it. 🧾
 
-**kry turns the usage logs you already have into a tamper-evident savings receipt a stranger can verify offline — no trust in you required.**
+**kry turns the usage logs you already have into a tamper-evident savings receipt a stranger can verify offline.**
 
 It hash-chains your caching/routing savings and recomputes them against public model pricing, so the ledger is provably _intact and honestly priced_. How much you're trusting the operator that the savings actually _happened_ is a single explicit number — the `veracity_floor`. Proves integrity, not the savings themselves. No prompts exposed. Zero dependencies.
 
 `zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade` <sub>(scope: **n=52** free-tier **token-count** reconciliation — grounds that the calls existed, not that dollars were saved · [details](#readiness-a-computed-grade-not-a-claim))</sub>
 
-![kry running live — a real routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
+![kry running live — a sample routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
 <sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇 Or **try to forge a receipt yourself**: the [live browser verifier](https://thequantumfalcon.github.io/kry/) has tamper, truncation, and re-mint demos — nothing uploads, the verifier runs in your browser.</sub>
 
@@ -32,7 +32,7 @@ It hash-chains your caching/routing savings and recomputes them against public m
   earn by provably avoiding inference cost · prove it to a stranger · stdlib only
 
 ━━━━━━ FULL LIFECYCLE  —  earn → mint → attest → STRANGER-verifies → carbon ━━━━━━
-The whole loop, on real efficiency events, in one program:
+The whole loop, on sample efficiency events, in one program:
 
 ──────────────────────────────────────────────────────────────────────
 1. EARN — efficiency events become KRY (edge-weighted by what they avoided)
@@ -52,7 +52,7 @@ The whole loop, on real efficiency events, in one program:
 3. MINT — every earn is a SHA-256 hash-chain receipt (tamper-evident)
 ──────────────────────────────────────────────────────────────────────
   receipts:    3
-  chain_tip:   eae1b80e8baedc1e...
+  chain_tip:   2bcb408aefd147b6...
   chain_valid: True
   veracity_floor: 0.3924  (fraction anchored by more than self-report — external OR operator-run)
 
@@ -69,7 +69,7 @@ The whole loop, on real efficiency events, in one program:
 KRY external verification — attestation
   receipts:        3 (recomputed from links)
   total_kry:       2436.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.3924 (fraction anchored by more than self-report — external OR operator-run)
+  veracity_floor:  0.3924 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
                    ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                      kry_tlsn_verify to independently check the underlying evidence doc
   price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
@@ -88,13 +88,13 @@ KRY external verification — attestation
   status:             ESTIMATE — not a certified carbon credit (grid region unknowable: inference_geo redacted)
 
 ══════════════════════════════════════════════════════════════════════
-Done. The balance was minted from real efficiency events, anchored in a
+Done. The balance was minted from sample efficiency events, anchored in a
 tamper-evident chain, and verified by a program that trusts nothing in
 this package. That is what 'proof-of-efficiency' means in practice.
 (temp data dir <tmpdir> — safe to delete)
 ══════════════════════════════════════════════════════════════════════
 
-━━━━━━ OPERATOR VIEW  —  a real routing log → a verifiable savings statement ━━━━━━
+━━━━━━ OPERATOR VIEW  —  a sample routing log → a verifiable savings statement ━━━━━━
 SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public proof.
   
     minted savings into the chain; attestation -> <tmp>/att.json
@@ -108,6 +108,8 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
       holdout_validated:      1,798.10 KRY
       provider_metered:         382.40 KRY
     holdout measurement:  1 class(es) measured; cost 15,000.00 KRY ($0.3750) — the price of veracity
+    prompt cache:         provider prompt-cache discount, computed from reported usage at list price; not minted, not attested, self-reported (list prices as of 2026-09-16)
+      records:            priced 0, unpriced 38, modifier-excluded 0, malformed 0; 1-hour write price assumed for 0
     by request-class:
       code                                 treated=0     holdout=0    p̂=—                saved=    382.40 KRY [provider_metered]
       greet                                treated=2     holdout=0    p̂=—                saved=      0.00 KRY [self_reported]
@@ -118,7 +120,7 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
   KRY external verification — attestation
     receipts:        11 (recomputed from links)
     total_kry:       3080.4984 (recomputed from links, not the declared field)
-    veracity_floor:  0.7078 (fraction anchored by more than self-report — external OR operator-run)
+    veracity_floor:  0.7078 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
                      ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                        kry_tlsn_verify to independently check the underlying evidence doc
     price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
@@ -204,16 +206,19 @@ witness a call that was never made. KRY makes that limit a first-class, labeled 
 
 ## Quickstart
 
-No runtime package dependencies. `pip install -e .` works without build-time
-downloads. Tests use `pytest` and lint uses `ruff`.
+No runtime package dependencies, and `pip install -e .` needs no build-time downloads.
+Tests use `pytest` and lint uses `ruff`; step 0 installs both, pinned, through the `dev` extra,
+and step 4 uses them.
 
-**To see a receipt verified without cloning:** `python3 -m pip install kry-attest`, then run `kry-try`
-and `kry-verify`. [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about
-five minutes. The steps below use a checkout.
+**To see a receipt verified without cloning** (optional, separate from the steps below):
+`python3 -m pip install kry-attest`, then run `kry-try` and `kry-verify`.
+[Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
+The steps below use a checkout.
 
 ```bash
-# 0) Install the package from this checkout (no runtime dependencies)
-python3 -m pip install -e .
+# 0) Create a virtual environment (Python 3.11 or newer), then install this checkout with the test tools
+python3 -m venv .venv && . .venv/bin/activate
+python3 -m pip install -e ".[dev]" # the package itself has no runtime dependencies
 
 # 1) Watch the whole thing run, narrated and paced (the GIF above, live)
 bash examples/demo.sh
@@ -228,7 +233,8 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/kry-quickstart.XXXXXX")
 export KRY_DATA_DIR="$tmp/kry_data"
 python3 scripts/kry_doctor.py
 # local health check for the verifier/reviewer surface; warns that external evidence is still required
-# (its cryptography/oqs warnings concern the optional TEE and post-quantum tiers; safe to ignore here)
+# (WARN lines for the optional modules cryptography and oqs concern the TEE and post-quantum
+#  tiers and appear only when those modules are not installed; safe to ignore here)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
 # reports SAVED vs SPEND and the veracity_floor (holdout-validated vs self-reported)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
@@ -242,6 +248,9 @@ python3 scripts/kry_verify.py "$tmp/att.json" --anchor "$tmp/anchor.json" # re-m
 #   Skip that step and a full re-mint from an edited log still verifies VALID without --anchor.
 python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
  --attestation "$tmp/att.json" --mint-log "$KRY_DATA_DIR/kry_mint_log.jsonl" --bundle-dir "$tmp/packet"
+# ↑ exits 0. On the sample, its JSON shows "ok": false for evidence the sample cannot supply and FAIL
+#   for the science and external_review gates; its closing note says that is expected for sample
+#   data and is not a run error. The check that must pass is the next one ("ok": true).
 python3 scripts/kry_verified_artifact.py --verify-artifact "$tmp/packet/artifact.json"
 python3 scripts/kry_finops_report.py "$tmp/packet/artifact.json"
 python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
@@ -257,6 +266,8 @@ python3 scripts/kry_verified_artifact.py examples/sample_usage_log.jsonl \
 python3 -m pytest tests/ -q # stdlib suite; optional crypto tests skip closed if unavailable
 bash lab/reproduce.sh 10 # reproducibility proof loop
 python3 scripts/kry_release_verify.py --full # one-command release gate
+# ↑ the gate builds its own temporary virtualenvs, so its result does not depend on, or vouch for,
+#   the environment you ran the steps above in
 ```
 
 ---

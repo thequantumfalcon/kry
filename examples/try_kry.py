@@ -106,7 +106,7 @@ def main() -> int:
     print(f"  status:             {carbon['status']}")
 
     print(f"\n{'═' * 70}")
-    print("Done. The balance was minted from real efficiency events, anchored in a")
+    print("Done. The balance was minted from sample efficiency events, anchored in a")
     print("tamper-evident chain, and verified by a program that trusts nothing in")
     print("this package. That is what 'proof-of-efficiency' means in practice.")
     print(f"(temp data dir {_TMP} — safe to delete)")

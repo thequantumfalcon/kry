@@ -28,11 +28,11 @@ dim "  earn by provably avoiding inference cost · prove it to a stranger · std
 sleep "$P"
 
 step "FULL LIFECYCLE  —  earn → mint → attest → STRANGER-verifies → carbon"
-dim "The whole loop, on real efficiency events, in one program:"
+dim "The whole loop, on sample efficiency events, in one program:"
 TMPDIR=/tmp "$PY" examples/try_kry.py
 sleep "$P"
 
-step "OPERATOR VIEW  —  a real routing log → a verifiable savings statement"
+step "OPERATOR VIEW  —  a sample routing log → a verifiable savings statement"
 dim "SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public proof."
 KRY_DATA_DIR="$TMP" "$PY" scripts/kry_savings_report.py examples/sample_usage_log.jsonl \
     --mint --attest "$TMP/att.json" 2>&1 | sed -e "s#$TMP#<tmp>#g" -e 's/ (verify:[^)]*)//' -e 's/^/  /'

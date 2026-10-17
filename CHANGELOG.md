@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The anchor check names what it checked.** `kry_verify.py --anchor` and `kry_chain_anchor.py`
+  printed "chain still carries the published anchor prefix (no re-mint)" for any anchor file,
+  including one exported to a temp directory a moment earlier. They now print
+  `PASS — chain still carries this anchor's prefix (anchored entries not re-minted)` or
+  `FAIL — re-mint/rollback vs this anchor`. Whether the anchor was published first is the
+  operator's step, which the verifier cannot see. The `VERDICT:` line and exit codes are unchanged;
+  consumers matching the anchor line's text must update.
+
+### Fixed
+
+- **The quickstart runs on a stock Python.** Step 0 now creates a virtual environment and installs
+  the `dev` extra, so the install no longer fails on an externally managed Python (PEP 668) and
+  `pytest` is present for step 4. The README now also says that the release gate builds its own
+  environments, what the bundle step prints for the sample, and when the doctor's optional-module
+  warnings appear.
+- **Sample data is called sample data.** The demo, `examples/try_kry.py`, the README transcript and
+  the demo GIF's description called the bundled synthetic events "real". The headline no longer
+  says "no trust in you required": without a checked anchor the verifier itself reports the
+  anchored fraction as operator-asserted. The README transcript now matches the current demo output.
+- `kry_doctor.py`'s `pytest_pythonpath` check said "pytest can import src" even when pytest was
+  not installed. It reads the `pyproject.toml` setting, and now says that.
+
 ## [0.1.6] - 2026-09-19
 
 ### Compatibility
