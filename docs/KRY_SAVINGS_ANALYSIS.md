@@ -1,12 +1,14 @@
 # KRY Savings Analysis — measured levers + a LOW-CONFIDENCE company estimate
 
-> **Status: ESTIMATE, not evidence.** The lever rates below are MEASURED on real traffic
-> (cited). The company numbers are a **class-level transplant onto described workloads with
+> **Status: ESTIMATE, not evidence.** The lever rates below are MEASURED (cited), but none on
+> live production traffic: the cache and prefix rates come from a public corpus of real user
+> conversations (WildChat), replayed or analysed offline, and the routing rate from HumanEval, a
+> benchmark. The company numbers are a **class-level transplant onto described workloads with
 > ZERO company-specific traffic measured** — confidence LOW, gross of implementation cost.
 > Produced 2026-06-10 via two adversarially-verified estimation passes (each estimate
 > challenged for over-claim, then conservatized).
 
-## The measured levers (real traffic, executed/holdout-validated)
+## The measured levers (a public real-user corpus and one benchmark — not live traffic)
 
 | Lever | Measured rate | Source | Honest bound |
 |---|---|---|---|

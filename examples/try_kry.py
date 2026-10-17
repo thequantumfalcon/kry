@@ -5,8 +5,9 @@ Run it (no arguments, no setup, no network):
 
     python examples/try_kry.py
 
-It uses a throwaway data dir (a temp folder, deleted on exit), so it never
-touches your real ledger. What it walks through:
+It uses a throwaway data dir (a fresh temp folder, which it prints and leaves
+for you to delete), so it never touches your real ledger. The attestation it
+builds is written into that folder as attestation.json. What it walks through:
 
   1. EARN    — record efficiency events (a cache hit that avoided an Opus call,
                a compression win, a displacement to a cheaper paid model).

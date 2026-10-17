@@ -79,11 +79,11 @@ optional module; the integration job requires the dependency to import successfu
 ## Attest and hand it to a stranger
 
 ```bash
-python3 - <<'EOF'
+python3 - > attestation.json <<'EOF'
 from kry import kry_attest
 print(kry_attest.build_attestation().to_public_json())
 EOF
-# → attestation.json; then anyone, offline, with no trust in you:
+# → attestation.json; then anyone, offline, without running your code:
 python3 scripts/kry_verify.py attestation.json
 node verifiers/js/cli.mjs attestation.json          # independent implementation
 ```

@@ -9,7 +9,8 @@ It is built to be adopted by KRY *as its own* without compromising anything:
 > **KRY core (`src/kry/*`) stays zero-dependency, pure stdlib.** Nothing in the
 > core imports this tier; this tier only reads KRY's *output* (an attestation
 > file). Installing it changes the core's dependency footprint by exactly zero.
-> Verified: `grep -r "oqs\|kry_pqc" src/kry` → no matches.
+> Verified: `grep -rn "import oqs\|import kry_pqc" src/kry` → no matches (a looser
+> `grep -r "oqs\|kry_pqc" src/kry` finds only one comment in `kry_mint.py` mentioning this tier).
 
 ## Why this exists — the three axes
 
@@ -39,7 +40,9 @@ One operator key signs the exact attestation bytes.
 ```bash
 pip install -r kry_pqc/requirements.txt # liboqs-python — this tier only
 
-python examples/try_kry.py # produce an attestation.json (KRY core)
+# produce ./attestation.json (KRY core) from the bundled SYNTHETIC sample log
+export KRY_DATA_DIR="$(mktemp -d)"
+python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest attestation.json
 
 python -m kry_pqc.signer keygen --out-dir keys/
 python -m kry_pqc.signer sign \
@@ -48,20 +51,30 @@ python -m kry_pqc.signer sign \
  --public-key keys/kry_pqc_public.key \
  --out attestation.sig.json
 
-# A stranger runs this (needs only liboqs-python + stdlib):
-python -m kry_pqc.verify --attestation attestation.json --signature attestation.sig.json
+# The operator publishes keys/kry_pqc_public.key (or its sha256 fingerprint) out-of-band.
+# A stranger verifies against THAT published copy (needs only liboqs-python + stdlib):
+python -m kry_pqc.verify --attestation attestation.json --signature attestation.sig.json \
+ --public-key keys/kry_pqc_public.key
 ```
 ```
 [PASS] message digest matches signed bytes
 [PASS] ML-DSA signature valid (authenticity)
 [PASS] KRY hash chain intact (integrity) # auto-runs if KRY is importable
-RESULT: VERIFIED -- ... post-quantum authentic.
+RESULT: VERIFIED -- signed by the holder of the PINNED public key ... and post-quantum authentic.
 ```
+Without `--public-key` or `--expect-fingerprint <published fingerprint>`, the verifier can use only
+the key embedded in the signature artifact, which anyone can generate and self-sign with. It then
+prints `RESULT: UNVERIFIED` and exits 2: the signature is internally consistent, but authenticity is
+not established.
 
 ### 2. m-of-n threshold — make operator-trust a tunable number (`threshold.py`)
-Distribute trust across a council of N independent signers; require M to vouch.
-**No single party — not even the operator — can produce a valid proof alone.**
-Operator-trust becomes **M/N**, driven toward zero by adding independent signers.
+Distribute trust across a council of N signers; require M to vouch. **If the N keys are
+really held by independent parties, no single party — not even the operator — can produce a
+valid proof alone**, and operator-trust becomes **M/N**, driven toward zero by adding independent
+signers. The verifier cannot check that independence: it accepts whatever keys the
+`council.json` it is given lists. A stranger must take the council's public keys from where each
+member published them; a `council.json` handed over with the attestation proves nothing, because
+an operator who generates all N keys *is* the council.
 
 ```bash
 # each council member generates their own keypair, shares only the public key
@@ -72,7 +85,7 @@ python -m kry_pqc.threshold init-policy \
  --threshold 2 --out council.json # 2-of-3 -> trust 2/3
 
 # each signer independently signs the attestation
-python -m kry_pqc.threshold contribute --attestation attestation.json \
+python -m kry_pqc.threshold contribute --attestation attestation.json --policy council.json \
  --secret-key alice_secret.key --public-key alice_public.key --out alice.json
 # ... bob.json ...
 
@@ -97,7 +110,8 @@ size (M signatures). FROST is the optional future upgrade if compactness matters
 ## Threat model — what it does and does NOT prove
 
 - **Does prove:** these exact attestation bytes were signed by the holder(s) of
- the named public key(s); with the council, that ≥M independent parties agreed;
+ the named public key(s); with the council, that ≥M of the listed keys signed (≥M
+ independent parties only if those keys were independently published and held);
  and that this remains unforgeable against a quantum adversary.
 - **Does NOT prove veracity** — that the underlying savings happened. That is the
  job of KRY's TEE + TLSNotary tiers. This tier adds *who attested*, not *was it

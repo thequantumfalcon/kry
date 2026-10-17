@@ -21,7 +21,7 @@ If you find yourself writing a sentence that blurs those three, stop and rewrite
 
 ## Non-negotiable rules
 
-1. **Stdlib only** in `src/kry/` and `scripts/`. No third-party imports, ever. `pytest` and `ruff`
+1. **Stdlib only** in `src/kry/` and `scripts/`. No unguarded third-party imports. `pytest` and `ruff`
    are dev tools, pinned in `pyproject.toml`. The `tee`/`pqc` extras are opt-in and must never leak
    into the core.
 2. **No AI attribution anywhere** — no AI tool as an author, co-author, or credited party in code,
@@ -89,9 +89,10 @@ gets deleted rather than patched again. Treat its five invariants and outcome gu
 
 ## What not to do
 
-- Do not try to move SC3/SC4/SC5/SC7 with code. They need a third-party timestamp, external
-  adversaries, a real counterparty, and real traffic respectively. More verifier code moves none of
-  them, and `tests/test_capabilities.py` structurally refuses to let code buy the top readiness rung.
+- Do not try to move the externally gated criteria with code: the ones that need a third-party
+  timestamp, external adversaries, a real counterparty, or real traffic. More verifier code moves
+  none of them, and `tests/test_capabilities.py` structurally refuses to let code buy the top
+  readiness rung.
 - Do not add a dependency to the core to make something easier.
 - Do not weaken a check to make a test pass.
 

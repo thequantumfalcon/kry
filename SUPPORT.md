@@ -13,16 +13,16 @@ Thanks for using KRY. Here is where to go for each kind of help.
 ## Before opening an issue
 
 - Read [`README.md`](README.md).
-- Try the 30-second demo: `python examples/try_kry.py`.
+- Try the 30-second demo: `python3 examples/try_kry.py`.
 - Check whether your question is answered by the computed status: `readiness_label()` and
  [`docs/KRY_READINESS.md`](docs/KRY_READINESS.md).
 
 ## Reproducing the core claim
 
 ```bash
-python -m pip install -e ".[dev]"
-PYTHONPATH=src python -m pytest tests/ -q # 475 tests
-python scripts/kry_savings_report.py examples/sample_usage_log.jsonl
+python3 -m pip install -e ".[dev]"
+python3 -m pytest tests/ -q # the full suite; pytest prints the current pass/skip counts
+python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl # the sample log is synthetic
 ```
 
 This is a maintainer-supported project; response times are best-effort.

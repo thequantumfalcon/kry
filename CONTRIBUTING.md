@@ -15,7 +15,7 @@ rules below exist to protect that.
  behind the `tee` extra — never hand-rolled crypto.)
 2. **The suite stays green and `ruff` stays clean.**
  ```bash
- PYTHONPATH=src python -m pytest tests/ -q # must pass
+ python -m pytest tests/ -q # must pass
  ruff check src/ scripts/ tests/ examples/ lab/ # must be clean
  ```
 3. **Capability honesty is enforced, not aspirational.** Anything marked `implemented` in
@@ -44,10 +44,10 @@ rules below exist to protect that.
 git clone https://github.com/thequantumfalcon/kry.git
 cd kry
 python -m pip install -e ".[dev]" # pytest + ruff only; the package itself is zero-dep
-PYTHONPATH=src python -m pytest tests/ -q
+python -m pytest tests/ -q
 python examples/try_kry.py # 30s end-to-end: earn → mint → attest → verify → carbon
 ```
-Optional crypto tiers: `pip install -e ".[tee]"` (adds `cryptography` for the `tee_attested` tier).
+Optional crypto tiers, from a checkout only: `pip install -e ".[tee]"` (adds `cryptography` for the `tee_attested` tier). The PyPI wheel ships only `kry/` and `kry_verify.py`, so the `tee` and `pqc` extras do nothing on a PyPI install.
 
 ## Workflow
 

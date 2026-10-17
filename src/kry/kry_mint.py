@@ -1,9 +1,10 @@
 """KRY Mint — cryptographically anchored token minting protocol.
 
-Every KRY earn event produces a MintReceipt: a hash-chain anchored record
-that proves WHICH efficiency event occurred, WHEN, and HOW MANY tokens it
-saved. This makes KRY a proof-of-efficiency token — the earning is verifiable
-by any auditor with access to the hash chain.
+Every KRY earn event produces a MintReceipt: a hash-chain anchored record of
+WHICH efficiency event was recorded, WHEN, and HOW MANY tokens it saved. This
+makes KRY a proof-of-efficiency token — the record of the earning is verifiable
+by any auditor with access to the hash chain. The chain proves the record intact,
+not that the event happened; evidence_tier / veracity_floor say what backs it.
 
 Architecture:
     Efficiency event (cache hit, compression, etc.)
@@ -14,13 +15,14 @@ Architecture:
         ↓
     KRYLedger.earn() records balance delta
         ↓
-    External verifier can audit: "this KRY was minted from real efficiency"
+    External verifier can audit: "this KRY was minted from an intact chain of
+    recorded efficiency events, priced from the public table"
 
 External market protocol:
-    A provider wanting to accept KRY asks: "prove this KRY came from real
-    efficiency." The answer is the mint receipt chain — a sequence of
-    hash-anchored events showing EXACTLY which cache hits, compressions,
-    and short-circuits generated the balance.
+    A provider wanting to accept KRY asks: "where did this KRY come from?"
+    The answer is the mint receipt chain — a sequence of hash-anchored records
+    of EXACTLY which cache hits, compressions, and short-circuits generated the
+    balance, each labelled with the evidence tier that backs it.
 
 This is fundamentally different from:
     - OpenRouter credits (no proof of origin — just USD deposit)
@@ -90,7 +92,8 @@ TIER_HOLDOUT_VALIDATED = "holdout_validated" # T1*: counterfactual MEASURED by a
                                             #      per-event metering. The honest middle tier for cache hits.
                                             #      See kry_baseline.py + docs/KRY_COUNTERFACTUAL_HOLDOUT.md.
 TIER_PROVIDER_METERED = "provider_metered"  # T1: backed by a retained real provider usage payload (a call that DID happen)
-TIER_TEE_ATTESTED     = "tee_attested"      # T2: measured inside a TEE / hardware-signed (slot only — not yet built)
+TIER_TEE_ATTESTED     = "tee_attested"      # T2: the measurement ran in an attested enclave (AWS Nitro) — minted via
+                                            #     scripts/kry_tee_verify.py (optional `tee` extra). See docs/KRY_TEE_OPTIONS.md.
 TIER_TLSN_ATTESTED    = "tlsn_attested"     # T2: the provider's response is cryptographically PROVEN via a TLS-notary
                                             #     signature — a real provider call, notarized, so the operator cannot
                                             #     fabricate the bytes. Strictly stronger than provider_metered (which
@@ -151,8 +154,9 @@ def _metered_pair(value) -> list[int]:
 class MintReceipt:
     """Cryptographically anchored proof of KRY minting.
 
-    receipt_hash = SHA-256(event_type + tokens_saved + ts + evidence_hash)
-    chain_hash   = SHA-256(previous_chain_hash + receipt_hash)
+    As minted today (hash_version 7; older versions are dispatched by verify_chain):
+    receipt_hash = SHA-256(f"{event_type}:{tokens_saved}:{ts}:{evidence_hash}:{tier}:{metered_json}")
+    chain_hash   = SHA-256(f"{previous_chain_hash}:{receipt_hash}:{public_block}")  (SPEC §3.3)
 
     These two fields make the mint log an append-only hash chain — any
     tampering breaks the chain and is detectable by an external verifier.
@@ -1320,8 +1324,9 @@ def _apply_promotion_overlay(by_tier: dict, promotions: list, kry_by_receipt: di
     value was minted exactly once). SHARED by veracity_breakdown (internal) and
     kry_attest.build_attestation (public) so both veracity surfaces compute the SAME floor.
 
-    SAFETY CONTRACT — this overlay has been the source of THREE HIGH findings (the original
-    promotion-relabel, A1-1, A1-1b). It is sound ONLY if EVERY invariant below holds; each is
+    SAFETY CONTRACT — this overlay has been the source of FOUR HIGH findings (the original
+    promotion-relabel, A1-1, A1-1b, and the OVERLAY positive-value double-count that invariant 4
+    now enforces — see CHANGELOG). It is sound ONLY if EVERY invariant below holds; each is
     enforced AND regression-tested (tests/test_audit_deep_external.py), so a change that drops one
     must fail a test:
       1. HASH-BOUND target — the superseded receipt's id is bound into its chain hash

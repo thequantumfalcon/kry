@@ -15,17 +15,23 @@ verdict from its `input` (or `input_raw_text`) and match the vector's `expected.
 - **`VALID`** — every check in SPEC §3.4 / §4.3 passes.
 - **`INVALID`** — at least one check fails. (The reference also lists `reasons`; you need
   only match the *verdict*, not the reason strings.)
-- **`PARSE_ERROR`** — the bytes are not standard JSON (they contain `NaN`/`Infinity`);
-  your parser MUST reject them before verifying.
+- **`PARSE_ERROR`** — the bytes are malformed JSON (e.g. an invalid `\u` escape or an
+  unescaped control character in a string), contain `NaN`/`Infinity`, or hold a float literal
+  that overflows binary64 (e.g. `1e309`) — SPEC §1; your parser MUST reject them before verifying.
 
-The two `primitives/` files are stricter: reproduce every `expected_hex`
-(`canon_f64`) and `expected_bytes` (canonical JSON) exactly. If these pass, your
-canonicalization matches; the attestation vectors then test the verdict logic on top.
+The `canon_f64.json` and `canonical_json.json` primitives are stricter: reproduce every
+`expected_hex` (`canon_f64`) and `expected_bytes` (canonical JSON) exactly. If these pass, your
+canonicalization matches; the attestation vectors then test the verdict logic on top. The third
+primitive, `legal_multipliers.json`, carries no verdict: it is the authoritative published
+price-multiplier set that the SPEC §3.4.1 magnitude check MUST use.
 
 ## Layout
 
 ```
 primitives/     canon_f64.json, canonical_json.json      — encoding, exact-bytes
+                legal_multipliers.json                   — the published multiplier set (§3.4.1)
+hardening/            *.json  (VALID / INVALID / PARSE_ERROR) — raw-text cases, savings + action
+                                                         (v1.3 correction, 2026-09-19)
 savings/valid/        *.json  (verdict VALID)            — real built attestations
 savings/adversarial/  *.json  (INVALID / PARSE_ERROR)    — one fault each
 savings/overlay/      *.json  (VALID / INVALID)          — §3.7 overlay PROFILE only (see below)
@@ -80,5 +86,7 @@ category (its VALID vector would refuse). The bundled `verifiers/js` implements 
   types and tiers named `__proto__` / `constructor` (ordinary map keys: honest ones verify, a
   forged rate, dropped count or misstated tier value does not).
 
-This corpus is the SC1 gate in `KRY_WORLD_CLASS_ROADMAP.md` (§4): a cold-context
-implementer given only `SPEC.md` + `vectors/` must pass 100%.
+This corpus is the SC1 gate: *an implementer who has never read the Python passes all vectors,
+given only `SPEC.md` + `vectors/`* (the criterion as stated in
+[`../docs/evidence/spec_v1_sc1_run.md`](../docs/evidence/spec_v1_sc1_run.md), which records the
+2026-07-04 run against it).

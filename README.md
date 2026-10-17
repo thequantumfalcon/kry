@@ -29,7 +29,7 @@ It hash-chains your caching/routing savings and recomputes them against public m
 
 ```text
   K R Y   —   Proof-of-Efficiency Compute Credit
-  earn by provably avoiding inference cost · prove it to a stranger · stdlib only
+  earn by avoiding inference cost · a stranger verifies the ledger · stdlib only
 
 ━━━━━━ FULL LIFECYCLE  —  earn → mint → attest → STRANGER-verifies → carbon ━━━━━━
 The whole loop, on sample efficiency events, in one program:
@@ -195,7 +195,7 @@ witness a call that was never made. KRY makes that limit a first-class, labeled 
 | KRY **is** | KRY **is not** |
 |---|---|
 | An internal efficiency & integrity meter | A cryptocurrency or tradeable token |
-| A stranger-verifiable proof-of-savings artifact | A claim that savings are externally guaranteed by default |
+| A stranger-verifiable savings receipt (integrity and pricing checked; reliance on the operator disclosed as `veracity_floor`) | A claim that savings are externally guaranteed by default |
 | An honest accounting discipline (integrity vs veracity, separated) | A speculation, treasury, or exchange |
 
 > **Claims hierarchy.** [`docs/CLAIMS_BOUNDARY.md`](docs/CLAIMS_BOUNDARY.md) is the **authoritative** scope
@@ -284,8 +284,8 @@ python3 scripts/kry_release_verify.py --full # one-command release gate
  ▼
  ┌───────────────────────────────────────────────────────────────────────────┐
  │ MINT — SHA-256 hash-chained receipt │
- │ chain_hash[i] = SHA256(chain_hash[i-1] : receipt_hash[i]) │
- │ carries evidence_tier (T0/T1/T2) + T1 metered counts in the hash (v3) │
+ │ chain_hash[i] = SHA256(chain_hash[i-1] : receipt_hash[i] : public_block[i]) │
+ │ public_block (v4+) binds tier (T0/T1/T2), T1 metered counts, amounts, ts │
  └───────────────────────────────────────────────────────────────────────────┘
  │
  ┌──────────────────────────────┼──────────────────────────────┐
@@ -299,9 +299,15 @@ python3 scripts/kry_release_verify.py --full # one-command release gate
  chain integrity + conservation + magnitude (F2) + veracity surface
 ```
 
-The lifecycle is append-only and deterministic. Hashes are computed over
-`json.dumps(sort_keys=True)` — never raw concatenation — so any party re-derives the same
-digest. Runtime ledgers live under `KRY_DATA_DIR` (default `./kry_data`, gitignored) and
+The lifecycle is append-only and deterministic. Each `chain_hash` is SHA-256 over the
+colon-joined string `prev_chain_hash:receipt_hash:public_block` (SPEC §3.3). `public_block` is
+canonical JSON (`json.dumps(sort_keys=True, separators=(",", ":"))`) of the receipt's public
+fields, with the economic numbers and `ts` encoded as exact IEEE-754 hex from `hash_version` 5
+on, so any party re-derives the same digest from the attestation alone. `receipt_hash` is itself
+a colon-joined string (numbers in Python's float formatting) that includes the sealed evidence
+hash, so a verifier treats it as opaque and never recomputes it. The `attestation_hash` is
+SHA-256 over the canonical JSON of the whole attestation (SPEC §3.1). Runtime ledgers live
+under `KRY_DATA_DIR` (default `./kry_data`, gitignored) and
 **are never committed** — they're tied to real traffic.
 
 ---
@@ -316,7 +322,8 @@ classified by *how the event was witnessed*, weakest to strongest:
 |------|----------|--------------|---------------|--------|
 | **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — a **permanent** floor for them | shipped |
 | **T1** | `provider_metered` | the **provider**, for a call that *did* happen | a displacement's cheap leg, with a retained real `usage` payload | shipped + reconcilable (F1) |
-| **T2** | `tlsn_attested` (TLS-notary) / `tee_attested` (TEE slot) | a TLS-notary signature / hardware enclave | the only honest external anchor for counterfactual savings | **`tlsn_attested` mechanism proven on a TLSNotary prototype (provider-call + mint integration in progress); `tee_attested` is the not-yet-built hardware slot** |
+| **T2** | `tlsn_attested` (TLS-notary) | a TLS-notary signature over a real provider TLS session | a provider call that *did* happen (a displacement's cheap leg) — not a cache-hit counterfactual | mint shipped (`scripts/kry_tlsn_verify.py`, 2026-06-04) and exercised end-to-end against openrouter.ai; **self-hosted notary, so not yet a neutral third party** |
+| **T2** | `tee_attested` (TEE) | an attested hardware enclave (AWS Nitro) | the savings *measurement* ran in attested hardware — the only external route for cache-hit counterfactuals; not proof that a provider's inference ran in a TEE | verify + mint shipped (`scripts/kry_tee_verify.py`, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06 |
 
 - The tier is **bound into the receipt hash** (`hash_version >= 2`): editing one receipt's
  tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
@@ -338,8 +345,9 @@ classified by *how the event was witnessed*, weakest to strongest:
  bare self-report — an *external* anchor (provider-metered / TEE / TLSNotary) **or** an operator-run
  randomized holdout (`holdout_validated`). `verify_attestation()` **re-derives** the floor from the
  per-link tiers (so it can't be misstated *relative to the tiers shown*) and only credits a
- tier the public surface actually binds (v4) — a pre-v4 link claiming an external tier is
- coerced to `self_reported`. That is tamper-evident against anyone who cannot recompute the
+ tier the public surface actually binds (v4) — a pre-v4 link claiming any tier other than
+ `self_reported` makes the attestation INVALID, and its value is counted as `self_reported` when
+ the floor is re-derived (SPEC §3.4 step 4). That is tamper-evident against anyone who cannot recompute the
  chain; against the operator (who can), publish a chain anchor to be re-mint-evident.
 - A balance with no external traffic reads **`veracity_floor = 0.0`** (100% self-reported).
  That is the *honest label* for what KRY is by default: internal-operator measurement.
@@ -347,7 +355,8 @@ classified by *how the event was witnessed*, weakest to strongest:
 
 > **Why cache hits are structurally hard.** A cache hit is a call that *did not happen* —
 > zero provider-side footprint — so no external party can attest to it even in principle,
-> short of a witness inside the runtime (a TEE or a TLS notary). Displacement is
+> short of a witness inside the runtime (a TEE; a TLS notary can only witness a call that
+> reached the provider). Displacement is
 > different: the cheap leg that *did* happen leaves a real provider record. This asymmetry
 > is the honest core of the problem, and it is why "just meter it" does not rescue the
 > bulk of a cache-dominated balance. Full design: [docs/KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md).
@@ -356,8 +365,11 @@ classified by *how the event was witnessed*, weakest to strongest:
 
 ## Honest limitations (disclosed, not hidden)
 
-These are **permanent, by-design scope boundaries** — declared as `not_guaranteed` in the
-capability matrix, not defects:
+These are scope boundaries, disclosed rather than hidden. The first three are **permanent, by
+design**, and declared `not_guaranteed` in the capability matrix. The others are not permanent:
+cross-node settlement is `scaffolded` there, with a default-off fix; the locking limit is
+documented in `src/kry/_locks.py` rather than the matrix; and real-world validation is
+`not_guaranteed` today but closable with external evidence ([docs/KRY_READINESS.md](docs/KRY_READINESS.md)).
 
 - **Per-event counterfactual proof** — a single cache hit cannot be externally witnessed;
  the holdout gives a *statistical* answer, never a per-event one.
@@ -370,9 +382,12 @@ capability matrix, not defects:
  not solve identity.
 - **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
  HOST (multi-process: the ceiling is re-checked at _commit_ under a cross-process lock), and a
- _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe is
- cross-NODE: two nodes settling the same balance against unmerged registries aren't caught until
- merge. Named now, ranked fix documented (lease/nonce/TTL first).
+ _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe by
+ default is cross-NODE: two nodes settling the same balance against unmerged registries aren't
+ caught until merge. The top-ranked fix, a shared lease/nonce/TTL authority, is implemented but
+ off by default: set `KRY_SETTLE_LEASE_DIR` to storage every node reaches
+ (`tests/test_settlement_lease.py`). Its `O_EXCL` lock is best-effort on some NFS servers, and
+ periodic registry merge remains the long-term backstop.
 - **Cross-process locking assumes a local filesystem** — the mint/settlement/action writers
  serialize via `fcntl`/`msvcrt` file locks, and `flock` over NFS (or an SMB/synced share) is
  unreliable: on a networked data dir the cross-process guarantee can silently degrade. Keep
@@ -469,8 +484,11 @@ have tooling: run real `provider_metered`/holdout traffic, then
 
 > **Real-data evidence (2026-06-09/10).** The external mechanism has been exercised on real
 > traffic, well beyond the first anchor: provider reconciliation **18/18, agreement 1.00**; an
-> **accepted-savings** run (8/8); a **real-corpus cache-holdout** on organic WildChat traffic
-> (`holdout_validated`, veracity_floor 1.0, **stranger-verified** by `kry_verify`); and **validated
+> **accepted-savings** run (8/8); a **real-corpus cache-holdout** replay of organic WildChat traffic
+> (kept as a historical record only: its 2026-06-10 attestation uses legacy `hash_version` 1 links
+> labelled `holdout_validated`, which every current verifier rejects since commit `e1195c1`
+> (2026-06-15), and its holdout-cost and net figures no longer reproduce under current pricing —
+> [details](docs/evidence/wildchat_proof/FINDINGS.md)); and **validated
 > cheap-model adequacy** on real paid calls (GSM8K 87%; code-routing 84% adequacy → up to ~75%
 > cost-avoidance — *model-pair-specific* and assuming the avoided frontier call would have been
 > kept, which is not separately tested; 71% prefix-cacheable, 5-fold/bootstrap). The acceptance gate's correctness specificity was **measured
@@ -486,14 +504,14 @@ have tooling: run real `provider_metered`/holdout traffic, then
 
 ## Modules
 
-All under `src/kry/` — ~6,100 LOC, stdlib only.
+All under `src/kry/`, stdlib only (`wc -l src/kry/*.py` gives the current size).
 
 | Module | Responsibility |
 |---|---|
 | `kry_token.py` | earn / spend / cycle, edge-weighted; `retained_dollars()`, `supply()`, dated price provenance, flow-balance, CSD solvency early-warning |
 | `kry_action.py` | the same discipline for agent **actions** (not savings): content-free hash-chained action receipts, tiers T0 `self_reported` / T1 `server_witnessed` / T2 `attested`, `veracity_floor`; stranger verifier `scripts/kry_action_verify.py` + zero-dep MCP middleware `scripts/kry_action_mcp.py` (`@attested_tool`). **T1 binds whatever the witness returns — operator-supplied until wired to a real MCP server signature.** |
 | `kry_mint.py` | SHA-256 hash-chain receipts, per-evidence supply decay, evidence tiers, dated-basis valuation |
-| `kry_pending.py` | defers a displacement mint until its output is **confirmed used downstream** (opt-in `KRY_DISPLACEMENT_DEFER`) — held in a side store off the chain so `veracity_floor` never rises on unaccepted work; unconfirmed pendings expire and never mint |
+| `kry_pending.py` | defers a displacement mint until its output is **confirmed used downstream** (opt-in on the producing side: a displacement is deferred only when the integrating host calls `record_pending()` instead of `mint()`; kry has no switch of its own for this) — held in a side store off the chain so `veracity_floor` never rises on unaccepted work; unconfirmed pendings expire and never mint |
 | `kry_attest.py` | content-sealed public proof-of-balance + the verifiable `veracity` surface |
 | `kry_settlement.py` | federated conservation transfer + double-spend guard (single-host multi-process: commit-time ceiling re-check under a cross-process lock; tamper-evident registry, rollback/HOLE-F checkpoint + published registry anchor, negative-offer guard) |
 | `kry_referee.py` | adversarial-stability gate + ascension (ratify / revoke / escalate, challenge budget, probation) |
@@ -501,6 +519,9 @@ All under `src/kry/` — ~6,100 LOC, stdlib only.
 | `kry_baseline.py` | counterfactual holdout — randomized holdout + Wilson CI → the `holdout_validated` tier |
 | `kry_sanctions.py` | makes cheating unprofitable — host-sanction reputation + reciprocal audit rate + an ESS condition (biomimicry) |
 | `kry_capabilities.py` | capability matrix + the readiness grader (`readiness_label`, `verify_capabilities`) |
+| `kry_prompt_cache.py` | report-only valuation of a provider's prompt-cache discount from its own usage fields at dated list prices — never mints, never touches the chain or the published multipliers |
+| `try_demo.py` | the `kry-try` command: mints a throwaway chain from synthetic events, attests it, verifies it |
+| `_locks.py` | cross-process file locks (`fcntl`/`msvcrt`) for the mint, settlement and action writers |
 
 ---
 
@@ -526,7 +547,9 @@ python3 scripts/kry_verify.py attestation.json
 python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export usage.json
 # F1 (operator/auditor): match each T1 mint to the provider's OWN usage record.
 # --mode per-request (OpenRouter/OpenAI per-call)
-# --mode aggregate (Google billing totals) requires --since/--until; external packets default to <=2% tolerance (opt-in cap 5%).
+# --mode aggregate (Google billing totals) requires --since/--until; here --tolerance-pct defaults to 2.0 (max 5.0).
+# An aggregate-mode external packet (kry_verified_artifact.py) is capped at --tolerance-pct 2.0, and that
+# script defaults to 5.0, so pass --tolerance-pct 2 (or lower) to it explicitly.
 
 python3 scripts/kry_verified_artifact.py --mint-log kry_data/kry_mint_log.jsonl \
  --write-t1-manifest t1_manifest.json
@@ -573,7 +596,8 @@ examples/ try_kry.py (30s demo) · gen_dataset.py (synthetic logs) · sample_usa
 tests/ unit, adversarial regressions (test_hardening), at-scale + fuzz (test_stress)
 vectors/ KRY-SPEC conformance corpus, generated from the reference (vectors/generate.py)
 verifiers/ independent JS verifier + corpus runner (js/) · static browser verify page (web/)
-docs/ SPEC · VERACITY_BINDING · COUNTERFACTUAL_HOLDOUT · BIOMIMICRY · SANCTIONS · READINESS · ...
+docs/ CLAIMS_BOUNDARY · VERACITY_BINDING · COUNTERFACTUAL_HOLDOUT · BIOMIMICRY · READINESS · ... (see Documentation)
+SPEC.md the normative wire format (repo root)
 kry_data/ runtime ledgers (gitignored — never committed)
 ```
 
@@ -598,7 +622,7 @@ permissive OSI license — free for any use including commercial, with an explic
 grant and defensive-termination clause; provided **as is, without warranty**. Copyright
 2026 Thomas Albrecht <thequantumfalcon@gmail.com>.
 
-**Trademarks & no affiliation.** Model and product names — OpenAI, GPT, Anthropic, Claude, Opus, Sonnet, OpenRouter, and any others — are trademarks of their respective owners, used here **descriptively** (nominative fair use) only to identify the systems measured. kry is **not affiliated with, endorsed by, or sponsored by** any of them. Every figure is reproducible on public benchmarks and labelled *measured* vs *projected*; nothing here is a guarantee of savings, financial advice, or a security, and the software is provided **as is, without warranty of any kind.**
+**Trademarks & no affiliation.** Model and product names — OpenAI, GPT, Anthropic, Claude, Opus, Sonnet, OpenRouter, and any others — are trademarks of their respective owners, used here **descriptively** (nominative fair use) only to identify the systems measured. kry is **not affiliated with, endorsed by, or sponsored by** any of them. Figures are labelled *measured* vs *projected*; the measured ones come from the evidence bundles under `docs/evidence/`, which state their own scope. Not all of them come from public benchmarks (the n=52 reconciliation is the operator's own traffic), and not all still reproduce under the current code (see the WildChat note above); nothing here is a guarantee of savings, financial advice, or a security, and the software is provided **as is, without warranty of any kind.**
 
 ---
 
@@ -608,7 +632,7 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 |---|---|
 | [SPEC.md](SPEC.md) | **KRY-SPEC v1.3** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
 | [KRY_LITELLM.md](docs/KRY_LITELLM.md) | LiteLLM proxy integration — attest response-cache savings (honest T0 labeling) |
-| [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier |
+| [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier (v0.1, descriptive; superseded by [SPEC.md](SPEC.md) for verification) |
 | [KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md) | integrity vs veracity, the tier ladder, F1/F2 |
 | [KRY_COUNTERFACTUAL_HOLDOUT.md](docs/KRY_COUNTERFACTUAL_HOLDOUT.md) | measuring the counterfactual (randomized holdout + Wilson CI) |
 | [KRY_BIOMIMICRY.md](docs/KRY_BIOMIMICRY.md) | how nature verifies unobservable claims (sanctions, costly signalling, ESS) |

@@ -58,7 +58,7 @@ Every mint is classified by **how the event was witnessed** (weakest → stronge
 |------|----------|--------------|---------------|
 | **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — **permanent** floor for them |
 | **T1** | `provider_metered` | the provider, for a call that *did* happen | displacement's cheap leg, with a retained real `usage` payload |
-| **T2** | `tee_attested` | hardware / TEE measurement witness | the *only* honest anchor for **cache-hit counterfactuals** (zero provider footprint) — slot only, not yet built |
+| **T2** | `tee_attested` | hardware / TEE measurement witness | the *only* honest anchor for **cache-hit counterfactuals** (zero provider footprint). **Verify + mint shipped: `scripts/kry_tee_verify.py` (AWS Nitro, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06.** It attests that the *measurement* ran in attested hardware, not that a provider's inference did. |
 | **T2** | `tlsn_attested` | a TLS-notary signature over a real provider TLS session | cryptographically PROVES a provider call *happened* (displacement's cheap leg) — strictly stronger than T1 (operator can't fabricate the bytes). **Mint shipped: `scripts/kry_tlsn_verify.py` (2026-06-04); mechanism proven end-to-end vs production openrouter.ai.** Does NOT anchor cache-hit counterfactuals — that stays `tee_attested`. |
 
 - The tier is **bound into the receipt hash** (receipt `hash_version >= 2`), so an
