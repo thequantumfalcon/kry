@@ -38,6 +38,11 @@ KRY external verification — attestation
   veracity_floor:  0.0 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
   price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
   VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
+
+Next:
+  kry-verify /path/to/kry-demo-attestation.json
+  Then change any kry_minted value in that file and run kry-verify again:
+  the verdict becomes INVALID.
 ```
 
 The attestation is the only file kept. It holds hashes and totals, not prompts, responses or keys.

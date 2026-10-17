@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`examples/demo.sh` exits non-zero when the stranger check fails.** An `|| true` after the
   `kry_verify.py` pipe meant a tampered attestation printed `VERDICT: INVALID`, then "confirmed by
   code that does NOT trust the producer", and exited 0.
+- **The WildChat cache-holdout no longer claims to verify.** The README called its 2026-06-10
+  attestation "stranger-verified by `kry_verify`", but every current verifier rejects it: its
+  legacy `hash_version` 1 links are labelled `holdout_validated`, which the verifiers refuse since
+  `e1195c1`, and its holdout-cost and net figures no longer reproduce. The README and its
+  `FINDINGS.md` keep it as a historical record and say why.
+- **Public wording matches what the code checks.** Claims stronger than the claims boundary are
+  gone ("provably avoiding inference cost", "proves which efficiency event occurred"); the README
+  describes trust, the hash construction and the reconcile tolerances exactly; `kry_pqc` shows the
+  pinned-key verify path and says a council is only as independent as its published keys; stale
+  counts, transcripts, the local serve command and dead references are fixed. Host feature flags
+  are named only as "the host system's flag", AGENTS.md says "no unguarded third-party imports",
+  CONTRIBUTING documents the `tee`/`pqc` extras as checkout-only and drops `PYTHONPATH=src`.
+- **CI also runs the suite on Python 3.12, 3.13 and 3.14**, which the classifiers already claim.
 
 ## [0.1.8] - 2026-10-17
 

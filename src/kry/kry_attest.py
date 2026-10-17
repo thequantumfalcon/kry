@@ -4,11 +4,13 @@ The mint log (data/kry_mint_log.jsonl) is PRIVATE: it records which efficiency
 events occurred, tied to the operator's real Copilot/Anthropic usage. That raw
 data must never leave the machine.
 
-But the PROOF that a KRY balance was honestly earned can be public — without
-revealing a single prompt, response, or cache key. This is the content-sealed
+But the PROOF that a KRY balance is intact and priced from the public table can be public —
+without revealing a single prompt, response, or cache key. This is the content-sealed
 attestation seam — a hash-chain integrity proof, NOT a zero-knowledge proof: an
-external verifier confirms "this balance was minted from real efficiency events
-whose hash chain is intact" without seeing the content.
+external verifier confirms "this balance was minted from a recorded chain of
+efficiency events that is intact, conserved and priced from the public table"
+without seeing the content. Whether the events happened is not proved; the
+veracity surface (veracity_floor) states how much rests on the operator's word.
 
 What an attestation EXPOSES (safe to share):
     - The number of mint receipts

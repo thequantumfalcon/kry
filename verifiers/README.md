@@ -1,8 +1,10 @@
 # verifiers/ — independent KRY verifiers + differential fuzz
 
-Implementation-independence artifacts (SC2) and the stranger-facing browser verify
-page (half of SC6). Everything verifies against [`../SPEC.md`](../SPEC.md) and the
-shared corpus [`../vectors/`](../vectors/).
+Implementation-independence artifacts (SC2: a second verifier in a different language shows 0
+divergences from the Python reference over ≥10⁶ differentially-fuzzed receipts, as stated in
+[`../docs/evidence/spec_v1_sc2_run.md`](../docs/evidence/spec_v1_sc2_run.md)) and the
+stranger-facing browser verify page. Everything verifies against [`../SPEC.md`](../SPEC.md) and
+the shared corpus [`../vectors/`](../vectors/).
 
 ## `js/verify.mjs` — second implementation (JavaScript), environment-agnostic
 
@@ -23,17 +25,19 @@ node js/cli.mjs --vectors ../vectors           # 71 vectors, 81 checks including
 node js/cli.mjs --batch cases.ndjson mult.json  # one verdict per line (used by the fuzzer)
 ```
 
-## `web/index.html` — static browser verify page (SC6)
+## `web/index.html` — static browser verify page
 
 A single static page that imports `js/verify.mjs` and verifies a pasted receipt
 **entirely client-side** — no server, no upload, auditable by view-source. Host it on
 GitHub Pages, or serve locally:
 
 ```bash
-python3 -m http.server -d verifiers 8000   # then open http://localhost:8000/web/
+python3 -m http.server 8000   # from the repo root; then open http://localhost:8000/verifiers/web/
 ```
 
-(ES-module imports don't load over `file://`, so it needs a static server or Pages.)
+(ES-module imports don't load over `file://`, so it needs a static server or Pages. Serve the
+repo root, not `verifiers/`: the truncation and re-mint demos fetch `../../vectors/`, which a
+server rooted at `verifiers/` returns as 404.)
 
 ## `diff_fuzz.py` — differential fuzz (Python reference vs JS)
 
@@ -45,7 +49,8 @@ PYTHONPATH=src python3 verifiers/diff_fuzz.py [N]   # default 20000; SC2 bar is 
 ```
 
 Prints `divergences=0` on success; any divergence is written to `divergences/` and
-exits non-zero. Seed is fixed (1234) for reproducibility.
+exits non-zero. The seed defaults to 1234 for reproducibility; set `KRY_FUZZ_SEED` to vary it
+(the run prints the seed it used, so any run can be reproduced).
 
 Each case gets 1–3 mutations, then two steps that decide whether it reaches anything:
 
@@ -76,6 +81,8 @@ three sealed runs, the classification and the minimal reproducers.
   check. Five vectors pin the class. Scope: this is agreement between two implementations
   written in this repository, not evidence about a third-party implementer working from
   `SPEC.md` alone.
-- **SC6 (browser half) met**: `web/index.html` verifies client-side.
-- Remaining: the `pipx run <dist> verify` CLI path + a formal timed cold-start transcript;
-  an optional Go/Rust static-binary third impl once a toolchain is available.
+- **Browser verify page**: `web/index.html` verifies client-side.
+- The installable CLI exists: `pip install kry-attest` provides `kry-verify` (see
+  [`../docs/VERIFY_FIRST_RECEIPT.md`](../docs/VERIFY_FIRST_RECEIPT.md)). Remaining: a formal
+  timed cold-start transcript; an optional Go/Rust static-binary third impl once a toolchain is
+  available.

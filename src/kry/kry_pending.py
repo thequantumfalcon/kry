@@ -10,7 +10,7 @@ chained ledger) until a downstream consumer confirms the output was used; only
 then does confirm() call the real mint(). Unconfirmed pendings expire and never
 mint — the floor never rises on work that was not accepted.
 
-Opt-in on the producing side (the bridge gates this behind KRY_DISPLACEMENT_DEFER).
+Opt-in on the producing side (the host system's flag gates it).
 The side store mirrors kry_mint's conventions: a cross-process file lock + atomic
 tempfile→os.replace writes, so a long-running bridge and an ad-hoc consumer can
 record/confirm concurrently without corruption.

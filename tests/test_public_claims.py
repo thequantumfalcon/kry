@@ -5,6 +5,7 @@ surface against stale verification instructions and over-strong proof language.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -54,6 +55,16 @@ def test_live_public_docs_do_not_advertise_stale_test_counts():
     for path, text in live_docs.items():
         for claim in stale_claims:
             assert claim not in text, f"{path} contains stale public claim: {claim}"
+
+
+def test_support_doc_uses_current_commands_and_no_hard_coded_test_count():
+    """SUPPORT.md is stranger-facing but sits outside the doctor's PUBLIC_DOCS scan, which is how a
+    stale "475 tests" and the PYTHONPATH=src / `python scripts/kry_` patterns survived in it."""
+    support = _read("SUPPORT.md")
+    assert "python3 -m pytest tests/ -q" in support
+    assert "PYTHONPATH=src" not in support
+    assert "python scripts/kry_" not in support
+    assert not re.search(r"\b\d+ tests\b", support), "SUPPORT.md hard-codes a test count that will drift"
 
 
 def test_readme_labels_the_sample_log_as_synthetic():

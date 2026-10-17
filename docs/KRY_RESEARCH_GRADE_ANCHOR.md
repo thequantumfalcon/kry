@@ -20,9 +20,9 @@ standalone repo owns and tests the mechanism — `kry_pending` / `kry_mint` / th
 
 1. **Wired `confirm()` to the GENERAL acceptance gate** (not just the operator's coder): the host system
  the operator's monitor → the tested general confirmer, behind
- `KRY_DISPLACEMENT_CONFIRM` (the host system).
-2. **Enabled the flags** — `KRY_DISPLACEMENT_CONFIRM` + the downgrade-monitor flag +
- `KRY_CORRECTNESS_LAYER` (the correctness layer **enabled**, not merely demonstrated).
+ the host system's flag.
+2. **Enabled the host system's flags** — displacement confirmation + the downgrade monitor +
+ the correctness layer (**enabled**, not merely demonstrated).
 3. **Ran 50 real `or/openai/gpt-oss-120b:free` displacements** under the correctness layer.
 4. **`confirm()` fired within the 900 s TTL — 50/50 minted.** This is the break in the stall
  pattern: the first 18 expired because nothing confirmed them inside the window; these 50 were

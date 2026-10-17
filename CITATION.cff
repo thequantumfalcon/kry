@@ -2,10 +2,12 @@ cff-version: 1.2.0
 message: "If you use KRY, please cite it as below."
 title: "KRY — Proof-of-Efficiency Compute Credit"
 abstract: >-
-  KRY is a zero-dependency, pure-Python-stdlib compute credit earned by provably avoiding LLM
+  KRY is a zero-dependency, pure-Python-stdlib compute credit earned by avoiding LLM
   inference cost (cache hits, compression, routing) and spent on routing permission. It pairs an
   integrity hash-chain with a randomized counterfactual holdout and a stranger-verifiable
-  attestation, so a party that does not trust the operator can verify a savings claim offline.
+  attestation, so a party that does not trust the operator can check a savings claim's integrity
+  and pricing offline, with the share that rests on the operator's word stated as an explicit
+  number (veracity_floor).
 type: software
 authors:
   - family-names: Albrecht

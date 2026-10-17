@@ -6,8 +6,9 @@ routing permission across the multi-provider bridge.
 ## Concept
 
 Traditional LLM credits are bought with money (prepaid, subscription). KRY is
-EARNED through provable efficiency — cache hits, compression savings, L3 semantic
-deduplication, short-circuit avoidance. You cannot buy KRY directly; you earn it
+EARNED through recorded efficiency events — cache hits, compression savings, L3 semantic
+deduplication, short-circuit avoidance (the hash chain proves the record intact, not that
+each event happened; see veracity_floor). You cannot buy KRY directly; you earn it
 by running the system well.
 
     Earning  =  compute you SAVED  (avoidance = value)

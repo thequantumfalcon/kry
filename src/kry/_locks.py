@@ -3,8 +3,8 @@
 The ledger, the supply-decay state, and the reputation ledger all do a read-modify-write
 of a small JSON file. A threading lock only serializes THREADS; concurrent PROCESSES or
 NODES sharing the file race and lose updates (a real bug the lab's Test 6 caught). This
-gives a best-effort EXCLUSIVE lock across processes via POSIX flock; it is a no-op where
-fcntl is unavailable (Windows), where the in-process locks still apply.
+gives a best-effort EXCLUSIVE lock across processes via POSIX flock, or msvcrt.locking on
+Windows; where neither exists it warns once and only the in-process locks apply.
 
 NOTE: flock over NFS is unreliable. For production multi-NODE, prefer per-node state +
 reconciliation (the mint chain) over one shared mutable file. This makes single-host

@@ -24,7 +24,7 @@ step(){ echo; c "━━━━━━ $* ━━━━━━"; sleep "$P"; }
 
 clear 2>/dev/null || true
 g "  K R Y   —   Proof-of-Efficiency Compute Credit"
-dim "  earn by provably avoiding inference cost · prove it to a stranger · stdlib only"
+dim "  earn by avoiding inference cost · a stranger verifies the ledger · stdlib only"
 sleep "$P"
 
 step "FULL LIFECYCLE  —  earn → mint → attest → STRANGER-verifies → carbon"

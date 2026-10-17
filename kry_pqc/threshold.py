@@ -3,9 +3,13 @@
 Single-signer authenticity (signer.py) still rests on ONE key: compromise it and
 history can be silently re-vouched. This module distributes that trust across an
 explicit council of N independent signers and requires M of them to vouch for an
-attestation. No single party — not even the operator — can produce a valid
-threshold proof alone. Operator-trust becomes M/N, and you drive it toward zero
-by adding independent signers.
+attestation. If the council's keys are really held by independent parties, no
+single party — not even the operator — can produce a valid threshold proof alone,
+and operator-trust becomes M/N, driven toward zero by adding independent signers.
+verify_threshold() cannot check that independence: it trusts the policy it is
+given, so a verifier must take the council's public keys from where their holders
+published them, not from the operator (an operator who generates all N keys is
+the council).
 
 Honest framing of the mechanism: this is an M-of-N MULTI-signature — N independent
 ML-DSA keys, each producing its own signature over the same attestation bytes,
