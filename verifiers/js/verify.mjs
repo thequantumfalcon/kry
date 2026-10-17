@@ -266,7 +266,9 @@ function verifySavings(att) {
   if (get(att, "chain_valid") !== true) errs.push("chain_valid not true");
 
   let prev = "0".repeat(64), prevVer = 0, total = 0;
-  const counts = {}, byTier = {};
+  // Keyed by document strings, so no prototype: on a plain object "__proto__" is dropped and
+  // "constructor" / "toString" read inherited functions, which corrupts the derived counts and tiers.
+  const counts = Object.create(null), byTier = Object.create(null);
   const kryByReceipt = new Map();   // receipt_id -> [tier, kry, pos] (SPEC 3.7 overlay profile)
   const promotions = [];            // [supersedes, tier, pos]
   for (const [pos, link] of links.entries()) {
@@ -411,7 +413,9 @@ function magnitudeErrors(link) {
   if (numval(get(link, "hash_version", 0), 0) >= 4 && !declares) return ["magnitude: v4+ link omits inputs"];
   if (ts <= 0 || rate <= 0) return (declares && km > 0) ? ["magnitude: kry from zero inputs"] : [];
   const et = get(link, "event_type", "");
-  const pub = et in EARN_RATES ? EARN_RATES[et] : 0.5;
+  // Own keys only: `in` also finds inherited names, so "__proto__" would read Object.prototype as
+  // its rate, the comparison would be NaN and no published-rate check would run.
+  const pub = Object.hasOwn(EARN_RATES, et) ? EARN_RATES[et] : 0.5;
   const out = [];
   if (Math.abs(rate - pub) > 1e-6) out.push("non-standard rate");
   const implied = km / (ts * rate);

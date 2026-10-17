@@ -32,6 +32,7 @@ savings/overlay/      *.json  (VALID / INVALID)          — §3.7 overlay PROFI
 savings/anchor/       *.json  (VALID / INVALID)          — §3.8 anchor PROFILE only (input_anchor)
 action/valid/         *.json  (VALID)
 action/adversarial/   *.json  (INVALID)
+hardening/            *.json  (VALID / INVALID / PARSE_ERROR) — raw wire text (input_raw_text)
 manifest.json   — every vector id, category, expected verdict
 ```
 
@@ -73,6 +74,11 @@ category (its VALID vector would refuse). The bundled `verifiers/js` implements 
   doesn't take an anchor input.
 - **action:** valid single + witnessed chain; adversarial — tampered `args_commit`, forged
   anchored tier with no witness, reordered links, duplicate `receipt_id`.
+- **hardening:** raw-wire regressions for reproduced verifier defects, either profile (dispatch on
+  the document's own `kind`). Besides the SPEC Annex C cases: a `null` `veracity.by_tier` beside
+  a forged `veracity_floor` (a non-object map does not switch off the floor comparison); event
+  types and tiers named `__proto__` / `constructor` (ordinary map keys: honest ones verify, a
+  forged rate, dropped count or misstated tier value does not).
 
 This corpus is the SC1 gate in `KRY_WORLD_CLASS_ROADMAP.md` (§4): a cold-context
 implementer given only `SPEC.md` + `vectors/` must pass 100%.

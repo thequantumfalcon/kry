@@ -506,7 +506,10 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
                 errors.append(f"veracity.{_field} missing — SPEC §3.5 requires it")
         if "anchored_kry" not in v and "externally_anchored_kry" not in v:
             errors.append("veracity.anchored_kry missing — SPEC §3.5 requires it")
-    if isinstance(v, dict) and v.get("by_tier") is not None:
+    # SPEC §3.5: the floor, anchored_kry and self_reported_kry comparisons run whenever `veracity` is
+    # an object. Gated on a non-null by_tier, `"by_tier": null` would switch every one of them
+    # off, and an all-self_reported chain could declare veracity_floor 1.0 and verify VALID.
+    if isinstance(v, dict):
         # S3: anchored = only KNOWN anchored tiers, not "anything that isn't self_reported".
         anchored = sum(val for t, val in tier_kry.items() if t in _ANCHORED_TIERS)
         # SPEC §3.5: every one of these is a round(...,4) value derived from the ROUNDED
@@ -517,8 +520,11 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         by_tier = {t: round(val, 4) for t, val in tier_kry.items()}
         claimed_by_tier = v.get("by_tier")
         if not isinstance(claimed_by_tier, dict):
-            errors.append("veracity.by_tier must be a JSON object")
-            claimed_by_tier = {}
+            # An absent map is already reported as missing above; a present non-object (null
+            # included) is malformed. Either way there is no declared map to compare below.
+            if "by_tier" in v:
+                errors.append("veracity.by_tier must be a JSON object")
+            claimed_by_tier = None
         else:
             for tier, value in claimed_by_tier.items():
                 if not isinstance(tier, str):
@@ -531,11 +537,11 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         # P-TOL: the key SET must match exactly (size + every derived key present, so an invented or
         # dropped tier is caught) and every value must land within _COMPARE_EPS of its round-4
         # derivation. Same rule, same number, as verifiers/js and kry_attest.
-        if len(claimed_by_tier) != len(by_tier) or any(
+        if claimed_by_tier is not None and (len(claimed_by_tier) != len(by_tier) or any(
                 not isinstance(claimed_by_tier.get(t), (int, float))
                 or isinstance(claimed_by_tier.get(t), bool)
                 or abs(claimed_by_tier[t] - by_tier[t]) > _COMPARE_EPS
-                for t in by_tier):
+                for t in by_tier)):
             errors.append(
                 f"veracity by_tier mismatch: declared {v.get('by_tier')}, "
                 f"links imply {by_tier}")

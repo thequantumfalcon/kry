@@ -773,6 +773,39 @@ def gen_hardening() -> None:
     a = act_att([link], "1.0")
     emit("action_floor_string", canon(a), "A present action floor must be a finite JSON number.", "INVALID")
 
+    # SPEC 3.5: a null by_tier is not a map, and it must not switch off the floor comparison. The
+    # chain is all self_reported, yet the summaries claim every unit of value is anchored.
+    a = receipt()
+    a["veracity"].update(by_tier=None, anchored_kry=a["total_kry"], self_reported_kry=0.0,
+                         veracity_floor=1.0)
+    emit("veracity_by_tier_null_floor_forged", canon(reseal(a)),
+         "A null by_tier with a forged veracity_floor of 1.0 over an all-self_reported chain.", "INVALID")
+
+    # Document strings are map keys, never object members: names an implementation's own object
+    # model gives meaning to (__proto__, constructor) are ordinary event types and tiers.
+    def retyped(event_type, tier, rate, kry):
+        att = copy.deepcopy(base)
+        att["links"][0].update(event_type=event_type, evidence_tier=tier, earn_rate=rate,
+                               kry_minted=kry, tokens_saved=1000.0)
+        return rechain(att)
+
+    a = retyped("__proto__", "self_reported", 1000.0, 1_000_000.0)
+    a["event_type_counts"] = {}
+    emit("event_type_proto_rate_forged", canon(reseal(a)),
+         "event_type __proto__ at earn_rate 1000 (published fallback 0.5), its count left out.", "INVALID")
+    emit("event_type_constructor_honest", canon(retyped("constructor", "self_reported", 0.5, 500.0)),
+         "An unknown event_type named constructor at the 0.5 fallback rate.", "VALID")
+    emit("evidence_tier_proto_honest", canon(retyped("cache_hit", "__proto__", 1.0, 1000.0)),
+         "An unknown evidence_tier named __proto__, declared in by_tier and not anchored.", "VALID")
+    a = retyped("cache_hit", "__proto__", 1.0, 1000.0)
+    a["veracity"]["by_tier"] = {}
+    emit("evidence_tier_proto_omitted", canon(reseal(a)),
+         "by_tier leaves out the __proto__ tier that holds the chain's value.", "INVALID")
+    a = retyped("cache_hit", "constructor", 1.0, 1000.0)
+    a["veracity"]["by_tier"]["constructor"] = 123456.0
+    emit("evidence_tier_constructor_misstated", canon(reseal(a)),
+         "by_tier misstates the value held by a tier named constructor.", "INVALID")
+
 
 def main() -> None:
     for stale in OUT.rglob("*.json"):
