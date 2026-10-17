@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A `null` `veracity.by_tier` no longer switches off the floor check** — both Python verifiers
+  (`scripts/kry_verify.py`, `src/kry/kry_attest.py`) ran every SPEC §3.5 comparison only when
+  `by_tier` was non-null, so an all-`self_reported` chain declaring `"by_tier": null` and a
+  `veracity_floor` of 1.0 verified VALID. The floor, `anchored_kry` and `self_reported_kry`
+  comparisons now run whenever `veracity` is an object, and a present non-object `by_tier` is
+  INVALID. `verifiers/js` already rejected it. Vector: `hardening/veracity_by_tier_null_floor_forged`.
+- **`verifiers/js`: event types and tiers named after JavaScript object members** — the derived
+  `event_type_counts` / `by_tier` tallies and the published-rate lookup were plain objects, so an
+  event type `__proto__` skipped the published-rate check and dropped out of the counts (a forged
+  1000x rate verified VALID), a tier `__proto__` vanished from `by_tier`, a tier `constructor`
+  accepted any declared value, and honest documents using `constructor` or `toString` were
+  rejected. The tallies now have no prototype and the rate lookup reads own keys only; the Python
+  verifiers were already correct. Vectors: `hardening/event_type_proto_rate_forged`,
+  `event_type_constructor_honest`, `evidence_tier_proto_honest`, `evidence_tier_proto_omitted`,
+  `evidence_tier_constructor_misstated`.
+
 ## [0.1.7] - 2026-10-17
 
 ### Changed

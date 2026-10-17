@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 65,
+  "count": 71,
   "vectors": [
     {
       "id": "canon_f64",
@@ -324,6 +324,36 @@
     },
     {
       "id": "action_floor_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "veracity_by_tier_null_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "event_type_proto_rate_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "event_type_constructor_honest",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "evidence_tier_proto_honest",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "evidence_tier_proto_omitted",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "evidence_tier_constructor_misstated",
       "category": "hardening",
       "verdict": "INVALID"
     }

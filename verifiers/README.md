@@ -19,7 +19,7 @@ chain is language-neutral by design (`canon_f64`).
 
 ```bash
 node js/cli.mjs ../path/to/attestation.json     # prints VERDICT: VALID|INVALID|PARSE_ERROR, exit 0/1
-node js/cli.mjs --vectors ../vectors           # 65 vectors, 75 checks including primitive subcases
+node js/cli.mjs --vectors ../vectors           # 71 vectors, 81 checks including primitive subcases
 node js/cli.mjs --batch cases.ndjson mult.json  # one verdict per line (used by the fuzzer)
 ```
 
@@ -67,7 +67,7 @@ three sealed runs, the classification and the minimal reproducers.
 
 ## Status
 
-- **Corpus: 65 vectors, 75 checks passed.** The historical SC2
+- **Corpus: 71 vectors, 81 checks passed.** The historical SC2
   10⁶-case fuzz showed 0 divergences with reseal and envelope field-deletion both in the
   mutation space. The three run-2 root causes — an absent `veracity.by_tier`, an absent
   `event_type_counts` (`verify.mjs` had no such check at all) and an absent

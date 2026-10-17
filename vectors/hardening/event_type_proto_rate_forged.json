@@ -1,0 +1,13 @@
+{
+  "id": "event_type_proto_rate_forged",
+  "kind": "raw_json",
+  "description": "event_type __proto__ at earn_rate 1000 (published fallback 0.5), its count left out.",
+  "input_raw_text": "{\"attestation_hash\":\"ab90ce0543e92defd8bf538ec72f49a0aa08660edba53c6854e73fc60759f911\",\"chain_head\":\"e67081b2272ca01af00c2c37390e49d66e20334f39c013b698cc3aa9700ef2ca\",\"chain_valid\":true,\"event_type_counts\":{},\"links\":[{\"chain_hash\":\"e67081b2272ca01af00c2c37390e49d66e20334f39c013b698cc3aa9700ef2ca\",\"earn_rate\":1000.0,\"event_type\":\"__proto__\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000000.0,\"usd_equivalent\":25.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000000.0},\"self_reported_kry\":1000000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: earn_rate 1000.0 != published 0.5 for '__proto__' \u2014 non-standard rate",
+      "event_type_counts mismatch: declared {}, links imply {'__proto__': 1}"
+    ]
+  }
+}
