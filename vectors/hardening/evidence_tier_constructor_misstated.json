@@ -1,0 +1,12 @@
+{
+  "id": "evidence_tier_constructor_misstated",
+  "kind": "raw_json",
+  "description": "by_tier misstates the value held by a tier named constructor.",
+  "input_raw_text": "{\"attestation_hash\":\"b7871fcbaffd89e731323ee670d3a1c435256402728eccff594b3d29d76c2510\",\"chain_head\":\"59664ec396bc19e7569a96c5d8385a1a5c592ea3343417d8a91d857e4abd1ffc\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"59664ec396bc19e7569a96c5d8385a1a5c592ea3343417d8a91d857e4abd1ffc\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"constructor\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"constructor\":123456.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity by_tier mismatch: declared {'constructor': 123456.0}, links imply {'constructor': 1000.0}"
+    ]
+  }
+}

@@ -67,6 +67,45 @@ def _receipt(value=1000.0, version=7):
     return att
 
 
+_ANCHORED = {"holdout_validated", "provider_metered", "tee_attested", "tlsn_attested"}
+
+
+def _block(link):
+    """SPEC 3.3 public block of a v4+ link, written from the spec text rather than any verifier."""
+    version = link["hash_version"]
+    block = {k: link.get(k) for k in ("hash_version", "tokens_saved", "ts", "evidence_tier",
+                                     "metered_tokens", "kry_minted", "earn_rate")}
+    if version >= 5:
+        for key in ("tokens_saved", "ts", "kry_minted", "earn_rate"):
+            block[key] = struct.pack(">d", float(link[key])).hex()
+    if link.get("supersedes") is not None:
+        block["supersedes"] = link["supersedes"]
+    if version >= 6:
+        block["receipt_id"] = link.get("receipt_id") or ""
+    if version >= 7:
+        block["event_type"] = link.get("event_type") or ""
+    return _canon(block)
+
+
+def _rechain(att):
+    """Re-derive chain hashes and the SPEC 3.1 / 3.5 envelope (no promotion overlay), then seal."""
+    prev, total, counts, tiers = "0" * 64, 0.0, {}, {}
+    for link in att["links"]:
+        link["chain_hash"] = prev = _sha(f"{prev}:{link['receipt_hash']}:{_block(link)}")
+        total += link["kry_minted"]
+        counts[link["event_type"]] = counts.get(link["event_type"], 0) + 1
+        tiers[link["evidence_tier"]] = tiers.get(link["evidence_tier"], 0.0) + link["kry_minted"]
+    total = round(total, 4)
+    anchored = round(sum(v for t, v in tiers.items() if t in _ANCHORED), 4)
+    att.update(receipts=len(att["links"]), chain_head=prev, total_kry=total,
+               usd_equivalent=round(total * .000025, 6), event_type_counts=counts)
+    att["veracity"] = {"by_tier": {t: round(v, 4) for t, v in tiers.items()}, "anchored_kry": anchored,
+                       "self_reported_kry": round(tiers.get("self_reported", 0.0), 4),
+                       "veracity_floor": round(anchored / total, 4) if total > 0 else 0.0}
+    _seal(att)
+    return att
+
+
 def _python_verdict(raw):
     try:
         att = kv._json_loads(raw)
@@ -144,6 +183,67 @@ def test_trust_summaries_require_numbers(field, value, tmp_path):
     assert not kv.verify_attestation(att)[0]
     assert not verify_attestation(raw)[0]
     assert _js([raw], tmp_path)[0]["verdict"] == "INVALID"
+
+
+@pytest.mark.parametrize("by_tier", [None, [], "self_reported", 0, True])
+def test_non_object_by_tier_does_not_switch_off_the_floor_check(by_tier, tmp_path):
+    # SPEC 3.5: an all-self_reported chain whose summaries claim a floor of 1.0. A by_tier that is
+    # not a map is malformed on its own, and the floor comparison must still run beside it.
+    att = _receipt()
+    att["veracity"].update(by_tier=by_tier, anchored_kry=att["total_kry"], self_reported_kry=0.0,
+                           veracity_floor=1.0)
+    raw = _seal(att)
+    for ok, errors in (kv.verify_attestation(att), verify_attestation(raw)):
+        assert not ok
+        assert "veracity.by_tier must be a JSON object" in errors
+        assert any(e.startswith("veracity_floor mismatch") for e in errors), errors
+    assert _js([raw], tmp_path)[0]["verdict"] == "INVALID"
+
+
+def test_absent_by_tier_still_checks_the_floor():
+    att = _receipt()
+    del att["veracity"]["by_tier"]
+    att["veracity"].update(anchored_kry=att["total_kry"], self_reported_kry=0.0, veracity_floor=1.0)
+    raw = _seal(att)
+    for ok, errors in (kv.verify_attestation(att), verify_attestation(raw)):
+        assert not ok
+        assert any(e.startswith("veracity_floor mismatch") for e in errors), errors
+
+
+_OBJECT_MODEL_NAMES = ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf",
+                       "__defineGetter__", "isPrototypeOf"]
+
+
+def _all_verdicts(att, tmp_path):
+    raw = _canon(att)
+    return {_python_verdict(raw), "VALID" if verify_attestation(raw)[0] else "INVALID",
+            _js([raw], tmp_path)[0]["verdict"]}
+
+
+@pytest.mark.parametrize("name", _OBJECT_MODEL_NAMES)
+def test_object_model_names_are_ordinary_event_types(name, tmp_path):
+    att = _receipt()
+    att["links"][0].update(event_type=name, earn_rate=0.5, kry_minted=500.0)
+    assert _all_verdicts(_rechain(att), tmp_path) == {"VALID"}      # unknown type, 0.5 fallback
+    att["links"][0].update(earn_rate=1000.0, kry_minted=1_000_000.0)
+    assert _all_verdicts(_rechain(att), tmp_path) == {"INVALID"}    # not the published rate
+    _rechain(att)
+    att["event_type_counts"] = {}
+    _seal(att)
+    assert _all_verdicts(att, tmp_path) == {"INVALID"}
+
+
+@pytest.mark.parametrize("name", _OBJECT_MODEL_NAMES)
+def test_object_model_names_are_ordinary_tiers(name, tmp_path):
+    att = _receipt()
+    att["links"][0]["evidence_tier"] = name
+    _rechain(att)
+    assert att["veracity"]["by_tier"] == {name: 1000.0} and att["veracity"]["veracity_floor"] == 0.0
+    assert _all_verdicts(att, tmp_path) == {"VALID"}
+    for declared in ({}, {name: 123456.0}, {name: 1000.0, "self_reported": 0.0}):
+        att["veracity"]["by_tier"] = declared
+        _seal(att)
+        assert _all_verdicts(att, tmp_path) == {"INVALID"}, declared
 
 
 @pytest.mark.parametrize("wire", ['"a\tb"', '"a\\uZZZZ"', '"a\\q"', '"unterminated'])

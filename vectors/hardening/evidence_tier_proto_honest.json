@@ -1,0 +1,10 @@
+{
+  "id": "evidence_tier_proto_honest",
+  "kind": "raw_json",
+  "description": "An unknown evidence_tier named __proto__, declared in by_tier and not anchored.",
+  "input_raw_text": "{\"attestation_hash\":\"d72ed439cc11510a9ecc3bed6891713fdadc7fac0ab3b28546aad5d38ba1977c\",\"chain_head\":\"37f0ad887af96606b3e37a2e02185d0d8464d4a8bb5a67ba8ff1564fdf0b882d\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"37f0ad887af96606b3e37a2e02185d0d8464d4a8bb5a67ba8ff1564fdf0b882d\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"__proto__\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"__proto__\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}
