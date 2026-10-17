@@ -28,11 +28,12 @@ grounding: cheap models fail fluently (arXiv 2601.00513: 50-69% of correct answe
 reasoning); routers hit 23-25% on hard cases (LLMRouterBench). stdlib only; no API.
 """
 from __future__ import annotations
-import json, os, re, sys
+import argparse, json, os, re, sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_grounded_savings_proof import wilson
+import kry_evidence
 
 SEED = "docs/evidence/adequacy_gate/labeled_seed.jsonl"
 REFUSAL = re.compile(r"\b(i can'?t|i cannot|i don'?t know|not sure|unsure|unable to|as an ai)\b", re.I)
@@ -82,6 +83,9 @@ def measure(gate, labeled: list[dict]) -> dict:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     labeled = load_labeled()
     r = measure(surface_gate, labeled)
     out = {"schema": "kry_gate_specificity/v1", "gate": "baseline surface-signal (default-KEEP)",
@@ -92,17 +96,17 @@ def main() -> int:
            "honest_ceiling": "POPULATION specificity on a labeled set, not a per-event witness.",
            "market_grounding": ["arXiv 2601.00513: cheap models fail fluently (50-69% of correct "
                                 "answers have flawed reasoning)", "LLMRouterBench: routers 23-25% on hard"]}
-    Path("docs/evidence/adequacy_gate").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/adequacy_gate/gate_specificity.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("adequacy_gate") / "gate_specificity.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("=== GATE SPECIFICITY (the acceptance-gate measurement discipline) — baseline surface-signal gate ===")
     print(f"  labeled set: {r['n_adequate']} adequate + {r['n_inadequate']} fluent-but-wrong (frozen)")
     print(f"  true-accept (keeps adequate):  {r['true_accept_rate']:.0%}  (good: no over-escalation)")
     print(f"  FALSE-accept (keeps WRONG):     {r['false_accept_rate']:.0%}  ->  specificity {r['specificity']:.0%}")
     print(f"  => wrongly accepts {r['wrongly_accepted']}/{r['of_inadequate']} confident-wrong outputs")
-    print("  -> docs/evidence/adequacy_gate/gate_specificity.json")
     print("\n  the acceptance-gate measurement hand-off: the host system plugs its REAL adequacy_gate into measure() -> its own specificity,")
     print("  replacing 'assumed' with 'measured'. Expand the seed set with code_routing / GSM8K outputs.")
-    return 0
+    return kry_evidence.publish({"gate_specificity.json": result}, "adequacy_gate", rows=len(labeled),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

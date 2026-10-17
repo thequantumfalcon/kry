@@ -18,6 +18,9 @@ from __future__ import annotations
 import argparse, json, os, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kry_evidence  # noqa: E402
+
 FREE_DEFAULT = "openai/gpt-oss-120b:free"
 PAID_FALLBACK = ["anthropic/claude-opus-4.8", "openai/gpt-5.5", "openai/gpt-4o",
                  "anthropic/claude-3.5-sonnet", "openai/gpt-4o-mini"]
@@ -62,7 +65,8 @@ def main(argv=None) -> int:
     p.add_argument("--free-model", default=FREE_DEFAULT)
     p.add_argument("--paid-model", default=None, help="default: try a fallback list of paid frontier models")
     p.add_argument("--max-tokens", type=int, default=120)
-    p.add_argument("--out", default="docs/evidence/paid_proof/paid_proof.json")
+    p.add_argument("--out", help="result path (default: a fresh run directory)")
+    p.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
     args = p.parse_args(argv)
 
     prompts = [args.prompt] if args.prompt else [ln.strip() for ln in Path(args.prompts_file).read_text(encoding="utf-8").splitlines() if ln.strip()]
@@ -95,10 +99,12 @@ def main(argv=None) -> int:
            "total_real_saving_usd": round(tot_paid - tot_free, 6),
            "note": "avoided costs are the providers' OWN recorded total_cost; both legs F1-reconcilable.",
            "rows": rows}
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"\nREAL total saving across {len(rows)} request(s): ${out['total_real_saving_usd']:.6f}  -> {args.out}")
-    return 0
+    result = Path(args.out) if args.out else kry_evidence.run_dir("paid_proof") / "paid_proof.json"
+    result.parent.mkdir(parents=True, exist_ok=True)
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"\nREAL total saving across {len(rows)} request(s): ${out['total_real_saving_usd']:.6f}  -> {result}")
+    return kry_evidence.publish({"paid_proof.json": result}, "paid_proof", rows=len(rows),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

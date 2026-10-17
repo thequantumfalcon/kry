@@ -9,9 +9,9 @@ CHEAP and a CAPABLE model, grade by EXACT answer (no LLM judge), and report the 
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
-import sys
 import urllib.request
 
 OLLAMA = "http://localhost:11434/api/generate"
@@ -55,8 +55,11 @@ def run(model: str) -> tuple[int, int]:
 
 
 if __name__ == "__main__":
-    cheap = sys.argv[1] if len(sys.argv) > 1 else "qwen2.5:7b"
-    capable = sys.argv[2] if len(sys.argv) > 2 else "qwen3:14b"
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("cheap", nargs="?", default="qwen2.5:7b")
+    _ap.add_argument("capable", nargs="?", default="qwen3:14b")
+    _a = _ap.parse_args()
+    cheap, capable = _a.cheap, _a.capable
     print(f"=== CAPABLE: {capable} ===")
     cap_ok, n = run(capable)
     print(f"=== CHEAP: {cheap} ===")

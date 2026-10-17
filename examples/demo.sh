@@ -39,7 +39,9 @@ KRY_DATA_DIR="$TMP" "$PY" scripts/kry_savings_report.py examples/sample_usage_lo
 sleep "$P"
 
 step "STRANGER CHECK  —  verify that statement with stdlib only (imports nothing from KRY)"
-"$PY" scripts/kry_verify.py "$TMP/att.json" | sed 's/^/  /' || true
+# No `|| true`: under pipefail a verdict other than VALID stops the demo with the verifier's status,
+# before the line below claims the stranger confirmed it.
+"$PY" scripts/kry_verify.py "$TMP/att.json" | sed 's/^/  /'
 g "  ↑ confirmed by code that does NOT trust the producer — the whole point."
 sleep "$P"
 

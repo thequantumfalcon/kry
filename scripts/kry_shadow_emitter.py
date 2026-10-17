@@ -238,8 +238,11 @@ def self_test() -> None:
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
+    argparse.ArgumentParser(description="Run the emitter self-test on mock rows (no providers, no network). "
+                                        "See the module docstring for the row schema and discipline.").parse_args()
     self_test()

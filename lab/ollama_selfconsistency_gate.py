@@ -17,11 +17,11 @@ system accuracy vs all-cheap / all-capable, and the honest cost (the gate itself
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import random
 import re
-import sys
 import tempfile
 import urllib.request
 from collections import Counter
@@ -64,10 +64,15 @@ def extract(text: str):
 
 
 if __name__ == "__main__":
-    cheap = sys.argv[1] if len(sys.argv) > 1 else "qwen2.5:1.5b"
-    cap_correct = json.load(open(sys.argv[2], encoding="utf-8")) if len(sys.argv) > 2 else None
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 80
-    k = int(sys.argv[4]) if len(sys.argv) > 4 else 5
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("cheap", nargs="?", default="qwen2.5:1.5b")
+    _ap.add_argument("capable_correct", nargs="?", default=None,
+                     help="capable_correct.json from a prior deterministic run")
+    _ap.add_argument("n", nargs="?", type=int, default=80, metavar="N")
+    _ap.add_argument("k", nargs="?", type=int, default=5, metavar="K")
+    _a = _ap.parse_args()
+    cheap, n, k = _a.cheap, _a.n, _a.k
+    cap_correct = json.load(open(_a.capable_correct, encoding="utf-8")) if _a.capable_correct else None
     rows = load_gsm8k(n)
     print(f"cheap={cheap}  N={n}  K={k} self-consistency samples @ temp 0.8  (no-gold gate)\n", flush=True)
 

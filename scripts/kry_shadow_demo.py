@@ -14,11 +14,11 @@ scripts/kry_shadow_emitter.emit_row and prints a receipt.
   python3 scripts/kry_shadow_demo.py           # LIVE: real cheap+frontier calls (~$0.20-0.60), needs the key
 """
 from __future__ import annotations
-import json, os, re, subprocess, sys, urllib.request
-from pathlib import Path
+import argparse, json, os, re, subprocess, sys, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_shadow_emitter import emit_row  # the read-only, digest-only row emitter (already self-tested)
+import kry_evidence
 
 CHEAP, FRONTIER = "claude-haiku-4-5-20251001", "claude-sonnet-4-6"
 # Approximate list prices, USD per 1M tokens (input, output). Verify at anthropic.com/pricing.
@@ -118,7 +118,7 @@ def run_tests(code, test):
         return False
 
 
-def main(dry):
+def main(dry, write_evidence=False):
     fn = mock_call
     if not dry:
         fn = call
@@ -162,7 +162,7 @@ def main(dry):
         "p0_pass_rows": sum(r["p0_pass"] for r in rows),
         "row_digests": [r["row_digest"] for r in rows],
     }
-    outdir = Path("docs/evidence/shadow_demo"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("shadow_demo")
     tag = "dry" if dry else "live"
     (outdir / f"shadow_demo_rows_{tag}.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     (outdir / f"shadow_demo_summary_{tag}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -172,11 +172,18 @@ def main(dry):
     print(f"  demo's own API spend: cheap ${cheap_spend:.6f} + frontier ${front_spend:.6f} = ${cheap_spend+front_spend:.6f}")
     print(f"  rows: {outdir}/shadow_demo_rows_{tag}.jsonl   summary: {outdir}/shadow_demo_summary_{tag}.json")
     print("  (MECHANISM proof on synthetic tasks — not a real external anchor)")
-    return 0
+    names = (f"shadow_demo_rows_{tag}.jsonl", f"shadow_demo_summary_{tag}.json")
+    return kry_evidence.publish({name: outdir / name for name in names}, "shadow_demo", rows=n,
+                                write=write_evidence)
 
 
 if __name__ == "__main__":
     for _stream in (sys.stdout, sys.stderr):  # a cp1252 Windows console cannot encode the output glyphs
         if hasattr(_stream, "reconfigure"):
             _stream.reconfigure(errors="replace")
-    raise SystemExit(main(dry="--dry" in sys.argv))
+    # argparse: "--dry" in sys.argv let any other argument, --help included, start the paid LIVE run.
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--dry", action="store_true", help="$0: mock calls with reference solutions")
+    _ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    _a = _ap.parse_args()
+    raise SystemExit(main(dry=_a.dry, write_evidence=_a.write_evidence))

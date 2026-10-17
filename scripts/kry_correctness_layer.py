@@ -19,11 +19,11 @@ stdlib only; no API; offline on the committed labeled set.
   python3 scripts/kry_correctness_layer.py --selftest # validate the classifier (no answers used)
 """
 from __future__ import annotations
-import os, re, sys
-from pathlib import Path
+import argparse, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_gate_specificity import load_labeled, measure, surface_gate
+import kry_evidence
 
 _OPS = re.compile(r"\b(plus|minus|times|multiply|multiplied|divide|divided|add|added|subtract)\b", re.I)
 
@@ -61,8 +61,12 @@ def _selftest(labeled) -> int:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--selftest", action="store_true", help="validate the classifier (no answers used)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     labeled = load_labeled()
-    if "--selftest" in sys.argv:
+    if args.selftest:
         return _selftest(labeled)
     surf = measure(surface_gate, labeled)
     lay = measure(layered_gate, labeled)
@@ -86,15 +90,16 @@ def main() -> int:
                    "Population specificity on a labeled set, not a per-event witness."],
     }
     import json
-    Path("docs/evidence/adequacy_gate/correctness_layer.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("adequacy_gate") / "correctness_layer.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("=== REFERENCE CORRECTNESS LAYER — specificity recovery on the acceptance-gate measurement labeled set ===")
     print(f"  surface gate:  specificity {surf['specificity']:.0%}   true-accept {surf['true_accept_rate']:.0%}")
     print(f"  layered gate:  specificity {lay['specificity']:.0%}   true-accept {lay['true_accept_rate']:.0%}")
     print(f"  escalation cost: {escalated}/{n} = {100*escalated/n:.0f}% of traffic (force-CoT recovers those)")
-    print("  -> docs/evidence/adequacy_gate/correctness_layer.json")
     print("\n  Build target proven in principle: escalate the multi-step wall high-risk class -> specificity recovers.")
     print("  Production = the host system: real classifier (the multi-step wall difficulty classifier) + force-CoT/frontier-verify on the gate.")
-    return 0
+    return kry_evidence.publish({"correctness_layer.json": result}, "adequacy_gate", rows=n,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

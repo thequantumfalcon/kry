@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Research scripts no longer overwrite committed evidence.** Run offline, without an API key or
+  with an argument they did not expect, they replaced results under `docs/evidence/` with zeros or
+  placeholders and exited 0: `kry_multiturn_prefix_savings.py` rewrote the 0.7096 behind the
+  README's 71% prefix-cacheable figure to 0.0, and a `kry_wildchat_corpus_proof.py --dry-run`
+  replaced the committed usage log. Every script that wrote there now writes into a fresh run
+  directory and copies over the committed file only with `--write-evidence`; a run that measured
+  nothing, or whose data pull failed, exits 1 and copies nothing. The WildChat proof also refuses
+  `--write-evidence` unless its holdout calls are real. `--out`, where a script has one, now
+  defaults to the run directory. Shared helper: `scripts/kry_evidence.py`; tests:
+  `tests/test_evidence_writes.py`.
+- **Every command-line script answers `--help` and does nothing else.** Scripts that read
+  `sys.argv` by hand let `--help` fall through to `main()`: paid experiments started, a network
+  request went out, some crashed on `int('--help')`, and some rewrote committed evidence. They now
+  parse arguments with `argparse`. `tests/test_script_help.py` runs every script under `scripts/`,
+  `examples/` and `lab/` with `--help`, keyless and offline, and requires usage text, exit 0, no
+  connection attempt and no changed file.
+- **`examples/demo.sh` exits non-zero when the stranger check fails.** An `|| true` after the
+  `kry_verify.py` pipe meant a tampered attestation printed `VERDICT: INVALID`, then "confirmed by
+  code that does NOT trust the producer", and exited 0.
+
 ## [0.1.8] - 2026-10-17
 
 ### Fixed

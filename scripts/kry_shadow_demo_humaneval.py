@@ -9,15 +9,14 @@ test gate, no oracle) + the served-checked call() + the digest-only emit_row().
   python3 scripts/kry_shadow_demo_humaneval.py [N]    # default 25; LIVE real calls (~$0.40)
 """
 from __future__ import annotations
-import json, os, sys, time, urllib.error
-from pathlib import Path
+import argparse, json, os, sys, time, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_code_routing_proof import load_humaneval, passes
 from kry_shadow_demo import call, cost, CHEAP, FRONTIER, PRICES
 from kry_shadow_emitter import emit_row
+import kry_evidence
 
-N = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 25
 FAST = ("\n\nComplete this function. Return ONLY the complete Python function (signature + body, needed "
         "imports), in a ```python code block, no explanation.")
 
@@ -33,6 +32,15 @@ def _call(prompt, model, mt):
 
 
 def main():
+    # N is parsed here, not at import, and by argparse: any non-numeric argument (--help included)
+    # used to be ignored, so asking for usage started the paid LIVE run.
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=25, metavar="N", help="HumanEval problems (default 25)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
+    N = args.n
+    if N < 1:
+        ap.error("N must be at least 1")
     pool = load_humaneval()
     step = max(1, len(pool) // N)
     data = pool[::step][:N]   # even spread across the FULL benchmark (easy->hard), not just the easy front
@@ -75,7 +83,7 @@ def main():
                        "cheap-fail rows contribute $0 (net-not-gross gate fires).",
         "p0_pass_rows": sum(r["p0_pass"] for r in rows), "row_digests": [r["row_digest"] for r in rows],
     }
-    outdir = Path("docs/evidence/shadow_demo"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("shadow_demo")
     (outdir / "shadow_demo_rows_humaneval.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     (outdir / "shadow_demo_summary_humaneval.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print("\n=== RECEIPT (LIVE — HumanEval) ===")
@@ -85,7 +93,9 @@ def main():
     print(f"  demo's own API spend: cheap ${cs:.6f} + frontier ${fs:.6f} = ${cs+fs:.6f}")
     print(f"  rows: {outdir}/shadow_demo_rows_humaneval.jsonl   summary: {outdir}/shadow_demo_summary_humaneval.json")
     print("  (MECHANISM proof on a public benchmark — not a real external anchor)")
-    return 0
+    names = ("shadow_demo_rows_humaneval.jsonl", "shadow_demo_summary_humaneval.json")
+    return kry_evidence.publish({name: outdir / name for name in names}, "shadow_demo", rows=n,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

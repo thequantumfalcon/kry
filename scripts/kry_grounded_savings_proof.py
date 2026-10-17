@@ -19,8 +19,10 @@ on a task class where adequacy is objectively checkable.
 Needs OPENROUTER_API_KEY with credit. stdlib only.
 """
 from __future__ import annotations
-import json, math, os, random, re, sys, time, urllib.error, urllib.request
-from pathlib import Path
+import argparse, json, math, os, random, re, sys, time, urllib.error, urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kry_evidence  # noqa: E402
 
 FREE = "openai/gpt-oss-120b:free"
 PAID_FALLBACK = ["anthropic/claude-opus-4.8", "openai/gpt-5.5", "openai/gpt-4o", "anthropic/claude-3.5-sonnet"]
@@ -97,6 +99,9 @@ def gen_cost(gid, key, tries=8):
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     key = _key()
     tasks = build_tasks()
     # find a billable paid frontier model
@@ -153,15 +158,15 @@ def main():
                          "represent open-ended real traffic; that needs different adequacy validation.",
         "rows": rows,
     }
-    Path("docs/evidence/grounded_proof").mkdir(parents=True, exist_ok=True)
-    Path("docs/evidence/grounded_proof/grounded_proof.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("grounded_proof") / "grounded_proof.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== VALIDATED SAVINGS PROOF (real costs, objective adequacy) ===")
     print(f"  free model adequate: {free_ok}/{n} = {100*free_ok/n:.0f}%  (95% CI [{100*lo:.0f}%, {100*hi:.0f}%])")
     print(f"  frontier correct:    {frontier_ok}/{n} (sanity)")
     print(f"  real frontier cost (avoided): ${sum_frontier:.6f}   real free cost: ${sum_free:.6f}")
     print(f"  VALIDATED saving (only where free AND frontier both correct — net): ${saving:.6f}")
-    print("  -> docs/evidence/grounded_proof/grounded_proof.json")
-    return 0
+    return kry_evidence.publish({"grounded_proof.json": result}, "grounded_proof", rows=len(rows),
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

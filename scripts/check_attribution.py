@@ -135,8 +135,16 @@ def _check_commits(rev_range: str) -> list[str]:
     return findings
 
 
+_USAGE = "usage: check_attribution.py [--message FILE | --commits RANGE]"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = [] if argv is None else list(argv)   # no arguments: the tracked-file scan, unchanged
+    if args in (["-h"], ["--help"]):
+        print(_USAGE)
+        print("\nNo arguments: scan tracked files. --message: a commit message plus the git identity "
+              "(commit-msg hook). --commits: every commit in a revision range (CI).")
+        return 0
     if args[:1] in (["--message"], ["--commits"]) and len(args) == 2:
         findings = (_check_message(args[1]) if args[0] == "--message"
                     else _check_commits(args[1]))
@@ -144,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             print(finding, file=sys.stderr)
         return 1 if findings else 0
     if args:
-        print("usage: check_attribution.py [--message FILE | --commits RANGE]", file=sys.stderr)
+        print(_USAGE, file=sys.stderr)
         return 2
     findings: list[str] = []
     for path in _tracked_files():

@@ -36,6 +36,9 @@ from __future__ import annotations
 import argparse, collections, hashlib, json, os, re, sys, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import kry_evidence  # noqa: E402
+
 WILDCHAT = "allenai/WildChat-1M"
 HOLDOUT_SEED = "kry-wildchat-2026-06-10"   # PUBLISHED — holdout assignment is recomputable
 REQUEST_CLASS = "wildchat_repeats"         # single declared class (before measurement)
@@ -45,7 +48,8 @@ def norm(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip().lower())[:300]
 
 
-def pull(n_rows: int) -> list[dict]:
+def pull(n_rows: int) -> tuple[list[dict], str]:
+    """The rows, and why the pull stopped early (empty when it did not)."""
     out: list[dict] = []
     for off in range(0, n_rows, 100):
         url = (f"https://datasets-server.huggingface.co/rows?dataset={urllib.parse.quote(WILDCHAT)}"
@@ -55,7 +59,7 @@ def pull(n_rows: int) -> list[dict]:
                 urllib.request.Request(url, headers={"User-Agent": "kry"}), timeout=40))
         except Exception as e:
             print(f"  pull stopped at offset {off}: {e}", file=sys.stderr)
-            break
+            return out, f"the WildChat pull stopped at offset {off} of {n_rows}"
         for r in d.get("rows", []):
             convo = r["row"].get("conversation") or []
             u = next((t for t in convo if t.get("role") == "user"), None)
@@ -63,7 +67,7 @@ def pull(n_rows: int) -> list[dict]:
             if u and u.get("content"):
                 out.append({"prompt": u["content"], "norm": norm(u["content"]),
                             "ans_chars": len(a["content"]) if a and a.get("content") else 0})
-    return out
+    return out, ""
 
 
 def is_holdout(rid: str, rate: float) -> bool:
@@ -89,19 +93,22 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="no paid calls; placeholder holdout (free)")
     ap.add_argument("--deploy-model", default="gpt-4o",
                     help="model the deployment serves (and a cache hit avoids); default gpt-4o (priced)")
-    ap.add_argument("--out", default="docs/evidence/wildchat_proof/usage.jsonl")
+    ap.add_argument("--out", help="usage log path (default: a fresh run directory)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
     a = ap.parse_args()
     deploy = a.deploy_model
+    key = os.getenv("OPENAI_API_KEY", "").strip()
+    live = bool(key) and not a.dry_run
+    if a.write_evidence and not live:
+        ap.error("--write-evidence needs real holdout calls: OPENAI_API_KEY set and no --dry-run")
 
-    rows = pull(a.rows)
+    rows, failure = pull(a.rows)
     by: dict[str, list[dict]] = collections.defaultdict(list)
     for r in rows:
         by[r["norm"]].append(r)
     clusters = {k: v for k, v in by.items() if len(v) >= 2}
     cache_hits = [r for v in clusters.values() for r in v[1:]]   # 2nd+ occurrence = a cache hit
 
-    key = os.getenv("OPENAI_API_KEY", "").strip()
-    live = bool(key) and not a.dry_run
     recs, holdout_n, real_holdout_cost_tokens = [], 0, 0
     for j, r in enumerate(cache_hits):
         rid = f"wc{j}"
@@ -126,8 +133,9 @@ def main() -> int:
                          "usage": {"prompt_tokens": max(1, len(r["prompt"]) // 4),
                                    "completion_tokens": ct}})
 
-    Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.out).write_text("\n".join(json.dumps(x) for x in recs) + "\n", encoding="utf-8")
+    out = Path(a.out) if a.out else kry_evidence.run_dir("wildchat_proof") / "usage.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(json.dumps(x) for x in recs) + "\n", encoding="utf-8")
     treated = len(cache_hits) - holdout_n
     cache_rate = len(cache_hits) / len(rows) if rows else 0.0
     print(f"WildChat real-corpus run ({WILDCHAT})  deploy-model={deploy}")
@@ -140,9 +148,10 @@ def main() -> int:
     if holdout_n < 30:
         print(f"  WARNING: holdout_n {holdout_n} < MIN_HOLDOUT_N 30 -> savings_report will label "
               f"this self_reported (raise --rows or --holdout-rate for the validated tier).")
-    print(f"  seed='{HOLDOUT_SEED}' (holdout assignment is recomputable)  -> {a.out}")
-    print(f"  next: python3 scripts/kry_savings_report.py {a.out} --json")
-    return 0
+    print(f"  seed='{HOLDOUT_SEED}' (holdout assignment is recomputable)  -> {out}")
+    print(f"  next: python3 scripts/kry_savings_report.py {out} --json")
+    return kry_evidence.publish({"usage.jsonl": out}, "wildchat_proof", rows=len(recs),
+                                write=a.write_evidence, failure=failure)
 
 
 if __name__ == "__main__":

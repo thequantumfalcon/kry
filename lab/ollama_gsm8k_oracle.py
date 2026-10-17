@@ -17,12 +17,12 @@ test problems, grade by the exact #### gold number, and report:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
 import random
 import re
-import sys
 import tempfile
 import urllib.request
 
@@ -83,9 +83,12 @@ def bucket(steps: int) -> str:
 
 
 if __name__ == "__main__":
-    cheap = sys.argv[1] if len(sys.argv) > 1 else "qwen2.5:7b"
-    capable = sys.argv[2] if len(sys.argv) > 2 else "qwen3:14b"
-    n = int(sys.argv[3]) if len(sys.argv) > 3 else 60
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("cheap", nargs="?", default="qwen2.5:7b")
+    _ap.add_argument("capable", nargs="?", default="qwen3:14b")
+    _ap.add_argument("n", nargs="?", type=int, default=60, metavar="N")
+    _a = _ap.parse_args()
+    cheap, capable, n = _a.cheap, _a.capable, _a.n
     rows = load_gsm8k(n)
     print(f"REAL GSM8K: {len(rows)} test problems (seeded sample). cheap={cheap} capable={capable}\n", flush=True)
 

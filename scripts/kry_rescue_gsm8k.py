@@ -23,11 +23,11 @@ fixed ADEQUATE 512-tok rescue budget instead).
 """
 from __future__ import annotations
 
-import json, os, sys, time, urllib.error
-from pathlib import Path
+import argparse, json, os, sys, time, urllib.error
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_rescue_experiment import _anthropic, last_number
+import kry_evidence
 
 GSM8K_URL = "https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl"
 CHEAP = "claude-haiku-4-5-20251001"
@@ -57,6 +57,9 @@ def _call(prompt: str, model: str, max_tokens: int) -> str:
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    args = ap.parse_args()
     data = load_gsm8k()
     sample = data[:N]                       # deterministic slice: first 120
     print(f"GSM8K rescue battery: {len(sample)} problems  cheap={CHEAP} frontier={FRONTIER}\n"
@@ -135,17 +138,16 @@ def main():
                          "capability, not truncation."),
         "rows": rows,
     }
-    Path("docs/evidence/adequacy_gate").mkdir(parents=True, exist_ok=True)
-    outpath = "docs/evidence/adequacy_gate/rescue_gsm8k_results.json"
-    Path(outpath).write_text(json.dumps(out, indent=2), encoding="utf-8")
+    result = kry_evidence.run_dir("adequacy_gate") / "rescue_gsm8k_results.json"
+    result.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print("\n=== GSM8K RESCUE BATTERY ===")
     print(f"  fast_adequacy:            {kept_fast}/{n} = {out['metrics']['fast_adequacy']}")
     print(f"  rescue_rate:              {rescued}/{fast_fail} = {rescue_rate}")
     print(f"  residual_escalation_rate: {escalated}/{n} = {out['metrics']['residual_escalation_rate']}")
     print(f"  frontier_pass_on_escalated: {front_pass}/{escalated} = {out['metrics']['frontier_pass_rate_on_escalated']}")
     print(f"  SEALED VERDICT: {interp}")
-    print(f"  -> {outpath}")
-    return 0
+    return kry_evidence.publish({"rescue_gsm8k_results.json": result}, "adequacy_gate", rows=n,
+                                write=args.write_evidence)
 
 
 if __name__ == "__main__":

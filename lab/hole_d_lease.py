@@ -15,9 +15,9 @@ is direct evidence the O_EXCL lock serialized the two machines over the network 
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
-import sys
 import time
 
 
@@ -62,9 +62,16 @@ def lease(authdir: str, key: str, amount: float, ceiling: float, hold: float = 0
 
 
 if __name__ == "__main__":
-    node, authdir, key = sys.argv[1], sys.argv[2], sys.argv[3]
-    amount, ceiling = float(sys.argv[4]), float(sys.argv[5])
-    hold = float(sys.argv[6]) if len(sys.argv) > 6 else 0.0
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("node", help="this node's id (printed only)")
+    _ap.add_argument("authdir", help="the shared lease directory (e.g. a mounted SMB share)")
+    _ap.add_argument("key", help="lease key, e.g. <party>:<attestation hash>")
+    _ap.add_argument("amount", type=float)
+    _ap.add_argument("ceiling", type=float, help="the attested balance")
+    _ap.add_argument("hold", nargs="?", type=float, default=0.0, help="seconds to hold the lock (default 0)")
+    _a = _ap.parse_args()
+    node, authdir, key = _a.node, _a.authdir, _a.key
+    amount, ceiling, hold = _a.amount, _a.ceiling, _a.hold
     granted, cur, waited = lease(authdir, key, amount, ceiling, hold)
     print(json.dumps({"node": node, "granted": granted, "prior_leased": cur,
                       "lock_wait_s": round(waited, 3), "amount": amount, "ceiling": ceiling, "key": key}))

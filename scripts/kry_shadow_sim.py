@@ -10,12 +10,13 @@ kry_shadow_emitter. HARD BUDGET CAP: stops before cumulative real spend exceeds 
   python3 scripts/kry_shadow_sim.py [N] [--budget 15]      # LIVE; N default = all MBPP
 """
 from __future__ import annotations
-import json, math, os, re, subprocess, sys, time, urllib.error, urllib.request
+import argparse, json, math, os, re, subprocess, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kry_shadow_demo import call, cost, CHEAP, FRONTIER, PRICES
 from kry_shadow_emitter import emit_row
+import kry_evidence
 import kry_shadow_demo
 kry_shadow_demo.PRICES.setdefault("claude-opus-4-8", (15.0, 75.0))   # Opus 4.8 list price (frontier-pair headroom test)
 FRONTIER = os.environ.get("KRY_FRONTIER", FRONTIER)                  # allow frontier override (e.g. Opus) to test the rate ceiling
@@ -80,22 +81,22 @@ def wilson(k, n, z=1.96):
 
 
 def main(argv):
-    dry = "--dry" in argv
-    args = [a for a in argv[1:] if a != "--dry"]
-    budget = 15.0
-    if "--budget" in args:
-        bi = args.index("--budget")
-        budget = float(args[bi + 1])
-        args = args[:bi] + args[bi + 2:]     # drop --budget + its value so it isn't read as N
-    nums = [a for a in args if a.isdigit()]
-    cap_n = int(nums[0]) if nums else None
+    # argparse, not argv scanning: an unrecognised argument (--help included) used to be ignored, so
+    # asking for usage started the paid LIVE run over all of MBPP.
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("n", nargs="?", type=int, default=None, metavar="N", help="first N MBPP tasks (default: all)")
+    ap.add_argument("--dry", action="store_true", help="$0: reference solutions, no API calls")
+    ap.add_argument("--budget", type=float, default=15.0, help="LIVE spend cap in USD (default 15)")
+    ap.add_argument("--write-evidence", action="store_true", help=kry_evidence.WRITE_HELP)
+    a = ap.parse_args(argv[1:])
+    dry, budget, cap_n = a.dry, a.budget, a.n
 
     data = load_mbpp()
     if cap_n:
         data = data[:cap_n]
     print(f"KRY Level-1 sim {'(DRY $0)' if dry else f'(LIVE, budget cap ${budget})'}  MBPP={len(data)}  "
           f"cheap={CHEAP} frontier={FRONTIER}\n")
-    outdir = Path("docs/evidence/level1_sim"); outdir.mkdir(parents=True, exist_ok=True)
+    outdir = kry_evidence.run_dir("level1_sim")
     tag = "dry" if dry else "live"
     rowf = open(outdir / f"level1_sim_rows_{tag}.jsonl", "w", buffering=1, encoding="utf-8")   # line-buffered: crash-safe + monitorable
     rows, saving, cp, fp, cs, fs, done = [], 0.0, 0, 0, 0.0, 0.0, 0
@@ -148,6 +149,11 @@ def main(argv):
         "p0_pass_rows": sum(r["p0_pass"] for r in rows), "row_digests": [r["row_digest"] for r in rows],
     }
     (outdir / f"level1_sim_summary_{tag}.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    names = (f"level1_sim_rows_{tag}.jsonl", f"level1_sim_summary_{tag}.json")
+    status = kry_evidence.publish({name: outdir / name for name in names}, "level1_sim", rows=n,
+                                  write=a.write_evidence)
+    if status:
+        return status
     print(f"\n=== LEVEL-1 RECEIPT ({'DRY' if dry else 'LIVE'}) ===")
     print(f"  cheap adequacy: {cp}/{n} = {100*cp/n:.1f}%  (Wilson95 [{100*lo:.1f}%, {100*hi:.1f}%])   "
           f"cheap-fail zeroed: {n-cp}   frontier pass: {fp}/{n}")

@@ -25,11 +25,20 @@ The point of the demo is step 5: "anyone can verify this with plain Python."
 """
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+if __name__ == "__main__":
+    # --help must exit before the temp data dir below is created, so it is parsed at import time,
+    # after the console guard (the help text is non-ASCII; a cp1252 console cannot encode it).
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(errors="replace")
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
 
 # Make the example self-contained: add ../src to the path and use a temp data
 # dir so `python examples/try_kry.py` just works without env setup.
