@@ -111,7 +111,7 @@ def _python_verdict(raw):
         att = kv._json_loads(raw)
     except ValueError:
         return "PARSE_ERROR"
-    verifier = kav.verify_action_attestation if att.get("kind") == "kry_action_attestation" else kv.verify_attestation
+    verifier = kav.verify_action_attestation if isinstance(att, dict) and att.get("kind") == "kry_action_attestation" else kv.verify_attestation
     return "VALID" if verifier(att)[0] else "INVALID"
 
 

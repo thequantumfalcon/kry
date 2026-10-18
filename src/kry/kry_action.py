@@ -96,6 +96,11 @@ def _canon_f64(x) -> str:
     Go math.Float64bits+BigEndian. No float->string formatting, no precision loss.
     A non-numeric / NaN / inf value (only a tampered link) -> a fixed sentinel, so a
     verifier yields a clean hash MISMATCH rather than crashing. Mirrors kry_mint._canon_f64."""
+    # SPEC §2.2: only a JSON number is encoded; anything else is non-numeric and takes the sentinel.
+    # float() alone also accepts strings ("1700000001.0", "1_700_000_001") and booleans, so those
+    # would hash exactly like the number they spell.
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return _V5_BAD
     try:
         f = float(x)
     except (TypeError, ValueError, OverflowError):

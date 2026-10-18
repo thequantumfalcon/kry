@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 71,
+  "count": 124,
   "vectors": [
     {
       "id": "canon_f64",
@@ -159,6 +159,16 @@
     },
     {
       "id": "anchor_remint_detected",
+      "category": "savings/anchor",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "anchor_count_float_literal",
+      "category": "savings/anchor",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "anchor_count_beyond_2_53",
       "category": "savings/anchor",
       "verdict": "INVALID"
     },
@@ -356,6 +366,261 @@
       "id": "evidence_tier_constructor_misstated",
       "category": "hardening",
       "verdict": "INVALID"
+    },
+    {
+      "id": "trailing_non_object_link",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "by_tier_integer_overflow",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_integer",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_zero",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_float",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_list",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_empty_list",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_object",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_id_empty_object",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_integer",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_zero",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_float",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_list",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_empty_list",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_object",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "supersedes_empty_object",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_integer_receipt_id",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_list_receipt_id",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "promotion_list_supersedes",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "receipt_hash_unpaired_surrogate",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "document_not_an_object",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_tier_list_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "ts_numeric_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_numeric_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "ts_underscore_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_underscore_string",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "ts_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "event_type_counts_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "metered_tokens_integer_literal",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "metered_tokens_float_literal",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_hash_version_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_count_boolean",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_receipt_id_missing",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_receipt_id_missing_twice",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_witness_zero_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "witness_zero_coerced",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "action_witness_float_zero_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "witness_float_zero_coerced",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "action_witness_empty_list_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "witness_empty_list_coerced",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "action_witness_empty_object_floor_forged",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "witness_empty_object_coerced",
+      "category": "action/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "json_depth_64",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "json_depth_65",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "integer_640_digits_positive",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "integer_640_digits_negative",
+      "category": "hardening",
+      "verdict": "VALID"
+    },
+    {
+      "id": "integer_641_digits_positive",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "integer_641_digits_negative",
+      "category": "hardening",
+      "verdict": "PARSE_ERROR"
     }
   ]
 }

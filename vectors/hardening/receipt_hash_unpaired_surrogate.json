@@ -1,0 +1,17 @@
+{
+  "id": "receipt_hash_unpaired_surrogate",
+  "kind": "raw_json",
+  "description": "receipt_hash is a lone surrogate escape; chain_hash covers U+FFFD in its place.",
+  "input_raw_text": "{\"attestation_hash\":\"9da2e09ce7a0a6b5217f1c40debdcb400ab539d799f57b8a4b16309d1d7892ac\",\"chain_head\":\"9b78588381363c463365131a4dd37f70b82153095c11323775294f6bdb2bc93b\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"9b78588381363c463365131a4dd37f70b82153095c11323775294f6bdb2bc93b\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"\\ud800\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: chain preimage is not valid Unicode (unpaired surrogate)",
+      "total_kry mismatch: declared 1000.0, chain sums to 0.0",
+      "event_type_counts mismatch: declared {'cache_hit': 1}, links imply {}",
+      "usd_equivalent mismatch: declared 0.025, links imply 0.0",
+      "veracity by_tier mismatch: declared {'self_reported': 1000.0}, links imply {}",
+      "self_reported_kry mismatch"
+    ]
+  }
+}

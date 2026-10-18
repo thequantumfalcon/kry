@@ -1,0 +1,15 @@
+{
+  "id": "action_witness_empty_object_floor_forged",
+  "kind": "raw_json",
+  "description": "A server_witnessed action with {} as its witness, declaring floor 1.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"ea1986324bdb8e71c031ce77343f20812f6bf93982c5eb1456b4c3befe89a476\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"ea1986324bdb8e71c031ce77343f20812f6bf93982c5eb1456b4c3befe89a476\",\"evidence_tier\":\"server_witnessed\",\"receipt_hash\":\"6f2b7e2b7a5f50a60daea56fbf76aa67608bf77733ef55b54aafe7f074f7f4fc\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":{},\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0}],\"veracity\":{\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity_floor mismatch: claimed 1.0, re-derived 0.0"
+    ],
+    "warnings": [
+      "1 link(s) claimed an anchored tier with NO witness \u2014 coerced to self_reported (not credited to the floor)"
+    ]
+  }
+}

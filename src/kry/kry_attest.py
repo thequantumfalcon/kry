@@ -94,8 +94,43 @@ def _json_float(raw: str) -> float:
     return value
 
 
+# SPEC Annex D: bound nesting before either runtime's recursive JSON parser/hash path.
+_JSON_MAX_DEPTH = 64
+_JSON_MAX_INTEGER_DIGITS = 640
+
+
+def _check_json_depth(text: str) -> None:
+    depth = 0
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > _JSON_MAX_DEPTH:
+                raise ValueError("JSON nesting limit exceeded (64)")
+        elif char in "]}":
+            depth -= 1
+
+
+def _json_int(raw: str) -> int:
+    # Below Python's configurable conversion threshold; no process-global limit changes.
+    if len(raw) - raw.startswith("-") > _JSON_MAX_INTEGER_DIGITS:
+        raise ValueError("JSON integer digit limit exceeded (640)")
+    return int(raw)
+
+
 def _json_loads(text: str):
-    return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float)
+    _check_json_depth(text)
+    return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float,
+                      parse_int=_json_int)
 
 
 def _json_dumps(data: object, **kwargs) -> str:
@@ -484,9 +519,17 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
                 supersedes=link.get("supersedes"),   # F2: bind the promotion target on the public surface
                 receipt_id=link.get("receipt_id"),   # v6: bind receipt_id so a relabel breaks the chain
                 event_type=link.get("event_type"))   # v7: bind event_type (closes same-rate relabel)
-            expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}:{block}".encode()).hexdigest()
-        else:
-            expected = hashlib.sha256(f"{prev_chain}:{receipt_hash}".encode()).hexdigest()
+        # SPEC §2.1 hashes the UTF-8 bytes of the preimage, and receipt_hash / prev enter it raw. A
+        # lone surrogate (legal as a JSON \u escape) has no UTF-8 encoding, so no chain hash can
+        # match it: INVALID, never a crash and never a hash over substituted bytes.
+        try:
+            preimage = (f"{prev_chain}:{receipt_hash}:{block}" if hv >= 4
+                        else f"{prev_chain}:{receipt_hash}").encode()
+        except UnicodeEncodeError:
+            errors.append(f"seq {seq}: chain preimage is not valid Unicode (unpaired surrogate)")
+            prev_chain = chain_hash
+            continue
+        expected = hashlib.sha256(preimage).hexdigest()
         if chain_hash != expected:
             errors.append(
                 f"seq {seq}: chain link broken — "
@@ -507,18 +550,26 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             tier = "self_reported"
         tier_kry[tier] = tier_kry.get(tier, 0.0) + kry_minted
         rid = link.get("receipt_id")
+        # SPEC §3.2 / Annex C: non-string ids are INVALID, even when no overlay uses them.
+        if rid is not None and not isinstance(rid, str):
+            errors.append(f"seq {seq}: receipt_id must be a string")
         # A1-1: only a HASH-BOUND (v6+) receipt may anchor a promotion overlay (a v4/v5 receipt_id is
         # mutable → relabel/swap to redirect a promotion onto a larger receipt). Reject duplicate ids
         # too (a forged chain could collide two v6+ ids; the last-wins dict would pick the larger).
-        if rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
+        # SPEC §3.4 / §3.7: only a non-empty STRING id enters the map — a list id is unhashable here,
+        # and an integer id would create duplicates and promotions the spec does not define.
+        if isinstance(rid, str) and rid and isinstance(hv, int) and not isinstance(hv, bool) and hv >= 6:
             if rid in kry_by_receipt:
                 errors.append(f"seq {seq}: duplicate receipt_id {rid!r} among hash-bound receipts")
             kry_by_receipt[rid] = (tier, kry_minted, _pos)
         sup = link.get("supersedes")
+        if sup is not None and not isinstance(sup, str):
+            errors.append(f"seq {seq}: supersedes must be a string")
         # invariant #4 ENFORCED on the verifier boundary: a promotion must be zero-value, so a forged
         # positive-value tlsn/tee link with `supersedes` cannot re-tier a prior receipt onto itself
-        # (the double-count that read veracity_floor 1.0 vs the honest 0.333).
-        if tier in ("tlsn_attested", "tee_attested") and sup and kry_minted <= 0:
+        # (the double-count that read veracity_floor 1.0 vs the honest 0.333). SPEC §3.7: a promotion
+        # names its target with a non-empty STRING supersedes.
+        if tier in ("tlsn_attested", "tee_attested") and isinstance(sup, str) and sup and kry_minted <= 0:
             promotions.append((sup, tier, _pos))
         errors.extend(_magnitude_errors(link))
         errors.extend(_tier_schema_errors(link))
@@ -542,13 +593,18 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     # Verify the head matches the last link. SPEC §3.1: an EMPTY chain is checked too — its head
     # must be the genesis value, so a declared (or absent) head cannot ride along unverified.
     if links:
-        if data.get("chain_head") != links[-1].get("chain_hash"):
+        # A non-object last link is already an error above; it has no chain_hash to match.
+        last_hash = links[-1].get("chain_hash") if isinstance(links[-1], dict) else None
+        if data.get("chain_head") != last_hash:
             errors.append("chain_head does not match last link")
     elif data.get("chain_head") != "0" * 64:
         errors.append("chain_head must be the genesis value for an empty chain")
     if not isinstance(data.get("event_type_counts"), dict):
         errors.append("event_type_counts must be a JSON object")
-    elif data.get("event_type_counts") != dict(type_counts):
+    # SPEC §3.1 / §3.5: a count is a JSON number. Python's True == 1 would make a boolean count compare
+    # equal, which verifiers/js (and the JSON data model) does not.
+    elif data.get("event_type_counts") != dict(type_counts) or any(
+            isinstance(n, bool) for n in data["event_type_counts"].values()):
         errors.append(
             f"event_type_counts mismatch: claimed {data.get('event_type_counts')}, "
             f"links imply {dict(type_counts)}")
@@ -629,22 +685,24 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
             if "by_tier" in v:
                 errors.append("veracity.by_tier must be a JSON object")
             claimed_by_tier = None
-        else:
+        # Compare the validated floats only: subtracting a raw arbitrary-size JSON integer from a
+        # float raises OverflowError instead of reporting the mismatch (SPEC §3.5).
+        finite_by_tier: dict[str, float] = {}
+        if claimed_by_tier is not None:
             for tier, value in claimed_by_tier.items():
                 if not isinstance(tier, str):
                     errors.append("veracity.by_tier keys must be strings")
                     continue
                 try:
-                    _finite_number(value, f"veracity.by_tier.{tier}", nonnegative=True)
+                    finite_by_tier[tier] = _finite_number(value, f"veracity.by_tier.{tier}",
+                                                          nonnegative=True)
                 except ValueError as exc:
                     errors.append(str(exc))
         # P-TOL: the key SET must match exactly (size + every derived key present, so an invented or
         # dropped tier is caught) and every value must land within _COMPARE_EPS of its round-4
         # derivation. Same rule, same number, as scripts/kry_verify.py and verifiers/js.
         if claimed_by_tier is not None and (len(claimed_by_tier) != len(by_tier) or any(
-                not isinstance(claimed_by_tier.get(t), (int, float))
-                or isinstance(claimed_by_tier.get(t), bool)
-                or abs(claimed_by_tier[t] - by_tier[t]) > _COMPARE_EPS
+                t not in finite_by_tier or abs(finite_by_tier[t] - by_tier[t]) > _COMPARE_EPS
                 for t in by_tier)):
             errors.append(
                 f"veracity by_tier mismatch: claimed {v.get('by_tier')}, "

@@ -1,0 +1,13 @@
+{
+  "id": "action_receipt_id_missing_twice",
+  "kind": "raw_json",
+  "description": "Action links without a receipt_id.",
+  "input_raw_text": "{\"action_count\":2,\"action_hash_version\":1,\"chain_tip\":\"62d983a7e783f8fd6c65b4cee7cd9d61934efff0d110be195f1fe79d606a9b70\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"35b72e50fdd66eb49a33276d606ea45420c29edfa45d019e7c6df4bbac963196\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0},{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"62d983a7e783f8fd6c65b4cee7cd9d61934efff0d110be195f1fe79d606a9b70\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"fb87781218276fface7ccd81d35cc6c9b05d450045b205c74b9f7fbd75f3f31a\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000001.0}],\"veracity\":{\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "link 0: receipt_id must be a string"
+    ],
+    "warnings": []
+  }
+}

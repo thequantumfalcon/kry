@@ -895,6 +895,11 @@ def _canon_f64(x) -> str:
     no scale, no 2^53 limit, no float→string formatting. TOTAL: a non-numeric / NaN / inf field (only from
     a TAMPERED link — the minter validates its inputs) maps to a fixed sentinel so the verifier yields a
     hash MISMATCH (clean INVALID), never a crash. Must be byte-identical to the stdlib kry_verify replica."""
+    # SPEC §2.2: only a JSON number is encoded; anything else is non-numeric and takes the sentinel.
+    # float() alone also accepts strings ("1700000001.0", "1_700_000_001") and booleans, so those
+    # would hash exactly like the number they spell.
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return _V5_BAD
     try:
         f = float(x)
     except (TypeError, ValueError, OverflowError):

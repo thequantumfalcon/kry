@@ -1,0 +1,12 @@
+{
+  "id": "supersedes_float",
+  "kind": "raw_json",
+  "description": "A self-consistent chain with a non-string supersedes; SPEC 3.2 requires a string.",
+  "input_raw_text": "{\"attestation_hash\":\"3b95175bcd776a7a713e97b33c7cc1333c7c6a977de20cc77ffdb54005592d14\",\"chain_head\":\"a9f25ca9777239ff0a6c1e70e3a04ab5e40f8e9afd38f20c42707056e68b478c\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"a9f25ca9777239ff0a6c1e70e3a04ab5e40f8e9afd38f20c42707056e68b478c\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":7.5,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: supersedes must be a string"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "promotion_integer_receipt_id",
+  "kind": "raw_json",
+  "description": "An integer supersedes names an integer receipt_id; the summaries claim the overlay.",
+  "input_raw_text": "{\"attestation_hash\":\"4f0fda1ea4f779a33fbd0903e91b63f5a68606a1fb9751423941f9cbf56d95d0\",\"chain_head\":\"fdaaa0ef250ace7effac26bdb22880c40378b092340720cdd2644a0c6cc12403\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"a30fbacc23b58480f16cc1df1c63a35e9e3ece9c29ec6a08ece3d43a2c519882\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":7,\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0},{\"chain_hash\":\"fdaaa0ef250ace7effac26bdb22880c40378b092340720cdd2644a0c6cc12403\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"KRY-promo\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":2,\"supersedes\":7,\"tokens_saved\":0.0,\"ts\":1700000001.0}],\"receipts\":2,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":1000.0,\"by_tier\":{\"self_reported\":0.0,\"tlsn_attested\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: receipt_id must be a string",
+      "seq 2: supersedes must be a string",
+      "veracity by_tier mismatch: declared {'self_reported': 0.0, 'tlsn_attested': 1000.0}, links imply {'self_reported': 1000.0, 'tlsn_attested': 0.0}",
+      "anchored_kry mismatch",
+      "self_reported_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.0000 \u2014 trust surface misstated"
+    ]
+  }
+}

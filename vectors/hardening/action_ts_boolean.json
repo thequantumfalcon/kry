@@ -1,0 +1,13 @@
+{
+  "id": "action_ts_boolean",
+  "kind": "raw_json",
+  "description": "An action ts of true, hashed as the number 1.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"c11fcaef79d2d3a6eebb6a5ed462520583b89702a32b2d7f27063023ec006dc7\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"c11fcaef79d2d3a6eebb6a5ed462520583b89702a32b2d7f27063023ec006dc7\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"984ca3388d38b75797f7a86dde8a946cc81063f8c8d3fb5b06a02b52dba69f22\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":true}],\"veracity\":{\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "link 0 (ACT-00000000): receipt_hash mismatch \u2014 a field was tampered"
+    ],
+    "warnings": []
+  }
+}

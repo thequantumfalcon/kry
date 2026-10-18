@@ -1,0 +1,16 @@
+{
+  "id": "promotion_list_receipt_id",
+  "kind": "raw_json",
+  "description": "A string supersedes cannot name a list receipt_id; the summaries claim the overlay.",
+  "input_raw_text": "{\"attestation_hash\":\"daf3eba11b061a1fdba03ab03b0a427d1bd8179d9a2e025ca57e664d648e5663\",\"chain_head\":\"8785a95ae51a2f280da90ec22643824246636863fcb1770df45a6620ac963892\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"52c28bae8881201b26e15cfd9a6f6af01bdced2a68d3cce3122a86b9b3c69dd1\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":[\"KRY-t\"],\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0},{\"chain_hash\":\"8785a95ae51a2f280da90ec22643824246636863fcb1770df45a6620ac963892\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"KRY-promo\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":2,\"supersedes\":\"KRY-t\",\"tokens_saved\":0.0,\"ts\":1700000001.0}],\"receipts\":2,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":1000.0,\"by_tier\":{\"self_reported\":0.0,\"tlsn_attested\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: receipt_id must be a string",
+      "veracity by_tier mismatch: declared {'self_reported': 0.0, 'tlsn_attested': 1000.0}, links imply {'self_reported': 1000.0, 'tlsn_attested': 0.0}",
+      "anchored_kry mismatch",
+      "self_reported_kry mismatch",
+      "veracity_floor mismatch: declared 1.0, links imply 0.0000 \u2014 trust surface misstated"
+    ]
+  }
+}

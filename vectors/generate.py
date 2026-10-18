@@ -636,6 +636,30 @@ def gen_anchor() -> None:
                      "published anchor is what makes a retroactive re-mint detectable — the "
                      "chain hash at seq==count no longer matches the published tip."})
 
+    # adversarial: anchors whose count only resembles the link's seq. SPEC 3.8 wants an INTEGER
+    # count (3.0 is a float literal, SPEC 2.1) and a link whose seq EQUALS it, exactly.
+    for vid, anchor_count, seq, description in (
+            ("anchor_count_float_literal", 3.0, None,
+             "the published anchor's count is the float literal 3.0; the chain is the anchored one"),
+            ("anchor_count_beyond_2_53", 2 ** 53 + 1, 2 ** 53,
+             "the anchor's count is 2^53+1 and the only candidate link's seq is 2^53 (seq is not "
+             "hash-bound); the two are equal only after rounding to binary64")):
+        x = copy.deepcopy(att)
+        if seq is not None:
+            x["links"] = x["links"][:1]
+            x["links"][0]["seq"] = seq
+            x = rechain(x)
+        published = {"schema": anchor["schema"], "count": anchor_count, "tip": x["links"][-1]["chain_hash"]}
+        assert verdict_savings(x)["verdict"] == "VALID"
+        exp = verdict_savings_anchored(x, published)
+        assert exp["verdict"] == "INVALID", exp
+        write("savings/anchor", vid, {
+            "kind": "savings_attestation", "description": description,
+            "input_anchor": published,
+            "input": x, "expected": exp,
+            "rationale": "SPEC 3.8: a non-integer count is a malformed anchor, and the matching link's "
+                         "seq must equal count exactly; neither holds, so the anchor check fails."})
+
 
 def gen_action() -> None:
     a0, t0 = act_link(0, GENESIS)
@@ -710,10 +734,12 @@ def gen_hardening() -> None:
     def emit(vid, raw, description, expected):
         try:
             att = kv._json_loads(raw)
-        except ValueError:
-            result = {"verdict": "PARSE_ERROR", "reasons": ["invalid JSON or nonfinite float"]}
+        except ValueError as exc:
+            reason = str(exc) if "limit exceeded" in str(exc) else "invalid JSON or nonfinite float"
+            result = {"verdict": "PARSE_ERROR", "reasons": [reason]}
         else:
-            result = (verdict_action(att) if att.get("kind") == "kry_action_attestation"
+            result = (verdict_action(att)
+                      if isinstance(att, dict) and att.get("kind") == "kry_action_attestation"
                       else verdict_savings(att))
         assert result["verdict"] == expected, (vid, result)
         write("hardening", vid, {"kind": "raw_json", "description": description,
@@ -805,6 +831,139 @@ def gen_hardening() -> None:
     a["veracity"]["by_tier"]["constructor"] = 123456.0
     emit("evidence_tier_constructor_misstated", canon(reseal(a)),
          "by_tier misstates the value held by a tier named constructor.", "INVALID")
+
+    # Hostile shapes must yield a verdict, never a crash (SPEC 1).
+    a = receipt()
+    a["links"].append(5)
+    a["receipts"] = 2
+    emit("trailing_non_object_link", canon(reseal(a)),
+         "The last element of links is a number, not a link object.", "INVALID")
+    a = receipt()
+    a["veracity"]["by_tier"]["self_reported"] = 10 ** 400
+    emit("by_tier_integer_overflow", canon(reseal(a)),
+         "A by_tier value is an integer outside binary64 range.", "INVALID")
+
+    # SPEC 3.2: non-string ids are invalid even when a promotion never consumes them.
+    for field in ("receipt_id", "supersedes"):
+        for label, value in (("integer", 7), ("zero", 0), ("float", 7.5), ("boolean", True),
+                             ("list", ["KRY-t"]), ("empty_list", []),
+                             ("object", {"id": "KRY-t"}), ("empty_object", {})):
+            a = receipt()
+            a["links"][0][field] = value
+            emit(f"{field}_{label}", canon(rechain(a)),
+                 f"A self-consistent chain with a non-string {field}; SPEC 3.2 requires a string.",
+                 "INVALID")
+
+    # SPEC 3.7: promotion targets are matched by non-empty STRING ids only. Each chain below is
+    # self-consistent; the declared summaries claim the overlay moved link0's value to tlsn_attested.
+    def promotion(target_id, supersedes):
+        att = copy.deepcopy(base)
+        target = att["links"][0]
+        target["receipt_id"] = target_id
+        promo = dict(target, seq=target["seq"] + 1, receipt_id="KRY-promo", evidence_tier="tlsn_attested",
+                     tokens_saved=0.0, kry_minted=0.0, supersedes=supersedes, receipt_hash="ab" * 32)
+        att["links"].append(promo)
+        rechain(att)
+        moved = target["kry_minted"]
+        att["veracity"] = {"by_tier": {"self_reported": 0.0, "tlsn_attested": moved},
+                           "anchored_kry": moved, "self_reported_kry": 0.0, "veracity_floor": 1.0}
+        return reseal(att)
+
+    emit("promotion_integer_receipt_id", canon(promotion(7, 7)),
+         "An integer supersedes names an integer receipt_id; the summaries claim the overlay.", "INVALID")
+    emit("promotion_list_receipt_id", canon(promotion(["KRY-t"], "KRY-t")),
+         "A string supersedes cannot name a list receipt_id; the summaries claim the overlay.", "INVALID")
+    emit("promotion_list_supersedes", canon(promotion("KRY-t", ["KRY-t"])),
+         "A list supersedes is not a promotion; the summaries claim the overlay.", "INVALID")
+
+    # SPEC 2.1: chain preimages are hashed as UTF-8, and receipt_hash enters raw. An unpaired
+    # surrogate has no UTF-8 bytes; this chain_hash is over U+FFFD substituted for it.
+    a = copy.deepcopy(base)
+    link = a["links"][0]
+    link["receipt_hash"] = "\ud800"
+    block = km._v4_public_block(
+        hash_version=link["hash_version"], tokens_saved=link["tokens_saved"], ts=link["ts"],
+        evidence_tier=link["evidence_tier"], metered_tokens=link.get("metered_tokens"),
+        kry_minted=link["kry_minted"], earn_rate=link["earn_rate"], supersedes=link.get("supersedes"),
+        receipt_id=link.get("receipt_id"), event_type=link.get("event_type"))
+    link["chain_hash"] = hashlib.sha256(f"{GENESIS}:\ufffd:{block}".encode()).hexdigest()
+    a["chain_head"] = link["chain_hash"]
+    emit("receipt_hash_unpaired_surrogate", canon(reseal(a)),
+         "receipt_hash is a lone surrogate escape; chain_hash covers U+FFFD in its place.", "INVALID")
+
+    # SPEC 1 / 3: a document that is not an object is not an action attestation and fails §3.
+    emit("document_not_an_object", "[]", "The whole document is a JSON array.", "INVALID")
+    # SPEC 4.4: only the anchored tier strings are anchored; a list naming one is not.
+    link, _ = act_link(0, GENESIS, tier=["server_witnessed"], server_evidence_commit=kax.commit("w"))
+    emit("action_tier_list_floor_forged", canon(act_att([link], 1.0)),
+         "An action tier that is a list naming server_witnessed, declaring veracity_floor 1.0.", "INVALID")
+
+    # SPEC 2.2: canon_f64 encodes JSON numbers only; a string or boolean takes the sentinel. Each
+    # hash below covers the NUMBER the value spells, so only a verifier that converts it agrees.
+    for label, spelled in (("numeric_string", "1700000001.0"), ("underscore_string", "1_700_000_001"),
+                           ("boolean", True)):
+        a = receipt()
+        a["links"][0]["ts"] = float(spelled)
+        rechain(a)
+        a["links"][0]["ts"] = spelled
+        emit(f"ts_{label}", canon(reseal(a)),
+             f"A v7 ts of {json.dumps(spelled)}, hashed as the number {float(spelled)!r}.", "INVALID")
+        link, _ = act_link(0, GENESIS, ts=float(spelled))
+        link["ts"] = spelled
+        emit(f"action_ts_{label}", canon(act_att([link], 0.0)),
+             f"An action ts of {json.dumps(spelled)}, hashed as the number {float(spelled)!r}.", "INVALID")
+
+    # JSON types are not Python's: true is not the count 1, 100.0 is not the integer 100.
+    a = receipt()
+    a["event_type_counts"] = {"cache_hit": True}
+    emit("event_type_counts_boolean", canon(reseal(a)), "An event_type_counts value is true.", "INVALID")
+    for label, metered, expected in (("integer_literal", [100, 50], "VALID"),
+                                     ("float_literal", [100.0, 50], "INVALID")):
+        a = copy.deepcopy(base)
+        a["links"][0].update(evidence_tier="provider_metered", metered_tokens=metered)
+        emit(f"metered_tokens_{label}", canon(rechain(a)),
+             f"A provider_metered link whose metered_tokens are {json.dumps(metered)} (SPEC 3.4.2).", expected)
+    link, _ = act_link(0, GENESIS)
+    for field in ("action_hash_version", "action_count"):
+        a = act_att([link], 0.0)
+        a[field] = True
+        emit(f"{field}_boolean", canon(a), f"The action {field} is true, not the integer 1.", "INVALID")
+    # SPEC 4.3: receipt_id MUST be a string; an absent one is not, alone or twice.
+    first, tip = act_link(0, GENESIS)
+    second, tip2 = act_link(1, tip, ts=1_700_000_001.0)
+    for label, links in (("missing", [first]), ("missing_twice", [first, second])):
+        links = [{k: v for k, v in ln.items() if k != "receipt_id"} for ln in links]
+        emit(f"action_receipt_id_{label}", canon(act_att(links, 0.0)),
+             "Action links without a receipt_id.", "INVALID")
+
+    # SPEC 4.4 / Annex C: empty containers and numeric zero carry no witness presence.
+    for label, witness in (("zero", 0), ("float_zero", 0.0), ("empty_list", []), ("empty_object", {})):
+        link, _ = act_link(0, GENESIS, tier="server_witnessed", server_evidence_commit=witness)
+        emit(f"action_witness_{label}_floor_forged", canon(act_att([link], 1.0)),
+             f"A server_witnessed action with {json.dumps(witness)} as its witness, declaring floor 1.0.",
+             "INVALID")
+        att = act_att([link], 0.0)
+        write("action/valid", f"witness_{label}_coerced", {
+            "kind": "action_attestation", "description": "Absent witness coerced to self_reported; floor 0.0.",
+            "input": att, "expected": verdict_action(att)})
+
+    # SPEC Annex D: hash the raw canonical template so over-limit cases still have honest hashes.
+    def metadata_raw(value):
+        att = receipt()
+        att.update(metadata="LIMIT_MARKER", attestation_hash="")
+        raw = canon(att).replace('"LIMIT_MARKER"', value)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        return raw.replace('"attestation_hash":""', '"attestation_hash":"' + digest + '"')
+
+    for depth in (64, 65):
+        raw = metadata_raw("[" * (depth - 1) + "0" + "]" * (depth - 1))
+        emit(f"json_depth_{depth}", raw, f"Honest savings receipt with container depth {depth}.",
+             "VALID" if depth == 64 else "PARSE_ERROR")
+    for digits in (640, 641):
+        for sign, label in (("", "positive"), ("-", "negative")):
+            emit(f"integer_{digits}_digits_{label}", metadata_raw(sign + "9" * digits),
+                 f"Honest savings receipt with a {label} {digits}-digit integer in metadata.",
+                 "VALID" if digits == 640 else "PARSE_ERROR")
 
 
 def main() -> None:

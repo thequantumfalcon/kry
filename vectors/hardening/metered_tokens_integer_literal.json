@@ -1,0 +1,10 @@
+{
+  "id": "metered_tokens_integer_literal",
+  "kind": "raw_json",
+  "description": "A provider_metered link whose metered_tokens are [100, 50] (SPEC 3.4.2).",
+  "input_raw_text": "{\"attestation_hash\":\"8d95e172d5d3eb05a22f64f3a7dec52b8b6d2da1ab2ea11ff707b06fb2f664bb\",\"chain_head\":\"9995801cecbf6dce6f03a22f635290f62f82f3baddcad77eb7ac6e30bc8acfe9\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"9995801cecbf6dce6f03a22f635290f62f82f3baddcad77eb7ac6e30bc8acfe9\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"provider_metered\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":[100,50],\"receipt_hash\":\"b66b1e51bf31db6bd1cd5067ba53b1ed2b57b68a462d6001020abdc44d1270c8\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"313740da51e141b4\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":1700000001.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":1000.0,\"by_tier\":{\"provider_metered\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}

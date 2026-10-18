@@ -1,0 +1,13 @@
+{
+  "id": "action_ts_underscore_string",
+  "kind": "raw_json",
+  "description": "An action ts of \"1_700_000_001\", hashed as the number 1700000001.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"5873d80d44641acac49506ac3b09f060bab0464372f3dd3ee76271bdd25da19a\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"5873d80d44641acac49506ac3b09f060bab0464372f3dd3ee76271bdd25da19a\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"fb87781218276fface7ccd81d35cc6c9b05d450045b205c74b9f7fbd75f3f31a\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":\"1_700_000_001\"}],\"veracity\":{\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "link 0 (ACT-00000000): receipt_hash mismatch \u2014 a field was tampered"
+    ],
+    "warnings": []
+  }
+}
