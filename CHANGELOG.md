@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are named only as "the host system's flag", AGENTS.md says "no unguarded third-party imports",
   CONTRIBUTING documents the `tee`/`pqc` extras as checkout-only and drops `PYTHONPATH=src`.
 - **CI also runs the suite on Python 3.12, 3.13 and 3.14**, which the classifiers already claim.
+- **The research_grade anchor states the count its evidence holds.** The docs said `confirm()`
+  minted 50/50 while the same run reconciled 52/52, and the committed mint log holds 52 receipts.
+  They now say 52 and note the earlier figure; the all-time ~0.12 is "dominated by", not "purely",
+  purged legacy ids.
 
 ## [0.1.8] - 2026-10-17
 

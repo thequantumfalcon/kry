@@ -23,10 +23,13 @@ standalone repo owns and tests the mechanism — `kry_pending` / `kry_mint` / th
  the host system's flag.
 2. **Enabled the host system's flags** — displacement confirmation + the downgrade monitor +
  the correctness layer (**enabled**, not merely demonstrated).
-3. **Ran 50 real `or/openai/gpt-oss-120b:free` displacements** under the correctness layer.
-4. **`confirm()` fired within the 900 s TTL — 50/50 minted.** This is the break in the stall
- pattern: the first 18 expired because nothing confirmed them inside the window; these 50 were
- confirmed and minted into the chained ledger as a real accepted-savings corpus.
+3. **Ran real `or/openai/gpt-oss-120b:free` displacements** under the correctness layer.
+4. **`confirm()` fired within the 900 s TTL, and the graded window holds 52 minted receipts**
+ (`evidence/research_grade/research_grade_mintlog.jsonl`). This is the break in the stall
+ pattern: the first 18 expired because nothing confirmed them inside the window; these were
+ confirmed and minted into the chained ledger as a real accepted-savings corpus. (This page
+ earlier said 50/50; the committed bundle holds 52, and the private run log that would account
+ for the difference is not published.)
 5. **Graded against the independent oracle:** `kry_research_grade.py <the host system kry_mint_log.jsonl>
  --fetch --since <run>` returned:
 
@@ -45,7 +48,7 @@ readiness label: research_grade · VERDICT: research_grade REACHED
  provider has deleted, and an un-fetchable record is a retention artifact, not a failed check.
  The *fresh, reconcilable* corpus is what was graded, and it reconciled **52/52**.
 - The distinction that makes this honest: **un-fetchable (404 / purged) ≠ fetched-and-mismatched.**
- None of the graded fresh receipts mismatched; the legacy misses are all provider-purge.
+ None of the graded fresh receipts mismatched; the legacy misses are dominated by provider purges.
 
 ## What this does and does NOT claim
 
@@ -68,7 +71,7 @@ python3 scripts/kry_research_grade.py docs/evidence/research_grade/research_grad
 # -> matched 52/52 · independent agreement 1.00 (bar 0.80) · research_grade REACHED
 ```
 
-The full run record (the flags, the general-`confirm()` wire, the 50 confirmed mints) lives
+The full run record (the flags, the general-`confirm()` wire, the confirmed mints) lives
 in the host system: **the operator's private run log**.
 
 ## Follow-up (not blocking the grade)

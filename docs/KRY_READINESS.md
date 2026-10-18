@@ -18,7 +18,7 @@ prototype < prototype_plus < internally_consistent < research_grade < production
 | Level | Evidence required | KRY status |
 |---|---|---|
 | internally_consistent | the **synthetic** test suite is fully green | ✅ cleared |
-| research_grade | + agreement **≥ 0.80** with an **independent, non-self-referential** oracle | ✅ **REACHED 2026-06-10** (durable anchor: confirm() 50/50, fresh 52/52 @ 1.00) |
+| research_grade | + agreement **≥ 0.80** with an **independent, non-self-referential** oracle | ✅ **REACHED 2026-06-10** (durable anchor: confirm() within TTL, fresh 52/52 @ 1.00) |
 | production_ready | + validation on an **independent real-world corpus** (real traffic) **+ clean capability audit** | ❌ needs real traffic + counterparty |
 
 **The top label structurally requires external evidence.** That is not pessimism — it
@@ -40,7 +40,7 @@ corpus), so the label correctly stayed `internally_consistent` then. Bundle:
 [`KRY_FIRST_REAL_ANCHOR.md`](KRY_FIRST_REAL_ANCHOR.md).
 
 **Durable anchor → `research_grade` committed (2026-06-10):** the host system wired `confirm()` to the **general**
-acceptance gate, ran 50 real free-OpenRouter displacements under the correctness layer, **confirmed 50/50
+acceptance gate, ran real free-OpenRouter displacements under the correctness layer, **confirmed them
 within the TTL (the stall broken)**, and `kry_research_grade.py --fetch --since <run>` reconciled the
 fresh corpus **52/52 at agreement 1.00 → `research_grade`**. Honest disclosure: graded the fresh-run window
 (`--since`, the documented path); the all-time agreement is ~0.12 only because 14 legacy gen-ids are
@@ -82,9 +82,9 @@ python3 scripts/kry_research_grade.py kry_data/kry_mint_log.jsonl --fetch # need
 
 > **✅ REACHED on real data.** First demonstrated 2026-06-09 (18/18 reconciled, agreement 1.00 — but
 > *unconfirmed/expired*, so veracity-only). Then **committed 2026-06-10**: with `confirm()` wired to the
-> general gate, 50 real free-OpenRouter displacements were **confirmed 50/50 within TTL** and the fresh
+> general gate, real free-OpenRouter displacements were **confirmed within TTL** and the fresh
 > corpus reconciled **52/52 at agreement 1.00 → `research_grade`** (graded the `--since` fresh-run window;
-> all-time ~0.12 is purely OpenRouter-purged legacy gen-ids — un-fetchable, not refuted). Bundles:
+> all-time ~0.12 is dominated by OpenRouter-purged legacy gen-ids — un-fetchable, not refuted). Bundles:
 > [`KRY_FIRST_REAL_ANCHOR.md`](KRY_FIRST_REAL_ANCHOR.md) (the 18) · [`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md) (the durable 52).
 
 - **MVF (pass):** ≥ 80% of T1 receipts reconcile against the provider's record.
@@ -123,7 +123,7 @@ be clean and the real-corpus bar met — **with the out-of-scope items honestly 
 
 KRY is a **committed `research_grade` build** as of **2026-06-10**: a clean, fully-audited base
 (suite green, audit clean, limits disclosed) **plus a durable live anchor** — `confirm()` wired to
-the host system's general acceptance gate, 50 real free-OpenRouter displacements **confirmed 50/50 within TTL**
+the host system's general acceptance gate, real free-OpenRouter displacements **confirmed within TTL**
 (the stall that expired the first 18 is broken), and the fresh corpus reconciled **52/52 against
 OpenRouter's own records at agreement 1.00 ≥ the 0.80 bar** ([`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md)).
 That is the independent, non-self-referential oracle the rung requires, earned per this pre-dated
