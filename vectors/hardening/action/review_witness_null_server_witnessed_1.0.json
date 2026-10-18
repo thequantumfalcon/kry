@@ -1,0 +1,11 @@
+{
+  "id": "review_witness_null_server_witnessed_1.0",
+  "kind": "action_attestation",
+  "description": "Witness null, tier server_witnessed, declared floor 1.0; derived floor 0.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"7ebe81daa06884ef2c4267b53c7c97164fe436956306c59be768a9d1b53e176a\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"7ebe81daa06884ef2c4267b53c7c97164fe436956306c59be768a9d1b53e176a\",\"evidence_tier\":\"server_witnessed\",\"receipt_hash\":\"5dbc89c528db0fa372300790cc92825939fcae0e24e76d1ae543bbbbf013290c\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0}],\"veracity\":{\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a74.4; Annex C witness clarification",
+  "review_group": "witness_matrix"
+}

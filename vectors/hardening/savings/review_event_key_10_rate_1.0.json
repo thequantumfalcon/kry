@@ -1,0 +1,11 @@
+{
+  "id": "review_event_key_10_rate_1.0",
+  "kind": "savings_attestation",
+  "description": "Unknown event 'cach\u00e9_hit' uses exact-key fallback 0.5; chosen rate 1.0.",
+  "input_raw_text": "{\"attestation_hash\":\"f022d71d2ac54ecf52786bc15fac156b990038531c7ef280fd85bfe354a21acd\",\"chain_head\":\"9e240128b59eb3786b170f9a02cbe63098692bc40d2d37301848f28cb1ec60fc\",\"chain_valid\":true,\"event_type_counts\":{\"cach\\u00e9_hit\":1},\"links\":[{\"chain_hash\":\"9e240128b59eb3786b170f9a02cbe63098692bc40d2d37301848f28cb1ec60fc\",\"earn_rate\":1.0,\"event_type\":\"cach\\u00e9_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.4.1; Annex A",
+  "review_group": "event_keys"
+}

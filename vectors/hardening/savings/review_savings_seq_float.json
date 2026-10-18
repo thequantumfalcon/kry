@@ -1,0 +1,11 @@
+{
+  "id": "review_savings_seq_float",
+  "kind": "savings_attestation",
+  "description": "Required integer is the float literal 1.0, contrary to the preserved integer/float distinction.",
+  "input_raw_text": "{\"attestation_hash\":\"74c932c9e912d4112d15a330275e8cba6f90882dae2207335b4130f95fb05948\",\"chain_head\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1.0,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.1 receipts; \u00a73.2 seq; \u00a72.1",
+  "review_group": "integer_schema"
+}

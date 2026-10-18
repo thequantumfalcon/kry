@@ -1,0 +1,13 @@
+{
+  "id": "action_ts_presence_string",
+  "kind": "raw_json",
+  "description": "A action timestamp is string; its hash remains consistent.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"da8f0655f812812879c734749cd9e83c745d7b62e1dd316da0adab557d2aa1d2\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"da8f0655f812812879c734749cd9e83c745d7b62e1dd316da0adab557d2aa1d2\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"93541908d97a9fcf01101e44f5dfba76f96baf7d6a8e858c56dc4be14adfbc35\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":\"x\"}],\"veracity\":{\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "link 0 (ACT-00000000): ts must be a finite JSON number"
+    ],
+    "warnings": []
+  }
+}

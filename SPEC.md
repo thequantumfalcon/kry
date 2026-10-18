@@ -316,6 +316,27 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **Timestamp presence (2026-10-18, owner-approved):** in both profiles, a present `ts`
+  must be a finite JSON number. Null, booleans, strings, arrays and objects are INVALID even
+  in a self-consistently rehashed chain. An absent `ts` retains the existing profile behavior;
+  this clarification adds no presence requirement, including for legacy savings links.
+  The `provider_metered` requirement in §3.4.2 remains unchanged.
+- **Integer literals (2026-10-18, owner decision D1):** integer-typed fields, including
+  `action_hash_version`, `action_count`, `receipts` and savings `seq`, require JSON integer
+  literals. A decimal point or exponent makes a literal a float (§2.1): `1.0` and `1e0` are
+  INVALID in these fields even though they equal `1` numerically. Booleans are not integers.
+- **Duplicate members (2026-10-18, owner decision D2):** when a JSON object repeats a member
+  name, the last member wins in every bundled verifier. Verification and canonicalization use
+  that resulting object, including for anchors. This documents the existing parser behavior.
+- **Anchor helper contract (2026-10-18, owner-approved):** standalone helpers check anchor
+  consistency only; full attestation verification remains a separate required check in an
+  anchored verdict. They reject non-object attestations, non-list `links`, and links that are
+  not objects carrying `seq` and `chain_hash` for savings, or `chain_hash` for actions (whose
+  anchor count addresses list position). An empty chain is consistent with a genesis anchor
+  of count zero, but not with a positive-count anchor. A successful helper result alone is not
+  an attestation-validity claim.
+- **Document size (2026-10-18, owner decision D3):** Annex D adds a 16 MiB raw UTF-8 document
+  limit, independently for attestations and anchors. An oversized input is PARSE_ERROR.
 - **Identifier clarification (2026-10-17, owner decision 2):** non-null `receipt_id` and
   `supersedes` values in §3.2 must be strings. Numbers, booleans, arrays and objects are INVALID even
   in a self-consistent chain and even when no promotion consumes them. An absent or null optional
@@ -336,22 +357,27 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 Both profiles use the same bounded JSON input contract, including optional anchor input:
 
+- At most **16 MiB (16,777,216 bytes)** of UTF-8 JSON text per document, including whitespace
+  and ignored metadata. Count the received bytes, before newline normalization or parsing.
 - At most **64 simultaneously nested objects or arrays**. The root container counts as one;
   scalars do not add a level. Brackets or braces inside strings do not count.
 - An integer literal has at most **640 decimal digits**, excluding its leading minus sign.
   Integer `0` and `-0` each use one digit. This bound does not apply to strings or float literals;
   floats retain the binary64 overflow rejection in §2.1.
 
-Exceeding either limit is **PARSE_ERROR** under §1, before verification or recursive hashing,
-even if the text is otherwise well-formed JSON. An over-limit second input is a malformed anchor
-and makes an anchored verification **INVALID**. APIs receiving already-decoded objects reject
-over-limit values as **INVALID**, with a limit error; the package's boolean API reports a raw-input
-parse failure as `False` with an `invalid JSON` reason. Limits include ignored metadata and apply
-independently to the attestation and anchor.
+An oversized document is **PARSE_ERROR**, including when it is an anchor. Exceeding the nesting
+or integer-digit limit is **PARSE_ERROR** for an attestation; a second input exceeding either
+structural limit remains a malformed anchor and makes anchored verification **INVALID**.
+These checks precede verification or recursive hashing even for otherwise well-formed JSON.
+APIs receiving already-decoded objects reject over-limit nesting and integers as **INVALID**,
+with a limit error. Their original wire size is unavailable, so the byte limit applies to raw
+text and file inputs, not to a reserialization of decoded objects. The package's boolean API
+reports a raw-input parse failure as `False` with an `invalid JSON` reason. Limits include
+ignored metadata and apply independently to the attestation and anchor.
 
 The 64-container limit keeps parsing and canonicalization below the tested runtimes' recursion
 boundaries. The 640-digit limit fits Python's minimum configurable integer-conversion threshold
-without changing process-global settings. This is a deterministic input contract, not a bound on
-total file size, container width, or execution time. Within these limits, the usual type, hash,
+without changing process-global settings. The byte limit bounds document size, not peak memory
+or execution time. Within these limits, the usual type, hash,
 magnitude and anchor checks still decide the verdict; reaching a limit does not itself make a
 document valid.

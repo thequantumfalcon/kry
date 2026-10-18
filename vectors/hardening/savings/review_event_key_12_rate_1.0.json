@@ -1,0 +1,11 @@
+{
+  "id": "review_event_key_12_rate_1.0",
+  "kind": "savings_attestation",
+  "description": "Unknown event '\u0441\u0430che_hit' uses exact-key fallback 0.5; chosen rate 1.0.",
+  "input_raw_text": "{\"attestation_hash\":\"b5f7d834b76e923a47b117379b4c7718a016e0b403b6010932c5f1d36679cb84\",\"chain_head\":\"7d25b0a3f623bdd530d6c03ecb955b9728949d0b3991d48718c70a71cb69f777\",\"chain_valid\":true,\"event_type_counts\":{\"\\u0441\\u0430che_hit\":1},\"links\":[{\"chain_hash\":\"7d25b0a3f623bdd530d6c03ecb955b9728949d0b3991d48718c70a71cb69f777\",\"earn_rate\":1.0,\"event_type\":\"\\u0441\\u0430che_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.4.1; Annex A",
+  "review_group": "event_keys"
+}

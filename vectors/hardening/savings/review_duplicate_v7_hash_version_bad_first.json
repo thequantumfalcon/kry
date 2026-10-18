@@ -1,0 +1,11 @@
+{
+  "id": "review_duplicate_v7_hash_version_bad_first",
+  "kind": "savings_attestation",
+  "description": "Known-open duplicate keys: both parsers use the last value; SPEC supplies no duplicate-key prohibition.",
+  "input_raw_text": "{\"attestation_hash\":\"ff5baa1a1a95e5774fc878948b65fb554bb241876a927a9a7be9b0f06c5d34c8\",\"chain_head\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":8,\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID"
+  },
+  "normative_section": "\u00a72.1 parsed values; known-open duplicate-key policy",
+  "review_group": "duplicate_keys"
+}

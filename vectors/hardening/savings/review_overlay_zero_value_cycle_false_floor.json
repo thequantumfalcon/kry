@@ -1,0 +1,11 @@
+{
+  "id": "review_overlay_zero_value_cycle_false_floor",
+  "kind": "savings_attestation",
+  "description": "Declared floor overstates or understates normative overlay result.",
+  "input_raw_text": "{\"attestation_hash\":\"910bd89db700b19f08c79f6609cde189f061a0c906de06fb3e4d4ebcccc12e17\",\"chain_head\":\"fa1d20d6c13084ca8892828cfe41843ad6692b59fe6ed9df25210fce1b5a5340\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":3},\"links\":[{\"chain_hash\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0},{\"chain_hash\":\"82ed8535b0920d66f5d11e180eedcb0fd0ef381d6746df40489830a0e54831af\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r2\",\"sealed_evidence\":\"\",\"seq\":2,\"supersedes\":\"r3\",\"tokens_saved\":0.0,\"ts\":1700000000.0},{\"chain_hash\":\"fa1d20d6c13084ca8892828cfe41843ad6692b59fe6ed9df25210fce1b5a5340\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tee_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r3\",\"sealed_evidence\":\"\",\"seq\":3,\"supersedes\":\"r2\",\"tokens_saved\":0.0,\"ts\":1700000000.0}],\"receipts\":3,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0.0,\"by_tier\":{\"self_reported\":1000.0,\"tee_attested\":0.0,\"tlsn_attested\":0.0},\"self_reported_kry\":1000.0,\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.7; \u00a73.5",
+  "review_group": "versions_ids_overlay"
+}

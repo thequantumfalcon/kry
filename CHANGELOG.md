@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **B5:** the JS verifier rejected an honest anchored action attestation. Anchored verification
+  now dispatches to the action verifier and checks the action anchor's positional prefix.
+- **N1:** a nested metadata member named `input` truncated the JS corpus runner's anchor
+  extraction. The runner now reads top-level member boundaries while preserving number literals.
+- **S3:** nonnumeric timestamps, including booleans, passed after rehashing. Savings and action
+  links now reject a present nonnumeric `ts`; absent timestamps retain their previous behavior.
+- **S2:** a present action `veracity` value that was not an object was silently ignored. It is
+  now INVALID; an absent optional object remains allowed.
+- **B3:** genesis anchors bypassed malformed-link checks in the standalone anchor helpers.
+  Both helpers now check link shapes and document their consistency-only contract. An empty
+  chain remains consistent with a count-zero genesis anchor; full verification is separate.
+- **B4:** an explicitly empty anchor path silently disabled anchoring. It now fails as an
+  unreadable anchor instead of accepting the attestation alone.
+- **B2:** raw-text corpus vectors bypassed anchor integer limits through JSON number rounding.
+  Both corpus inputs now retain their original numeric literals and parser limits.
+- **S1:** float literals passed integer-typed fields. `action_hash_version`, `action_count`,
+  `receipts` and savings `seq` now require integer literals, as clarified in SPEC Annex C.
+- **S5:** zero-magnitude receipts bypassed the published earn-rate check. Declared magnitude
+  inputs now require the published rate even when zero tokens or zero minted value is involved.
+- **S4:** empty savings attestations could omit the required `links` field. Missing `links`
+  now fails instead of defaulting to an empty list.
+- **B6:** missing CLI arguments produced inconsistent exits or no verdict, and JS treated
+  `--help` as a filename. Argument errors now print INVALID and exit 1; help prints usage and
+  exits 0. JS accepts both positional anchors and `--anchor`.
+
+### Changed
+
+- **D3:** SPEC Annex D limits each raw attestation or anchor document to 16 MiB of UTF-8,
+  including whitespace. Larger inputs return PARSE_ERROR before verification.
+- **D2:** SPEC Annex C documents existing duplicate-member behavior: the last member wins.
+
 ## [0.1.9] - 2026-10-17
 
 ### Fixed

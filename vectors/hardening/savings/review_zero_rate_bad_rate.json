@@ -1,0 +1,11 @@
+{
+  "id": "review_zero_rate_bad_rate",
+  "kind": "savings_attestation",
+  "description": "Declared cache_hit rate differs from Annex A 1.0, despite zero minted amount.",
+  "input_raw_text": "{\"attestation_hash\":\"6f86f16728b33ea98770899fc61e6139695c1f0fad5593e3df4903cb529fa9b7\",\"chain_head\":\"370a34d2cd2b118479f9e84880b17f0914ede880b5e85a34d08df38d7e26df08\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"370a34d2cd2b118479f9e84880b17f0914ede880b5e85a34d08df38d7e26df08\",\"earn_rate\":0.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":0.0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":0.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.4.1 published-rate check; Annex A",
+  "review_group": "zero_magnitude_rate"
+}

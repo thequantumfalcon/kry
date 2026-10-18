@@ -187,6 +187,11 @@ def _json_float(raw: str) -> float:
 # SPEC Annex D: bound nesting before either runtime's recursive JSON parser/hash path.
 _JSON_MAX_DEPTH = 64
 _JSON_MAX_INTEGER_DIGITS = 640
+_JSON_MAX_BYTES = 16 * 1024 * 1024
+
+
+class _JsonSizeError(ValueError):
+    """An oversized document is PARSE_ERROR, including when it is an anchor."""
 
 
 def _check_json_depth(text: str) -> None:
@@ -233,9 +238,23 @@ def _json_int(raw: str) -> int:
 
 
 def _json_loads(text: str):
+    if len(text.encode("utf-8")) > _JSON_MAX_BYTES:
+        raise _JsonSizeError("JSON document size limit exceeded (16 MiB)")
     _check_json_depth(text)
     return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float,
                       parse_int=_json_int)
+
+
+def _read_json(path: str):
+    # Read bytes to count CRLF and multibyte characters exactly, before decoding or parsing.
+    if path == "-":
+        raw = sys.stdin.buffer.read(_JSON_MAX_BYTES + 1)
+    else:
+        with open(path, "rb") as stream:
+            raw = stream.read(_JSON_MAX_BYTES + 1)
+    if len(raw) > _JSON_MAX_BYTES:
+        raise _JsonSizeError("JSON document size limit exceeded (16 MiB)")
+    return _json_loads(raw.decode("utf-8"))
 
 
 def _json_dumps(data: object, **kwargs) -> str:
@@ -265,10 +284,11 @@ def _finite_number(value, field: str, *, positive: bool = False,
 
 
 def _json_integer(value, field: str, *, nonnegative: bool = False) -> int:
-    value = _finite_number(value, field, nonnegative=nonnegative)
-    if not value.is_integer():
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field} must be a JSON integer")
-    return int(value)
+    if nonnegative and value < 0:
+        raise ValueError(f"{field} must be non-negative")
+    return value
 
 
 def _required_string(value, field: str) -> str:
@@ -315,19 +335,19 @@ def _magnitude_errors(link: dict) -> list[str]:
     if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 4 and not declares_inputs:
         return [f"seq {link.get('seq')}: hash_version {hv} link must declare tokens_saved and "
                 f"earn_rate — the legacy exemption covers pre-v4 receipts only"]
-    if ts <= 0 or rate <= 0:
-        if declares_inputs and kry_minted > 0:
-            return [f"seq {link.get('seq')}: kry_minted {kry_minted} with tokens_saved={ts} "
-                    f"/ earn_rate={rate} — magnitude not derivable from declared inputs"]
-        return []
     et = link.get("event_type", "")
     # F3: an UNKNOWN event_type must still use mint's 0.5 fallback rate — reject an arbitrary rate
     # paired with an off-table event_type instead of silently skipping the check.
     pub_rate = _EARN_RATES.get(et, 0.5)
-    if abs(rate - pub_rate) > 1e-6:
+    if declares_inputs and abs(rate - pub_rate) > 1e-6:
         errors.append(
             f"seq {link.get('seq')}: earn_rate {rate} != published {pub_rate} "
             f"for '{et}' — non-standard rate")
+    if ts <= 0 or rate <= 0:
+        if declares_inputs and kry_minted > 0:
+            errors.append(f"seq {link.get('seq')}: kry_minted {kry_minted} with tokens_saved={ts} "
+                          f"/ earn_rate={rate} — magnitude not derivable from declared inputs")
+        return errors
     implied = kry_minted / (ts * rate)
     if not any(abs(implied - m) <= 1e-3 for m in legal_multipliers()):
         errors.append(
@@ -337,8 +357,14 @@ def _magnitude_errors(link: dict) -> list[str]:
 
 
 def _tier_schema_errors(link: dict) -> list[str]:
-    """T1 public links must expose provider token counts used for reconciliation."""
+    """Validate present timestamps and the required T1 billing fields."""
     if link.get("evidence_tier", "self_reported") != "provider_metered":
+        if "ts" not in link:
+            return []
+        try:
+            _finite_number(link.get("ts"), f"seq {link.get('seq')}: ts")
+        except ValueError as exc:
+            return [str(exc)]
         return []
     ts = link.get("ts")
     try:
@@ -367,7 +393,7 @@ def verify_attestation(attestation: dict) -> tuple[bool, list[str]]:
         return False, ["attestation must be a JSON object"]
     if attestation.get("kind") == "kry_action_attestation":
         return False, ["action attestation requires the action verifier"]
-    links = attestation.get("links", [])
+    links = attestation.get("links")
     if not isinstance(links, list):
         errors.append("links must be a JSON list")
         links = []
@@ -788,7 +814,10 @@ def _read_registry(path: str) -> list[dict]:
 
 
 def verify_attestation_against_anchor(attestation: dict, anchor: dict) -> tuple[bool, list[str]]:
-    """A stranger's RE-MINT check. verify_attestation proves the chain is internally consistent;
+    """Anchor consistency only; call verify_attestation separately for full validity.
+    The attestation must be an object with a links list whose objects expose seq and chain_hash.
+    An empty list is consistent with a count-zero genesis anchor, but not a positive count.
+    verify_attestation proves the chain is internally consistent;
     it cannot tell an honest chain from one the operator re-derived from genesis. A chain-head
     anchor {count, tip} the operator PUBLISHED externally closes that gap: the attestation's link
     at seq==count must still have chain_hash==tip. A re-mint of any receipt <= count changes that
@@ -804,6 +833,9 @@ def verify_attestation_against_anchor(attestation: dict, anchor: dict) -> tuple[
     links = attestation.get("links")
     if not isinstance(links, list):
         return False, ["attestation has no links to check against the anchor"]
+    if any(not isinstance(link, dict) or "seq" not in link or "chain_hash" not in link
+           for link in links):
+        return False, ["anchor links must be objects with seq and chain_hash"]
     if not isinstance(anchor, dict) or anchor.get("schema") != "kry_chain_anchor/v1":
         return False, ["anchor must be a kry_chain_anchor/v1 object"]
     count, tip = anchor.get("count"), anchor.get("tip")
@@ -813,7 +845,8 @@ def verify_attestation_against_anchor(attestation: dict, anchor: dict) -> tuple[
         return False, ["anchor.tip must be a 64-char hex chain hash"]
     if count == 0:
         return (tip == _GENESIS), ([] if tip == _GENESIS else ["anchor.count 0 but tip is not genesis"])
-    match = next((ln for ln in links if isinstance(ln, dict) and ln.get("seq") == count), None)
+    match = next((ln for ln in links if isinstance(ln["seq"], int)
+                  and not isinstance(ln["seq"], bool) and ln["seq"] == count), None)
     if match is None:
         return False, [f"attestation has no link at seq {count} — chain shorter than the published "
                        f"anchor (rollback/re-mint/truncation)"]
@@ -834,11 +867,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--registry-anchor", help="path to a PUBLISHED kry_settlement_anchor/v1 JSON; with "
                                              "--registry, detects a settlement-registry rollback (live "
                                              "per-party settled must not drop below the anchored totals)")
-    args = p.parse_args(argv)
+    try:
+        args = p.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code == 0:
+            return 0
+        print("VERDICT: INVALID")
+        return 1
 
     try:
-        with open(args.attestation, encoding="utf-8") as f:
-            att = _json_load(f)
+        att = _read_json(args.attestation)
     except ValueError as exc:
         print("KRY external verification — attestation")
         print("  VERDICT: PARSE_ERROR")
@@ -868,11 +906,14 @@ def main(argv: list[str] | None = None) -> int:
         scope = "attestation"
 
     anchor_line = None
-    if args.anchor:
+    if args.anchor is not None:
         try:
-            with open(args.anchor, encoding="utf-8") as f:
-                anchor = _json_load(f)
+            anchor = _read_json(args.anchor)
             a_ok, a_errs = verify_attestation_against_anchor(att, anchor)
+        except _JsonSizeError as exc:
+            print("VERDICT: PARSE_ERROR")
+            print(f"  - invalid anchor JSON: {exc}")
+            return 1
         except Exception as exc:
             a_ok, a_errs = False, [f"anchor unreadable: {exc}"]
         ok = ok and a_ok
@@ -882,16 +923,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # S7: registry rollback check against a published settlement anchor (out-of-band).
     registry_anchor_line = None
-    if args.registry_anchor:
+    if args.registry_anchor is not None:
         if not args.registry:
             ok = False
             errors = errors + ["registry-anchor: --registry-anchor requires --registry"]
             registry_anchor_line = "FAIL — needs --registry"
         else:
             try:
-                with open(args.registry_anchor, encoding="utf-8") as f:
-                    reg_anchor = _json_load(f)
+                reg_anchor = _read_json(args.registry_anchor)
                 ra_ok, ra_errs = verify_registry_anchor(_read_registry(args.registry), reg_anchor)
+            except _JsonSizeError as exc:
+                print("VERDICT: PARSE_ERROR")
+                print(f"  - invalid registry anchor JSON: {exc}")
+                return 1
             except Exception as exc:
                 ra_ok, ra_errs = False, [f"registry anchor unreadable: {exc}"]
             ok = ok and ra_ok
