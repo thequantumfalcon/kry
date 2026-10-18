@@ -42,8 +42,11 @@ function runVectors(dir) {
       const m = raw.match(/"input":\s*([\s\S]*?),\r?\n\s*"expected"/);   // \r?: a CRLF checkout must not fall back
       inputText = m ? m[1] : JSON.stringify(spec.input);
     }
+    // SPEC 3.8 anchor-profile vectors: hand over the anchor's exact text too, so its literal types and
+    // large integers survive (generate.py writes input_anchor immediately before input).
+    const anchorText = raw.match(/"input_anchor":\s*([\s\S]*?),\r?\n\s*"input"/);
     const got = spec.input_anchor !== undefined
-      ? verdictWithAnchor(inputText, spec.input_anchor)     // SPEC 3.8 anchor-profile vectors
+      ? verdictWithAnchor(inputText, anchorText ? anchorText[1] : spec.input_anchor)
       : verdict(inputText);
     if (got === exp) pass++;
     else { fail++; fails.push(`${v.category}/${v.id}: got ${got}, expected ${exp}`); }
@@ -78,9 +81,31 @@ if (arg === "--vectors") {
   } else {
     console.error(`warning: ${multPath} not found; magnitude checks use the default multiplier set {1.0}`);
   }
-  const text = readFileSync(arg, "utf8");
+  // A verdict is always printed: an unreadable attestation is INVALID (as in the Python CLI), and an
+  // unreadable or malformed anchor is a malformed anchor (SPEC 3.8), not an uncaught exception.
+  let bytes;
+  try { bytes = readFileSync(arg); } catch (e) {
+    console.log("VERDICT: INVALID");
+    console.error(`attestation unreadable: ${e.message}`);
+    process.exit(1);
+  }
+  // JSON text is UTF-8. A lenient decode turns invalid bytes into U+FFFD and verifies a document
+  // that is not the one on disk; ignoreBOM keeps a BOM in the text, where it fails to parse.
+  const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  let text;
+  try { text = utf8.decode(bytes); } catch {
+    console.log("VERDICT: PARSE_ERROR");
+    console.error("attestation is not valid UTF-8");
+    process.exit(1);
+  }
   const anchorPath = process.argv[3];             // SPEC 3.8: optional published-anchor JSON
-  const v = anchorPath ? verdictWithAnchor(text, JSON.parse(readFileSync(anchorPath, "utf8"))) : verdict(text);
+  let anchor = null;                              // passed as TEXT: verify.mjs parses it exactly
+  if (anchorPath) {
+    try { anchor = utf8.decode(readFileSync(anchorPath)); } catch (e) {
+      console.error(`anchor unreadable: ${e.message}`);
+    }
+  }
+  const v = anchorPath ? verdictWithAnchor(text, anchor) : verdict(text);
   console.log("VERDICT: " + v);
   process.exit(v === "VALID" ? 0 : 1);
 } else {

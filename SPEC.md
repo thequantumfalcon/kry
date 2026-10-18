@@ -316,8 +316,42 @@ Tiers: `self_reported` (T0), `server_witnessed` (T1), `attested` (T2). ANCHORED 
 
 ## Annex C — Changelog
 
+- **Identifier clarification (2026-10-17, owner decision 2):** non-null `receipt_id` and
+  `supersedes` values in §3.2 must be strings. Numbers, booleans, arrays and objects are INVALID even
+  in a self-consistent chain and even when no promotion consumes them. An absent or null optional
+  `supersedes` continues to mean no promotion; existing absent/null `receipt_id` normalization is
+  unchanged. No hash version or string-identifier hashing changes.
+- **Verifier input limits (2026-10-17, owner-approved):** Annex D fixes the nesting and integer
+  literal limits shared by both profiles and all bundled verifiers. These limits replace
+  runtime-dependent acceptance of deeply nested JSON and long integers; hashes within the limits
+  are unchanged. For §4.4, an absent witness, `null`, `false`, numeric zero, an empty string, an
+  empty array or an empty object does not count as witness presence.
 - **v1.3 correction (2026-09-19, owner-approved):** reject nonfinite economic inputs, nonnumeric trust summaries, malformed JSON and wrong-profile documents; normalize parsed numeric values and Unicode key order consistently; round large values without intermediate binary rounding; skip unknown-version links in derivations while rejecting the document. This deliberately changes acceptance of inputs previously accepted by a buggy implementation. Equivalent float respellings and correctly rounded large receipts become consistently accepted. No hash version changes; existing vector bytes and verdicts remain unchanged. New cases are additive under `vectors/hardening/`. See [the compatibility decision](docs/VERIFIER_COMPATIBILITY_2026_09_19.md).
 - **v1.3 (2026-08-01):** §3.5 made **derivable**. Three rules that were previously implied or delegated are now stated: (a) a `veracity` key present but not a JSON object is INVALID, and `by_tier` is compared as a map with equal key sets; (b) every §3.5 field (`by_tier`, `anchored_kry`, `self_reported_kry`, `veracity_floor`) MUST be present — an absent one is INVALID, not a skipped check; (c) the numeric comparison tolerance is pinned at **1e-9** as a number, replacing "tolerance as in the reference", with the separately-pinned constants of §3.4.1/§3.7/§4 explicitly excluded. Prompted by a differential-fuzz run whose expanded mutation space (reseal + envelope field deletion) found the two implementations disagreeing on exactly these absent-key cases. Ten vectors added under `vectors/savings/adversarial/`: five pin the absent-key cases (`veracity_{by_tier,anchored_kry,self_reported_kry,veracity_floor}_missing`, `event_type_counts_missing`); `veracity_null` and `veracity_missing` pin rule (a) and the §3.1 presence of `veracity`; `total_kry_missing`, `hash_version_above_range` and `empty_chain_head_not_genesis` pin existing §3.1, §3.4 and §3.6 rules. Additive: every v1.0–v1.2 vector and verdict is unchanged.
 - **v1.2 (2026-07-21):** §3.8 **chain-head anchor profile**: the published `{count, tip}` anchor becomes an optional profile with vectors (`vectors/savings/anchor/` — anchored-valid, trailing-truncation detected, retroactive re-mint detected; the truncation vector verifies VALID standalone, pinning that chain-walking alone cannot see a dropped tail). Anchor vectors carry `input_anchor` as a second verifier input. Additive: every v1.0/v1.1 vector and verdict unchanged.
 - **v1.1 (2026-07-21):** §3.7 promotion overlay promoted from informative to an optional, normatively-specified **profile** with its own vector category (`vectors/savings/overlay/` — one VALID promotion, four adversarial: forward-reference, positive-value promoter, duplicate hash-bound id, double-claim). Non-profile verifiers MUST fail closed on a non-null `supersedes`. Published-anchor semantics remain deferred. Additive: every v1.0 vector and verdict is unchanged.
 - **v1.0 (2026-07-04):** first normative spec. Covers canonical JSON, `canon_f64`, savings v4–v7 chain + magnitude + tier-schema + veracity + envelope verdict, and the action profile. Promotion-overlay/anchor semantics deferred to a later revision (§3.7).
+
+## Annex D — Shared verifier input limits
+
+Both profiles use the same bounded JSON input contract, including optional anchor input:
+
+- At most **64 simultaneously nested objects or arrays**. The root container counts as one;
+  scalars do not add a level. Brackets or braces inside strings do not count.
+- An integer literal has at most **640 decimal digits**, excluding its leading minus sign.
+  Integer `0` and `-0` each use one digit. This bound does not apply to strings or float literals;
+  floats retain the binary64 overflow rejection in §2.1.
+
+Exceeding either limit is **PARSE_ERROR** under §1, before verification or recursive hashing,
+even if the text is otherwise well-formed JSON. An over-limit second input is a malformed anchor
+and makes an anchored verification **INVALID**. APIs receiving already-decoded objects reject
+over-limit values as **INVALID**, with a limit error; the package's boolean API reports a raw-input
+parse failure as `False` with an `invalid JSON` reason. Limits include ignored metadata and apply
+independently to the attestation and anchor.
+
+The 64-container limit keeps parsing and canonicalization below the tested runtimes' recursion
+boundaries. The 640-digit limit fits Python's minimum configurable integer-conversion threshold
+without changing process-global settings. This is a deterministic input contract, not a bound on
+total file size, container width, or execution time. Within these limits, the usual type, hash,
+magnitude and anchor checks still decide the verdict; reaching a limit does not itself make a
+document valid.

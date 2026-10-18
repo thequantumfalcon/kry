@@ -1,0 +1,54 @@
+{
+  "id": "anchor_count_beyond_2_53",
+  "kind": "savings_attestation",
+  "description": "the anchor's count is 2^53+1 and the only candidate link's seq is 2^53 (seq is not hash-bound); the two are equal only after rounding to binary64",
+  "input_anchor": {
+    "schema": "kry_chain_anchor/v1",
+    "count": 9007199254740993,
+    "tip": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27"
+  },
+  "input": {
+    "receipts": 1,
+    "total_kry": 1000.0,
+    "usd_equivalent": 0.025,
+    "chain_head": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 1
+    },
+    "links": [
+      {
+        "seq": 9007199254740992,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "e332a022aadc7b8ec59d57ea6abf6c3a738a4dd43f2d40f8e550fb45c863e027",
+        "chain_hash": "4867b94f5597f957f9c942552cf88291c7530105d75aab22d502f830d56aac27",
+        "sealed_evidence": "92de6c1eae168d73",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 1000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 1000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "614f94901136baa5410e1e1da0c38466692e3a7a75553930efd44aa3679b95ac"
+  },
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "attestation has no link at seq 9007199254740993 \u2014 chain shorter than the published anchor (rollback/re-mint/truncation)"
+    ]
+  },
+  "rationale": "SPEC 3.8: a non-integer count is a malformed anchor, and the matching link's seq must equal count exactly; neither holds, so the anchor check fails."
+}

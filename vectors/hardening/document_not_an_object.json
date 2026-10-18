@@ -1,0 +1,12 @@
+{
+  "id": "document_not_an_object",
+  "kind": "raw_json",
+  "description": "The whole document is a JSON array.",
+  "input_raw_text": "[]",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "attestation must be a JSON object"
+    ]
+  }
+}

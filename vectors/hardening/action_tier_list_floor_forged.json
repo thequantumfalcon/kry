@@ -1,0 +1,13 @@
+{
+  "id": "action_tier_list_floor_forged",
+  "kind": "raw_json",
+  "description": "An action tier that is a list naming server_witnessed, declaring veracity_floor 1.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"203820e9d3b63c6286446b75b56808e80e6135004bbc4954057e38ee39b26796\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"203820e9d3b63c6286446b75b56808e80e6135004bbc4954057e38ee39b26796\",\"evidence_tier\":[\"server_witnessed\"],\"receipt_hash\":\"cc474dbbcbcff06b3ef47435cb8e3347c706aea21cd062f7979c04f20ce446f7\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":\"7265b875feb0d1730ead43d3408195fb5ab0827b46bd185a737c447c51446c3b\",\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0}],\"veracity\":{\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "veracity_floor mismatch: claimed 1.0, re-derived 0.0"
+    ],
+    "warnings": []
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "witness_zero_coerced",
+  "kind": "action_attestation",
+  "description": "Absent witness coerced to self_reported; floor 0.0.",
+  "input": {
+    "kind": "kry_action_attestation",
+    "action_hash_version": 1,
+    "links": [
+      {
+        "receipt_id": "ACT-00000000",
+        "tool": "read_file",
+        "args_commit": "ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c",
+        "result_commit": "2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4",
+        "status": "ok",
+        "ts": 1700000000.0,
+        "agent_id": "agent-A",
+        "evidence_tier": "server_witnessed",
+        "server_evidence_commit": 0,
+        "action_hash_version": 1,
+        "receipt_hash": "50d48d33a3294fc9c237a94a5b24f26022ea61f63aa03689a0de9be658b0dca5",
+        "chain_hash": "c58b6a81b8749c2d56d3257887f69f7a960dfe42891cf016953b39da8d1352cd"
+      }
+    ],
+    "chain_tip": "c58b6a81b8749c2d56d3257887f69f7a960dfe42891cf016953b39da8d1352cd",
+    "action_count": 1,
+    "veracity": {
+      "veracity_floor": 0.0
+    }
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": [],
+    "warnings": [
+      "1 link(s) claimed an anchored tier with NO witness \u2014 coerced to self_reported (not credited to the floor)"
+    ]
+  }
+}

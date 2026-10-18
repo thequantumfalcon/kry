@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Verifier handling of malformed shapes and cross-language types.** The new regressions cover
+  non-object links and documents, overflowing tier totals, surrogate hash inputs, non-string
+  identifiers, boolean counts, and numeric strings. These cases now reject without the observed
+  Python crashes or Python/JavaScript acceptance disagreements. JavaScript preserves integer
+  versus float metered-token literals and exact anchor counts above 2^53. Tests:
+  `tests/test_verifier_hardening_d.py`; additive vectors under `vectors/hardening/` and
+  `vectors/savings/anchor/`.
+- **`verifiers/js` accepted a forged action attestation.** A `server_witnessed` link whose
+  witness was `0`, `0.0`, `[]` or `{}`, declaring `veracity_floor` 1.0, verified VALID in the JS
+  verifier (the hosted page) while Python said INVALID. Zero and empty containers now supply no
+  witness in every verifier. Vectors: `hardening/action_witness_*_floor_forged`.
+- **Direct anchor checks.** The action anchor helper rejects
+  malformed tips and matched links; the savings anchor helper rejects non-object attestations
+  without raising `AttributeError`, including zero-count anchors. Tests:
+  `tests/test_verifier_review_findings.py`.
+- **Shared JSON input limits.** All bundled parsers reject nesting beyond 64 containers and integer
+  literals beyond 640 decimal digits, excluding the minus sign, as `PARSE_ERROR`. Decoded verifier
+  and anchor APIs reject the same over-limit values; malformed second inputs remain `INVALID`.
+  SPEC Annex D documents the limits. Boundary, deep-nesting, long-integer and string-control
+  regressions are in `tests/test_verifier_input_limits.py`.
 - **Research scripts no longer overwrite committed evidence.** Run offline, without an API key or
   with an argument they did not expect, they replaced results under `docs/evidence/` with zeros or
   placeholders and exited 0: `kry_multiturn_prefix_savings.py` rewrote the 0.7096 behind the

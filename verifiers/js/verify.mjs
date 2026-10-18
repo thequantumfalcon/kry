@@ -19,7 +19,24 @@
 class Num {                       // preserves the exact source literal of a number
   constructor(raw) { this.raw = raw; this.val = raw === "-0" ? 0 : Number(raw); }
 }
+// SPEC Annex D: check before native/custom parsing, without counting brackets inside strings.
+const JSON_MAX_DEPTH = 64;
+const JSON_MAX_INTEGER_DIGITS = 640;
+function checkJsonDepth(text) {
+  let depth = 0, inString = false, escaped = false;
+  for (const char of text) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+    } else if (char === '"') inString = true;
+    else if (char === "[" || char === "{") {
+      if (++depth > JSON_MAX_DEPTH) throw new Error("JSON nesting limit exceeded (64)");
+    } else if (char === "]" || char === "}") depth--;
+  }
+}
 function parse(text) {
+  checkJsonDepth(text);
   // Validate strings/escapes with the native JSON parser before preserving numeric types.
   // A permissive string scanner must not turn malformed wire text into a valid document.
   JSON.parse(text);
@@ -45,6 +62,8 @@ function parse(text) {
     while (i < text.length && "0123456789.eE+-".includes(text[i])) i++;
     const raw = text.slice(start, i);
     if (!/^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/.test(raw)) throw new Error("bad number " + raw);
+    if (!/[.eE]/.test(raw) && raw.length - Number(raw.startsWith("-")) > JSON_MAX_INTEGER_DIGITS)
+      throw new Error("JSON integer digit limit exceeded (640)");
     const n = new Num(raw);
     if (/[.eE]/.test(raw) && !Number.isFinite(n.val)) throw new Error("nonfinite JSON float");
     return n;
@@ -136,6 +155,16 @@ function canon(v) {
 // ── SHA-256 (FIPS 180-4, pure JS so it runs in a browser too) ─────────────────
 const _K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
 function sha256(str) {
+  // SPEC 2.1 hashes the UTF-8 bytes of the string. An unpaired surrogate has none; TextEncoder would
+  // substitute U+FFFD, so "\ud800" and "\ufffd" would hash alike. Refuse instead (callers fail closed).
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    if (c >= 0xd800 && c <= 0xdbff) {
+      const d = str.charCodeAt(i + 1);
+      if (d >= 0xdc00 && d <= 0xdfff) { i++; continue; }
+    }
+    if (c >= 0xd800 && c <= 0xdfff) throw new Error("hash input is not valid Unicode (unpaired surrogate)");
+  }
   const msg = new TextEncoder().encode(str);
   const l = msg.length;
   const total = l + 1 + ((56 - (l + 1) % 64 + 64) % 64) + 8;
@@ -295,7 +324,9 @@ function verifySavings(att) {
     }
     if (hv < prevVer) errs.push("version downgrade");
     prevVer = Math.max(prevVer, hv);
-    const expected = hv >= 4 ? sha(`${prev}:${rh}:${publicBlock(link)}`) : sha(`${prev}:${rh}`);
+    let expected;
+    try { expected = hv >= 4 ? sha(`${prev}:${rh}:${publicBlock(link)}`) : sha(`${prev}:${rh}`); }
+    catch (e) { errs.push(`seq ${numval(seq)}: ${e.message}`); prev = ch; continue; }
     if (ch !== expected) errs.push(`seq ${numval(seq)}: chain broken`);
     let tier = get(link, "evidence_tier", "self_reported");
     if (typeof tier !== "string") { errs.push("tier not string"); tier = "self_reported"; }
@@ -303,6 +334,8 @@ function verifySavings(att) {
     // SPEC 3.7 overlay profile: only a HASH-BOUND (v6+) receipt_id may anchor a promotion
     // (a v4/v5 id is mutable); duplicate hash-bound ids make the lookup ambiguous - reject.
     const rid = get(link, "receipt_id");
+    // SPEC 3.2 / Annex C: a non-string id is INVALID even when no overlay uses it.
+    if (rid !== undefined && rid !== null && typeof rid !== "string") errs.push("receipt_id must be a string");
     if (typeof rid === "string" && rid && hv >= 6) {
       if (kryByReceipt.has(rid)) errs.push(`seq ${numval(seq)}: duplicate receipt_id among hash-bound receipts`);
       kryByReceipt.set(rid, [tier, numval(km), pos]);
@@ -310,6 +343,7 @@ function verifySavings(att) {
     // A promotion is a ZERO-value tlsn/tee link with supersedes; a positive-value link keeps
     // its own value only and cannot re-tier the target too (invariant 4).
     const supLink = get(link, "supersedes", null);
+    if (supLink !== null && typeof supLink !== "string") errs.push("supersedes must be a string");
     if ((tier === "tlsn_attested" || tier === "tee_attested") && typeof supLink === "string" && supLink && numval(km) <= 0) promotions.push([supLink, tier, pos]);
     total += numval(km);
     counts[et] = (counts[et] || 0) + 1;
@@ -427,7 +461,9 @@ function tierSchemaErrors(link) {
   if (!isNumLike(get(link, "ts")) || numval(get(link, "ts")) < 0) return ["metered: bad ts"];
   const m = get(link, "metered_tokens");
   if (!Array.isArray(m) || m.length !== 2) return ["metered: missing metered_tokens"];
-  for (const x of m) { if (!(x instanceof Num) || !Number.isInteger(x.val) || x.val < 0) return ["metered: bad tokens"]; }
+  // Integer LITERALS >= 0 (SPEC 3.4.2 with the 2.1 integer/float distinction, as for hash_version):
+  // 100.0 is a float, and an integer too large for a double is still an integer.
+  for (const x of m) { if (!(x instanceof Num) || !/^(-?0|[1-9][0-9]*)$/.test(x.raw)) return ["metered: bad tokens"]; }
   return [];
 }
 const has = (m, k) => (m instanceof Map ? m.has(k) : k in m);
@@ -437,6 +473,10 @@ function cloneWith(m, key, value) { // shallow map clone with one key overridden
 
 // ── action verification (SPEC §4) ─────────────────────────────────────────────
 const ANCHORED_ACTION = new Set(["server_witnessed", "attested"]);
+// SPEC 4.4: witness presence follows Python's JSON-value truthiness. Num(0) and empty
+// arrays/objects are truthy JS objects but cannot raise the reference's anchored floor.
+const witnessPresent = (value) => value instanceof Num ? value.val !== 0
+  : value instanceof Map ? value.size > 0 : Array.isArray(value) ? value.length > 0 : Boolean(value);
 function actionPayload(link) {
   return {
     action_hash_version: new Num("1"),
@@ -459,7 +499,7 @@ function verifyAction(att) {
   let prev = "0".repeat(64); const seen = new Set();
   for (const link of links) {
     if (!(link instanceof Map)) return ["link not an object"];
-    const rid = get(link, "receipt_id", "");
+    const rid = get(link, "receipt_id");          // SPEC 4.3: an ABSENT id is not a string either
     if (typeof rid !== "string") return ["receipt_id not a string"];
     if (seen.has(rid)) return ["duplicate receipt_id"];
     seen.add(rid);
@@ -472,7 +512,7 @@ function verifyAction(att) {
   if (get(att, "chain_tip") !== prev) return ["chain_tip mismatch"];
   if (numval(get(att, "action_count"), -1) !== links.length) return ["action_count mismatch"];
   const total = links.length;
-  const anchored = links.filter((l) => ANCHORED_ACTION.has(get(l, "evidence_tier")) && get(l, "server_evidence_commit")).length;
+  const anchored = links.filter((l) => ANCHORED_ACTION.has(get(l, "evidence_tier")) && witnessPresent(get(l, "server_evidence_commit"))).length;
   const derived = total > 0 ? r4(anchored / total) : 0;
   const _ver = get(att, "veracity");
   const ver = _ver instanceof Map ? _ver : new Map();
@@ -496,18 +536,50 @@ function verdict(rawText) {
 // SPEC 3.8 anchor profile: a stranger's re-mint/truncation check against a PUBLISHED
 // {count, tip} chain-head anchor obtained out-of-band. Only meaningful if the anchor came
 // from the operator's external publication - one handed over at verify time proves nothing.
+function checkValueLimits(value) {
+  // The object-anchor API must not bypass the text parser's limits via ignored metadata.
+  const stack = [[value, 0]];
+  while (stack.length) {
+    const [item, depth] = stack.pop();
+    if (item instanceof Num) {
+      if (!/[.eE]/.test(item.raw) && item.raw.length - Number(item.raw.startsWith("-")) > JSON_MAX_INTEGER_DIGITS)
+        throw new Error("JSON integer digit limit exceeded (640)");
+    } else if (item !== null && typeof item === "object") {
+      if (depth + 1 > JSON_MAX_DEPTH) throw new Error("JSON nesting limit exceeded (64)");
+      const children = item instanceof Map ? item.values() : Object.values(item);
+      for (const child of children) stack.push([child, depth + 1]);
+    }
+  }
+}
 function anchorErrors(att, anchor) {
-  if (typeof anchor !== "object" || anchor === null || Array.isArray(anchor) || anchor.schema !== "kry_chain_anchor/v1") return ["anchor must be a kry_chain_anchor/v1 object"];
-  const { count, tip } = anchor;
-  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) return ["anchor.count must be a non-negative integer"];
-  if (typeof tip !== "string" || tip.length !== 64) return ["anchor.tip must be a 64-char hex chain hash"];
-  if (count === 0) return tip === "0".repeat(64) ? [] : ["anchor.count 0 but tip is not genesis"];
-  const links = get(att, "links", []);
+  try { checkValueLimits(att); checkValueLimits(anchor); } catch (e) { return [e.message]; }
+  const links = att !== null && typeof att === "object" && !Array.isArray(att) ? get(att, "links") : undefined;
   if (!Array.isArray(links)) return ["attestation has no links to check against the anchor"];
-  const match = links.find((ln) => ln instanceof Map && numval(get(ln, "seq"), -1) === count);
-  if (!match) return [`no link at seq ${count} - chain shorter than the published anchor (rollback/re-mint/truncation)`];
-  if (get(match, "chain_hash") !== tip) return [`chain hash at seq ${count} does not match the published anchor - retroactive re-mint detected`];
+  // An anchor parsed from its published TEXT (see anchorInput) keeps literal types and exact integers:
+  // `count` must be an integer literal (3.0 is a float, SPEC 2.1) and is compared to `seq` exactly, so
+  // count 2^53+1 does not match seq 2^53. A plain-object anchor has already lost both distinctions.
+  const isMap = anchor instanceof Map;
+  if (typeof anchor !== "object" || anchor === null || Array.isArray(anchor) || (isMap ? anchor.get("schema") : anchor.schema) !== "kry_chain_anchor/v1") return ["anchor must be a kry_chain_anchor/v1 object"];
+  const count = isMap ? anchor.get("count") : anchor.count, tip = isMap ? anchor.get("tip") : anchor.tip;
+  let want;
+  if (count instanceof Num && /^(-?0|[1-9][0-9]*)$/.test(count.raw)) want = BigInt(count.raw);
+  else if (!isMap && typeof count === "number" && Number.isInteger(count) && count >= 0) want = BigInt(count);
+  else return ["anchor.count must be a non-negative integer"];
+  if (typeof tip !== "string" || tip.length !== 64) return ["anchor.tip must be a 64-char hex chain hash"];
+  if (want === 0n) return tip === "0".repeat(64) ? [] : ["anchor.count 0 but tip is not genesis"];
+  const seqIs = (seq) => (seq instanceof Num && (/^-?(0|[1-9][0-9]*)$/.test(seq.raw) ? BigInt(seq.raw) === want
+    : Number.isInteger(seq.val) && BigInt(seq.val) === want));
+  const match = links.find((ln) => ln instanceof Map && seqIs(get(ln, "seq")));
+  if (!match) return [`no link at seq ${want} - chain shorter than the published anchor (rollback/re-mint/truncation)`];
+  if (get(match, "chain_hash") !== tip) return [`chain hash at seq ${want} does not match the published anchor - retroactive re-mint detected`];
   return [];
+}
+
+// SPEC 3.8: the anchor is a second JSON input. Given its text, parse it like the attestation (literal
+// types, exact integers); an unparsable anchor is a malformed anchor, so INVALID rather than an error.
+function anchorInput(anchor) {
+  if (typeof anchor !== "string") return anchor;
+  try { return parse(anchor); } catch { return null; }
 }
 
 function verdictWithAnchor(rawText, anchor) {
@@ -515,7 +587,7 @@ function verdictWithAnchor(rawText, anchor) {
   try { att = parse(rawText); } catch { return "PARSE_ERROR"; }
   try {
     const errs = verifySavings(att);
-    errs.push(...anchorErrors(att, anchor));
+    errs.push(...anchorErrors(att, anchorInput(anchor)));
     return errs.length === 0 ? "VALID" : "INVALID";
   } catch { return "INVALID"; }   // fail closed on any unexpected shape (SPEC §1)
 }
@@ -528,7 +600,7 @@ function explain(rawText, anchor) {
   try {
     const kind = att instanceof Map ? get(att, "kind") : undefined;
     const errs = kind === "kry_action_attestation" ? verifyAction(att) : verifySavings(att);
-    if (anchor !== undefined && anchor !== null) errs.push(...anchorErrors(att, anchor));
+    if (anchor !== undefined && anchor !== null) errs.push(...anchorErrors(att, anchorInput(anchor)));
     return { verdict: errs.length === 0 ? "VALID" : "INVALID", reasons: errs };
   } catch { return { verdict: "INVALID", reasons: ["unexpected shape (fail closed, SPEC 1)"] }; }
 }
