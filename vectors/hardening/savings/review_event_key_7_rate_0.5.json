@@ -1,0 +1,11 @@
+{
+  "id": "review_event_key_7_rate_0.5",
+  "kind": "savings_attestation",
+  "description": "Unknown event '1e3' uses exact-key fallback 0.5; chosen rate 0.5.",
+  "input_raw_text": "{\"attestation_hash\":\"e437e13bb8d271d668488452a051fe5d82e20889c73bd1e798d930ec55d1ead5\",\"chain_head\":\"3551263f76041604edae3c0102930072c69e715b62459bc320420f09adeb0859\",\"chain_valid\":true,\"event_type_counts\":{\"1e3\":1},\"links\":[{\"chain_hash\":\"3551263f76041604edae3c0102930072c69e715b62459bc320420f09adeb0859\",\"earn_rate\":0.5,\"event_type\":\"1e3\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":500.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":500.0,\"usd_equivalent\":0.0125,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":500.0},\"self_reported_kry\":500.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID"
+  },
+  "normative_section": "\u00a73.4.1; Annex A",
+  "review_group": "event_keys"
+}

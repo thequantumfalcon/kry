@@ -1,0 +1,11 @@
+{
+  "id": "review_overlay_forward_reference_false_floor",
+  "kind": "savings_attestation",
+  "description": "Wrong floor after normative promotion order.",
+  "input_raw_text": "{\"attestation_hash\":\"a9378958c4d79c281bc86c8d984727ed7de78b91bdf336a380de9672c47f5db9\",\"chain_head\":\"271abfb52e022b3b9aea54076158de936a66a9001678719d03fd0bfe9e237017\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"05273b75005dc0af36d366b03b466b0c835a46da50488959cc3536351d878fc3\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"supersedes\":\"r2\",\"tokens_saved\":0.0,\"ts\":1700000000.0},{\"chain_hash\":\"271abfb52e022b3b9aea54076158de936a66a9001678719d03fd0bfe9e237017\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r2\",\"sealed_evidence\":\"\",\"seq\":2,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":2,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0.0,\"by_tier\":{\"self_reported\":1000.0,\"tlsn_attested\":0.0},\"self_reported_kry\":1000.0,\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.7; \u00a73.5",
+  "review_group": "versions_ids_overlay"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "savings_ts_presence_boolean",
+  "kind": "raw_json",
+  "description": "A savings timestamp is boolean; its hash remains consistent.",
+  "input_raw_text": "{\"attestation_hash\":\"b017919b5ddcdc992e96d8083c9fd9ad8f739aa7aff8c9ea2c719dc1cf15377e\",\"chain_head\":\"3fa589bc61a1ec6c132279ed3f55437e9f208cfdc91730aea3f40d96b1d6506c\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"3fa589bc61a1ec6c132279ed3f55437e9f208cfdc91730aea3f40d96b1d6506c\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"a9c2a5dc3c9e3968a253cce2dddc2982bd9ff83bf045c3fddec9233c1939e7e9\",\"receipt_id\":\"KRY-00000001\",\"sealed_evidence\":\"f8122f38e1d38967\",\"seq\":1,\"supersedes\":null,\"tokens_saved\":1000.0,\"ts\":true}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":1000.0},\"self_reported_kry\":1000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID",
+    "reasons": [
+      "seq 1: ts must be a finite JSON number"
+    ]
+  }
+}

@@ -3,10 +3,25 @@
 //   node cli.mjs <attestation.json>              # verify one; prints VALID/INVALID, exit 0/1
 //   node cli.mjs --vectors <dir>                 # run the whole conformance corpus
 //   node cli.mjs --batch <ndjson> [mult.json]    # one verdict per line (differential fuzz)
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, readSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verdict, verdictWithAnchor, canon, canonF64, parse, Num, setMultipliers, SENT_SAVINGS } from "./verify.mjs";
+import { verdict, verdictWithAnchor, extractVector, canon, canonF64, parse, Num, setMultipliers, SENT_SAVINGS, JSON_MAX_BYTES, JsonSizeError } from "./verify.mjs";
+
+function readDocument(path) {
+  const fd = path === "-" ? 0 : openSync(path, "r"), chunks = [];
+  let size = 0;
+  try {
+    while (true) {
+      const chunk = Buffer.alloc(Math.min(65536, JSON_MAX_BYTES + 1 - size));
+      const count = readSync(fd, chunk);
+      if (!count) return Buffer.concat(chunks, size);
+      size += count;
+      if (size > JSON_MAX_BYTES) throw new JsonSizeError("JSON document size limit exceeded (16 MiB)");
+      chunks.push(chunk.subarray(0, count));
+    }
+  } finally { if (path !== "-") closeSync(fd); }
+}
 
 function runVectors(dir) {
   const man = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
@@ -32,21 +47,10 @@ function runVectors(dir) {
   for (const v of man.vectors) {
     if (v.category.startsWith("primitives")) continue;
     const raw = readFileSync(join(dir, v.category, v.id + ".json"), "utf8");
-    const spec = JSON.parse(raw);
+    const { spec, inputText, anchorText } = extractVector(raw);
     const exp = spec.expected.verdict;
-    let inputText;
-    if (spec.input_raw_text !== undefined) {
-      inputText = spec.input_raw_text;
-    } else {
-      // re-extract the exact input JSON text so numbers are preserved verbatim
-      const m = raw.match(/"input":\s*([\s\S]*?),\r?\n\s*"expected"/);   // \r?: a CRLF checkout must not fall back
-      inputText = m ? m[1] : JSON.stringify(spec.input);
-    }
-    // SPEC 3.8 anchor-profile vectors: hand over the anchor's exact text too, so its literal types and
-    // large integers survive (generate.py writes input_anchor immediately before input).
-    const anchorText = raw.match(/"input_anchor":\s*([\s\S]*?),\r?\n\s*"input"/);
     const got = spec.input_anchor !== undefined
-      ? verdictWithAnchor(inputText, anchorText ? anchorText[1] : spec.input_anchor)
+      ? verdictWithAnchor(inputText, anchorText)
       : verdict(inputText);
     if (got === exp) pass++;
     else { fail++; fails.push(`${v.category}/${v.id}: got ${got}, expected ${exp}`); }
@@ -56,10 +60,22 @@ function runVectors(dir) {
   return fail === 0;
 }
 
-const arg = process.argv[2];
+const usage = "usage: node cli.mjs <attestation.json> [anchor.json | --anchor <anchor.json>] | --vectors <dir> | --batch <ndjson> [mult.json]";
+function argumentError(message) {
+  console.log("VERDICT: INVALID");
+  console.error(message + "\n" + usage);
+  process.exit(1);
+}
+const args = process.argv.slice(2), arg = args[0];
+if (args.includes("--help") || args.includes("-h")) {
+  console.log(usage);
+  process.exit(0);
+}
 if (arg === "--vectors") {
-  process.exit(runVectors(process.argv[3]) ? 0 : 1);
+  if (args.length !== 2 || !args[1]) argumentError("--vectors requires a directory");
+  process.exit(runVectors(args[1]) ? 0 : 1);
 } else if (arg === "--batch") {
+  if (args.length < 2 || args.length > 3 || !args[1]) argumentError("--batch requires an ndjson path and an optional multiplier path");
   if (process.argv[4]) {
     try { setMultipliers(JSON.parse(readFileSync(process.argv[4], "utf8")).multipliers); } catch { /* default */ }
   }
@@ -73,6 +89,20 @@ if (arg === "--vectors") {
   }
   process.stdout.write(out.join("\n") + "\n");
 } else if (arg) {
+  if (arg !== "-" && arg.startsWith("-")) argumentError("unknown argument: " + arg);
+  let anchorPath;
+  if (args.length > 1) {
+    if (args[1] === "--anchor") {
+      if (args.length !== 3 || args[2].startsWith("--")) argumentError("--anchor requires a path");
+      anchorPath = args[2];
+    } else if (args[1].startsWith("--anchor=")) {
+      if (args.length !== 2) argumentError("unexpected extra argument");
+      anchorPath = args[1].slice("--anchor=".length);
+    } else {
+      if (args.length !== 2 || (args[1] !== "-" && args[1].startsWith("-"))) argumentError("unexpected argument");
+      anchorPath = args[1];
+    }
+  }
   // SPEC 3.4.1: magnitude checks MUST use the published multiplier set. Load it from this checkout's
   // corpus, as --vectors does; without it verify.mjs falls back to {1.0} and rejects real attestations.
   const multPath = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "vectors", "primitives", "legal_multipliers.json");
@@ -84,8 +114,8 @@ if (arg === "--vectors") {
   // A verdict is always printed: an unreadable attestation is INVALID (as in the Python CLI), and an
   // unreadable or malformed anchor is a malformed anchor (SPEC 3.8), not an uncaught exception.
   let bytes;
-  try { bytes = readFileSync(arg); } catch (e) {
-    console.log("VERDICT: INVALID");
+  try { bytes = readDocument(arg); } catch (e) {
+    console.log("VERDICT: " + (e instanceof JsonSizeError ? "PARSE_ERROR" : "INVALID"));
     console.error(`attestation unreadable: ${e.message}`);
     process.exit(1);
   }
@@ -98,16 +128,20 @@ if (arg === "--vectors") {
     console.error("attestation is not valid UTF-8");
     process.exit(1);
   }
-  const anchorPath = process.argv[3];             // SPEC 3.8: optional published-anchor JSON
   let anchor = null;                              // passed as TEXT: verify.mjs parses it exactly
-  if (anchorPath) {
-    try { anchor = utf8.decode(readFileSync(anchorPath)); } catch (e) {
+  if (anchorPath !== undefined) {
+    try { anchor = utf8.decode(readDocument(anchorPath)); } catch (e) {
+      if (e instanceof JsonSizeError) {
+        console.log("VERDICT: PARSE_ERROR");
+        console.error(e.message);
+        process.exit(1);
+      }
       console.error(`anchor unreadable: ${e.message}`);
     }
   }
-  const v = anchorPath ? verdictWithAnchor(text, anchor) : verdict(text);
+  const v = anchorPath !== undefined ? verdictWithAnchor(text, anchor) : verdict(text);
   console.log("VERDICT: " + v);
   process.exit(v === "VALID" ? 0 : 1);
 } else {
-  console.log("usage: node cli.mjs <attestation.json> [anchor.json] | --vectors <dir> | --batch <ndjson> [mult.json]");
+  argumentError("an attestation path is required");
 }

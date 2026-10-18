@@ -6,7 +6,8 @@
   "expected": {
     "verdict": "INVALID",
     "reasons": [
-      "seq 1: chain link broken \u2014 receipt inserted/removed/altered"
+      "seq 1: chain link broken \u2014 receipt inserted/removed/altered",
+      "seq 1: ts must be a finite JSON number"
     ]
   }
 }

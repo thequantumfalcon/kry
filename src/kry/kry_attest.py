@@ -97,6 +97,11 @@ def _json_float(raw: str) -> float:
 # SPEC Annex D: bound nesting before either runtime's recursive JSON parser/hash path.
 _JSON_MAX_DEPTH = 64
 _JSON_MAX_INTEGER_DIGITS = 640
+_JSON_MAX_BYTES = 16 * 1024 * 1024
+
+
+class _JsonSizeError(ValueError):
+    """An oversized raw document is a parse failure before verification."""
 
 
 def _check_json_depth(text: str) -> None:
@@ -128,6 +133,8 @@ def _json_int(raw: str) -> int:
 
 
 def _json_loads(text: str):
+    if len(text.encode("utf-8")) > _JSON_MAX_BYTES:
+        raise _JsonSizeError("JSON document size limit exceeded (16 MiB)")
     _check_json_depth(text)
     return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float,
                       parse_int=_json_int)
@@ -157,10 +164,11 @@ def _finite_number(value, field: str, *, nonnegative: bool = False) -> float:
 
 
 def _json_integer(value, field: str, *, nonnegative: bool = False) -> int:
-    value = _finite_number(value, field, nonnegative=nonnegative)
-    if not value.is_integer():
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field} must be a JSON integer")
-    return int(value)
+    if nonnegative and value < 0:
+        raise ValueError(f"{field} must be non-negative")
+    return value
 
 
 def _required_string(value, field: str) -> str:
@@ -224,8 +232,14 @@ def _seal(evidence_hash: str) -> str:
 
 
 def _tier_schema_errors(link: dict) -> list[str]:
-    """T1 public links must expose provider token counts used for reconciliation."""
+    """Validate present timestamps and the required T1 billing fields."""
     if link.get("evidence_tier", "self_reported") != "provider_metered":
+        if "ts" not in link:
+            return []
+        try:
+            _finite_number(link.get("ts"), f"seq {link.get('seq')}: ts")
+        except ValueError as exc:
+            return [str(exc)]
         return []
     ts = link.get("ts")
     try:
@@ -269,12 +283,6 @@ def _magnitude_errors(link: dict) -> list[str]:
     if isinstance(hv, int) and not isinstance(hv, bool) and hv >= 4 and not declares_inputs:
         return [f"seq {seq}: hash_version {hv} link must declare tokens_saved and earn_rate — "
                 f"the legacy exemption covers pre-v4 receipts only"]
-    if tokens_saved <= 0 or earn_rate <= 0:
-        if declares_inputs and kry_minted > 0:
-            errors.append(
-                f"seq {seq}: kry_minted {kry_minted} with tokens_saved={tokens_saved} / "
-                f"earn_rate={earn_rate} — magnitude not derivable from declared inputs")
-        return errors
     try:
         from kry.kry_mint import _EARN_RATES
         from kry.kry_token import published_multipliers
@@ -284,10 +292,16 @@ def _magnitude_errors(link: dict) -> list[str]:
     # F3: an UNKNOWN event_type must still use mint's 0.5 fallback rate — reject an arbitrary rate
     # paired with an off-table event_type instead of silently skipping the check.
     published_rate = _EARN_RATES.get(event_type, 0.5)
-    if abs(earn_rate - published_rate) > 1e-6:
+    if declares_inputs and abs(earn_rate - published_rate) > 1e-6:
         errors.append(
             f"seq {seq}: earn_rate {earn_rate} != published {published_rate} "
             f"for '{event_type}' — non-standard rate")
+    if tokens_saved <= 0 or earn_rate <= 0:
+        if declares_inputs and kry_minted > 0:
+            errors.append(
+                f"seq {seq}: kry_minted {kry_minted} with tokens_saved={tokens_saved} / "
+                f"earn_rate={earn_rate} — magnitude not derivable from declared inputs")
+        return errors
     implied = kry_minted / (tokens_saved * earn_rate)
     if not any(abs(implied - m) <= 1e-3 for m in set(published_multipliers().values())):
         errors.append(
@@ -449,7 +463,7 @@ def verify_attestation(attestation_json: str) -> tuple[bool, list[str]]:
     tier_kry: dict[str, float] = {}
     promotions: list = []      # F5: (superseded_receipt_id, promoting_tier) — reproduce the overlay
     kry_by_receipt: dict = {}  # receipt_id -> (tier, kry), so the declared overlaid by_tier is verifiable
-    links = data.get("links", [])
+    links = data.get("links")
     if not isinstance(links, list):
         errors.append("links must be a JSON list")
         links = []

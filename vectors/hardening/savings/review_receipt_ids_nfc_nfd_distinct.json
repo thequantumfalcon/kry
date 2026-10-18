@@ -1,0 +1,11 @@
+{
+  "id": "review_receipt_ids_nfc_nfd_distinct",
+  "kind": "savings_attestation",
+  "description": "Receipt IDs compare exact string values; duplicate hash-bound identifiers forbidden.",
+  "input_raw_text": "{\"attestation_hash\":\"30bf18387cdbd89ca4958eb7363cb2a63b2b905b27dd4b621fb2ec87339bb3dc\",\"chain_head\":\"703d6d86cb396b851c5f1c8c9768570eecd02f916946ae94d31c39511972723c\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"9ceb835d41dbad46c20b87c6b3d1c719d4af8f1b1709da377e8bd91c27a07461\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"\\u00e9\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0},{\"chain_hash\":\"703d6d86cb396b851c5f1c8c9768570eecd02f916946ae94d31c39511972723c\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"e\\u0301\",\"sealed_evidence\":\"\",\"seq\":2,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":2,\"total_kry\":2000.0,\"usd_equivalent\":0.05,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":2000.0},\"self_reported_kry\":2000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID"
+  },
+  "normative_section": "\u00a73.4 receipt-id uniqueness",
+  "review_group": "versions_ids_overlay"
+}

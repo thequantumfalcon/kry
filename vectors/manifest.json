@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 124,
+  "count": 389,
   "vectors": [
     {
       "id": "canon_f64",
@@ -621,6 +621,1331 @@
       "id": "integer_641_digits_negative",
       "category": "hardening",
       "verdict": "PARSE_ERROR"
+    },
+    {
+      "id": "review_missing_links_empty",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_281",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_282",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_283",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_284",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_285",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_rehashed_ts_286",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_rate_4",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_rate_5",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_rate_6",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_rate_7",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_count_float",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_hash_version_float",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_ids_duplicate",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_ids_nfc_nfd",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_action_nonobject_veracity_0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_nonobject_veracity_1",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_nonobject_veracity_2",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_nonobject_veracity_3",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_action_nonobject_veracity_4",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v4_evidence_tier_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v4_evidence_tier_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v4_hash_version_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v4_hash_version_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v4_tokens_saved_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v4_tokens_saved_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v4_veracity_floor_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v4_veracity_floor_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v7_evidence_tier_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v7_evidence_tier_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v7_hash_version_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v7_hash_version_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v7_tokens_saved_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v7_tokens_saved_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_duplicate_v7_veracity_floor_bad_first",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_duplicate_v7_veracity_floor_bad_last",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_0_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_0_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_10_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_10_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_11_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_11_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_12_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_12_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_1_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_1_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_2_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_2_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_3_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_3_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_4_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_4_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_5_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_5_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_6_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_6_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_7_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_7_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_8_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_8_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_event_key_9_rate_0.5",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_event_key_9_rate_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_forged_anchored_kry",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_forged_by_tier",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_forged_self_reported_kry",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_forged_veracity_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_honest_savings",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_known_action_receipt_id_unbound",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_known_historical_wildchat_invalid",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_mixed_versions_1_3_4_7",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_mixed_versions_4_1",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_mixed_versions_4_5_6_7",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_mixed_versions_7_6",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_backward_promotion",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_backward_promotion_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_duplicate_promotions",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_duplicate_promotions_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_forward_reference",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_forward_reference_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_legacy_id_collision",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_legacy_id_collision_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_self_reference",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_self_reference_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_overlay_zero_value_cycle",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_overlay_zero_value_cycle_false_floor",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_receipt_ids_duplicate",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_receipt_ids_nfc_nfd_distinct",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_receipt_ids_zero_width_distinct",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_savings_missing_chain_head",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_missing_links",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_nonnumeric_ts_0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_nonnumeric_ts_1",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_nonnumeric_ts_2",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_nonnumeric_ts_3",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_nonnumeric_ts_4",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_receipts_float",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_savings_seq_float",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_supersedes_cycle_positive_links",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_0_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_0_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_10_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_10_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_11_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_11_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_12_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_12_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_13_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_13_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_14_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_14_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_1_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_1_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_2_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_2_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_3_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_3_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_4_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_4_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_5_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_5_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_6_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_6_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_7_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_7_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_8_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_8_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_tier_key_9_floor_0.0",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_tier_key_9_floor_1.0",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_absent_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_absent_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_absent_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_absent_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_absent_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_absent_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayempty_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayempty_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arrayempty_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arrayempty_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayempty_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayempty_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arraynull_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arraynull_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arraynull_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arraynull_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arraynull_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arraynull_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arrayzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arrayzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_arrayzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_arrayzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyarray_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyarray_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptyarray_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyarray_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptyarray_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyarray_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptyobject_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyobject_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptyobject_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyobject_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptyobject_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptyobject_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptystring_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptystring_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptystring_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptystring_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_emptystring_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_emptystring_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_false_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_false_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_false_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_false_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_false_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_false_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_floatzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_floatzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_floatzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_floatzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_floatzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_floatzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_intzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_intzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_intzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_intzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_intzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_intzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_negativezero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_negativezero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_negativezero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_negativezero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_negativezero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_negativezero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_null_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_null_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_null_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_null_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_null_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_null_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectnull_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectnull_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_objectnull_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_objectnull_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectnull_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectnull_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_objectzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_objectzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_objectzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_objectzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_space_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_space_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_space_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_space_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_space_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_space_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfalse_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfalse_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfalse_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfalse_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfalse_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfalse_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringfloatzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringzero_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringzero_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringzero_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_stringzero_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringzero_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_stringzero_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_tiny_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_tiny_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_tiny_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_tiny_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_tiny_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_tiny_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_true_attested_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_true_attested_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_true_self_reported_0.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_witness_true_self_reported_1.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_true_server_witnessed_0.0",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_witness_true_server_witnessed_1.0",
+      "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_zero_rate_bad_rate",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_tokens_bad_rate",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_zero_tokens_fallback_rate",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "review_anchor_nested_input_key_breaks_extraction",
+      "category": "hardening/anchor",
+      "verdict": "VALID"
+    },
+    {
+      "id": "review_anchor_raw_text_integer_limit_bypass",
+      "category": "hardening/anchor",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_null",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_presence_null",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_list",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_presence_list",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_object",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_presence_object",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_string",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_presence_string",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_boolean",
+      "category": "hardening/savings",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "action_ts_presence_boolean",
+      "category": "hardening/action",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "savings_ts_presence_absent",
+      "category": "hardening/savings",
+      "verdict": "VALID"
+    },
+    {
+      "id": "action_ts_presence_absent",
+      "category": "hardening/action",
+      "verdict": "VALID"
     }
   ]
 }

@@ -55,6 +55,11 @@ def _json_float(raw: str) -> float:
 # SPEC Annex D: bound nesting before either runtime's recursive JSON parser/hash path.
 _JSON_MAX_DEPTH = 64
 _JSON_MAX_INTEGER_DIGITS = 640
+_JSON_MAX_BYTES = 16 * 1024 * 1024
+
+
+class _JsonSizeError(ValueError):
+    """An oversized document is PARSE_ERROR, including when it is an anchor."""
 
 
 def _check_json_depth(text: str) -> None:
@@ -101,9 +106,23 @@ def _json_int(raw: str) -> int:
 
 
 def _json_loads(text: str):
+    if len(text.encode("utf-8")) > _JSON_MAX_BYTES:
+        raise _JsonSizeError("JSON document size limit exceeded (16 MiB)")
     _check_json_depth(text)
     return json.loads(text, parse_constant=_reject_json_constant, parse_float=_json_float,
                       parse_int=_json_int)
+
+
+def _read_json(path: str):
+    # Read bytes to count CRLF and multibyte characters exactly, before decoding or parsing.
+    if path == "-":
+        raw = sys.stdin.buffer.read(_JSON_MAX_BYTES + 1)
+    else:
+        with open(path, "rb") as stream:
+            raw = stream.read(_JSON_MAX_BYTES + 1)
+    if len(raw) > _JSON_MAX_BYTES:
+        raise _JsonSizeError("JSON document size limit exceeded (16 MiB)")
+    return _json_loads(raw.decode("utf-8"))
 
 
 def _canon(value) -> str:
@@ -169,7 +188,7 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
         errors.append(f"not an action attestation (kind={att.get('kind')!r})")
         return False, errors, warnings
     hv = att.get("action_hash_version")
-    if isinstance(hv, bool) or hv != ACTION_HASH_VERSION:   # True == 1 in Python, not in JSON
+    if isinstance(hv, bool) or not isinstance(hv, int) or hv != ACTION_HASH_VERSION:
         errors.append(f"unsupported action_hash_version {hv} (this verifier: {ACTION_HASH_VERSION})")
         return False, errors, warnings
 
@@ -212,6 +231,9 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
         # ts is bound (so it can't be silently changed) but real systems can record
         # slightly out-of-order timestamps under concurrency: WARN, don't fail.
         ts = link.get("ts")
+        if "ts" in link and _canon_f64(ts) == _V5_BAD:
+            errors.append(f"link {i} ({rid}): ts must be a finite JSON number")
+            return False, errors, warnings
         if isinstance(ts, (int, float)) and last_ts is not None and ts < last_ts:
             warnings.append(f"link {i} ({rid}): ts goes backwards "
                             "(allowed under concurrency; the chain still fixes order)")
@@ -224,7 +246,7 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
         errors.append(f"chain_tip mismatch: declared {declared_tip}, re-derived {prev}")
         return False, errors, warnings
     action_count = att.get("action_count")
-    if isinstance(action_count, bool) or action_count != len(links):   # True == 1 in Python only
+    if isinstance(action_count, bool) or not isinstance(action_count, int) or action_count != len(links):
         errors.append(f"action_count mismatch: declared {att.get('action_count')}, got {len(links)}")
         return False, errors, warnings
 
@@ -238,10 +260,9 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
         warnings.append(f"{coerced} link(s) claimed an anchored tier with NO witness — "
                         "coerced to self_reported (not credited to the floor)")
     derived_floor = round(anchored / total, 4) if total > 0 else 0.0
-    # A non-dict `veracity` (e.g. an int/string from a tampered attestation) is ignored, not
-    # crashed on — same isinstance-guard the savings verifier (kry_verify) uses. `... or {}`
-    # alone mishandled a TRUTHY non-dict (e.g. veracity=1 -> (1).get(...) AttributeError).
     _v = att.get("veracity")
+    if "veracity" in att and not isinstance(_v, dict):
+        return False, ["veracity must be a JSON object"], warnings
     v = _v if isinstance(_v, dict) else {}
     claimed = v.get("veracity_floor")
     if "veracity_floor" in v:
@@ -263,8 +284,11 @@ def verify_action_attestation(att: dict) -> tuple[bool, list[str], list[str]]:
 
 
 def verify_against_anchor(att: dict, anchor: dict) -> tuple[bool, list[str]]:
-    """The published anchor closes the re-mint hole: a chain re-minted from genesis
-    verifies clean on its own, but cannot reproduce a tip the operator published before."""
+    """Anchor consistency only; call verify_action_attestation separately for full validity.
+    The attestation must be an object with a links list whose objects expose chain_hash.
+    Links are addressed by position, without seq. An empty list is consistent with a
+    count-zero genesis anchor, but not a positive count.
+    A re-minted chain cannot reproduce a tip the operator published before."""
     errors: list[str] = []
     try:
         _check_value_limits(att)
@@ -286,6 +310,8 @@ def verify_against_anchor(att: dict, anchor: dict) -> tuple[bool, list[str]]:
     if not isinstance(links, list):
         errors.append("attestation has no links list to check against the anchor")
         return False, errors
+    if any(not isinstance(link, dict) or "chain_hash" not in link for link in links):
+        return False, ["anchor links must be objects with chain_hash"]
     if isinstance(a_count, bool) or not isinstance(a_count, int) or a_count < 0:
         errors.append("anchor count missing/invalid")
         return False, errors
@@ -309,15 +335,20 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="kry action-chain external verifier (stdlib-only)")
     p.add_argument("attestation", help="path to an action attestation JSON")
     p.add_argument("--anchor", help="path to a PUBLISHED {count, chain_tip} anchor (re-mint detection)")
-    args = p.parse_args(argv)
+    try:
+        args = p.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code == 0:
+            return 0
+        print("VERDICT: INVALID")
+        return 1
 
     # JSON is UTF-8: an implicit locale read (cp1252 on Windows) mangles a raw non-ASCII field and
     # reports a VALID attestation as a receipt_hash mismatch.
     # SPEC §4.3: malformed JSON, NaN/Infinity or an overflowing float is PARSE_ERROR, and a document
     # that is not an object is INVALID; neither may escape as a traceback.
     try:
-        with open(args.attestation, encoding="utf-8") as fh:
-            att = _json_loads(fh.read())
+        att = _read_json(args.attestation)
     except ValueError as exc:
         print("kry action-chain external verification")
         print("  VERDICT: PARSE_ERROR")
@@ -349,10 +380,13 @@ def main(argv: list[str] | None = None) -> int:
     if bt:
         print(f"  by tier:         {bt}")
 
-    if args.anchor:
+    if args.anchor is not None:
         try:
-            with open(args.anchor, encoding="utf-8") as fh:
-                anchor = _json_loads(fh.read())
+            anchor = _read_json(args.anchor)
+        except _JsonSizeError as exc:
+            print("  VERDICT: PARSE_ERROR")
+            print(f"    - invalid anchor JSON: {exc}")
+            return 1
         except Exception as exc:      # an unreadable or malformed anchor fails the check, not the CLI
             a_ok, a_errors = False, [f"anchor unreadable: {exc}"]
         else:

@@ -1,0 +1,11 @@
+{
+  "id": "review_receipt_ids_duplicate",
+  "kind": "savings_attestation",
+  "description": "Receipt IDs compare exact string values; duplicate hash-bound identifiers forbidden.",
+  "input_raw_text": "{\"attestation_hash\":\"6f60a1c269e3d8127b89a7274bca4d712fb677a1beebe35aa7d7aa675e50196a\",\"chain_head\":\"ac9c0507693b5e119cc9becd760f735b4f745f591e95a5e8eacd1ac97890aca5\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"cd912f6953f17d45d5e54f05f0713aad178c22e1fe2c75149906d180bb93dc3a\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"same\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0},{\"chain_hash\":\"ac9c0507693b5e119cc9becd760f735b4f745f591e95a5e8eacd1ac97890aca5\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"same\",\"sealed_evidence\":\"\",\"seq\":2,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":2,\"total_kry\":2000.0,\"usd_equivalent\":0.05,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":2000.0},\"self_reported_kry\":2000.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.4 receipt-id uniqueness",
+  "review_group": "versions_ids_overlay"
+}

@@ -3,7 +3,8 @@
 
 Every vector's expected canonical bytes / hashes / verdict is produced by importing
 the shipping implementation (src/kry + scripts/kry_verify + scripts/kry_action_verify),
-so the corpus cannot drift from the code. Regenerate with:
+except the independent raw review cases, whose fixed verdicts are checked against it.
+Regenerate with:
 
     PYTHONPATH=src python3 vectors/generate.py
 
@@ -966,6 +967,59 @@ def gen_hardening() -> None:
                  "VALID" if digits == 640 else "PARSE_ERROR")
 
 
+def gen_review_cases() -> None:
+    """Keep independently specified raw inputs, then verify their expected verdicts."""
+    seeds = OUT / "hardening" / "review_cases.ndjson"
+    for line in seeds.read_text(encoding="utf-8").splitlines():
+        vector = json.loads(line)
+        raw = vector["input_raw_text"]
+        action = False
+        try:
+            att = kv._json_loads(raw)
+        except ValueError:
+            actual = "PARSE_ERROR"
+        else:
+            action = isinstance(att, dict) and att.get("kind") == "kry_action_attestation"
+            result = kav.verify_action_attestation(att) if action else kv.verify_attestation(att)
+            actual = "VALID" if result[0] else "INVALID"
+            if "input_anchor" in vector:
+                try:
+                    anchor = kv._json_loads(canon(vector["input_anchor"]))
+                except ValueError:
+                    actual = "INVALID"
+                else:
+                    check = kav.verify_against_anchor if action else kv.verify_attestation_against_anchor
+                    if not check(att, anchor)[0]:
+                        actual = "INVALID"
+        assert actual == vector["expected"]["verdict"], (vector["id"], actual)
+        profile = "anchor" if "input_anchor" in vector else ("action" if action else "savings")
+        write(f"hardening/{profile}", vector["id"], vector)
+
+
+def gen_timestamp_presence() -> None:
+    """Present nonnumbers fail; omitting the timestamp preserves legacy behavior."""
+    base = build([{**CACHE, "detail": "timestamp presence", "evidence": "u-timestamp-presence"}])
+    for label, value in (("null", None), ("list", []), ("object", {}), ("string", "x"),
+                         ("boolean", True), ("absent", None)):
+        savings = copy.deepcopy(base)
+        savings["links"][0]["ts"] = value
+        rechain(savings)
+        link, _ = act_link(0, GENESIS, ts=value)
+        if label == "absent":
+            del savings["links"][0]["ts"]
+            reseal(savings)
+            del link["ts"]
+        action = act_att([link], 0.0)
+        expected = "VALID" if label == "absent" else "INVALID"
+        for profile, att, verify in (("savings", savings, verdict_savings),
+                                     ("action", action, verdict_action)):
+            result = verify(att)
+            assert result["verdict"] == expected, (profile, label, result)
+            write(f"hardening/{profile}", f"{profile}_ts_presence_{label}", {
+                "kind": "raw_json", "description": f"A {profile} timestamp is {label}; its hash remains consistent.",
+                "input_raw_text": canon(att), "expected": result})
+
+
 def main() -> None:
     for stale in OUT.rglob("*.json"):
         stale.unlink()
@@ -975,6 +1029,8 @@ def main() -> None:
     gen_anchor()
     gen_action()
     gen_hardening()
+    gen_review_cases()
+    gen_timestamp_presence()
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(

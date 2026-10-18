@@ -1,0 +1,11 @@
+{
+  "id": "review_tier_key_14_floor_0.0",
+  "kind": "savings_attestation",
+  "description": "Unknown tier 'tlsn_\u0430ttested' is nonanchored; claimed floor 0.0.",
+  "input_raw_text": "{\"attestation_hash\":\"6c6f0f17df0da2b4efede88793b2d96862fa206cb3dab7b51a01563708809445\",\"chain_head\":\"d20e08cf3b7e29aa2e89106365ec6c4b7c7dcde42a97e0bdf677a1650e26853b\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"d20e08cf3b7e29aa2e89106365ec6c4b7c7dcde42a97e0bdf677a1650e26853b\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_\\u0430ttested\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"tlsn_\\u0430ttested\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "VALID"
+  },
+  "normative_section": "\u00a73.5; Annex B",
+  "review_group": "tier_keys"
+}

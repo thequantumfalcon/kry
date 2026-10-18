@@ -1,0 +1,9 @@
+{
+  "id": "review_missing_links_empty",
+  "kind": "raw_json",
+  "description": "SPEC 3.1 requires links to be present",
+  "input_raw_text": "{\"attestation_hash\":\"992bd72fd8425668ae4e533375f2316a5b11c898e95cfaebb10a59460c3139da\",\"chain_head\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"chain_valid\":true,\"event_type_counts\":{},\"receipts\":0,\"total_kry\":0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  }
+}

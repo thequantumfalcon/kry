@@ -1,0 +1,11 @@
+{
+  "id": "review_savings_missing_links",
+  "kind": "savings_attestation",
+  "description": "Empty savings attestation omits required links.",
+  "input_raw_text": "{\"attestation_hash\":\"6e5ac8a35e63d623d404eb0a2bb3ec77c7922909e2dbbad14e47e83583baa5a3\",\"chain_head\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"chain_valid\":true,\"event_type_counts\":{},\"receipts\":0,\"total_kry\":0.0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.1 all envelope fields MUST be present",
+  "review_group": "savings_schema"
+}

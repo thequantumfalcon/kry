@@ -1,0 +1,9 @@
+{
+  "id": "review_zero_rate_6",
+  "kind": "raw_json",
+  "description": "SPEC 3.4.1 requires the public rate comparison before zero-rate magnitude skip",
+  "input_raw_text": "{\"attestation_hash\":\"39b031e3c98a5c007ea9dd32a1865d94a87e8f70c557a7114bade1b6c7ffebf5\",\"chain_head\":\"bacf66fa330eb49f292c423037715533c6df7281d9f601094f64700b4220c448\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"bacf66fa330eb49f292c423037715533c6df7281d9f601094f64700b4220c448\",\"earn_rate\":0.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":6,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"receipt_id\":\"R0\",\"sealed_evidence\":\"opaque\",\"seq\":1,\"tokens_saved\":100.0,\"ts\":1700000000.0}],\"receipts\":1,\"total_kry\":0.0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":0.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  }
+}

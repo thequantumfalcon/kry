@@ -1,0 +1,11 @@
+{
+  "id": "review_witness_tiny_self_reported_1.0",
+  "kind": "action_attestation",
+  "description": "Witness tiny, tier self_reported, declared floor 1.0; derived floor 0.0.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"c68330d1eac9820ee9a4ba51ac7bba240c23003aef01945987a62ac9f98202c8\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"c68330d1eac9820ee9a4ba51ac7bba240c23003aef01945987a62ac9f98202c8\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"03277cf91ae7ae787867425e27532000786639c3e34386310737946be5707301\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":1e-300,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0}],\"veracity\":{\"veracity_floor\":1.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a74.4; Annex C witness clarification",
+  "review_group": "witness_matrix"
+}

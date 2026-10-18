@@ -1,0 +1,11 @@
+{
+  "id": "review_overlay_backward_promotion_false_floor",
+  "kind": "savings_attestation",
+  "description": "Wrong floor after normative promotion order.",
+  "input_raw_text": "{\"attestation_hash\":\"94f7a38dfbc7749b2a072d975986bc49fd16a83bf6cc9eae52b95c435c6b4701\",\"chain_head\":\"a8277368fb419bd6aecf1194bf954682f6952caa3e96a615083a17b6815e34f1\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":2},\"links\":[{\"chain_hash\":\"50f430d3dc8891044467347bfbe1f4feedc9840b77fc486500e4655c908ef3c4\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":1000.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r1\",\"sealed_evidence\":\"\",\"seq\":1,\"tokens_saved\":1000.0,\"ts\":1700000000.0},{\"chain_hash\":\"a8277368fb419bd6aecf1194bf954682f6952caa3e96a615083a17b6815e34f1\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"tlsn_attested\",\"hash_version\":7,\"kry_minted\":0.0,\"metered_tokens\":null,\"receipt_hash\":\"abababababababababababababababababababababababababababababababab\",\"receipt_id\":\"r2\",\"sealed_evidence\":\"\",\"seq\":2,\"supersedes\":\"r1\",\"tokens_saved\":0.0,\"ts\":1700000000.0}],\"receipts\":2,\"total_kry\":1000.0,\"usd_equivalent\":0.025,\"veracity\":{\"anchored_kry\":1000.0,\"by_tier\":{\"self_reported\":0.0,\"tlsn_attested\":1000.0},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.7; \u00a73.5",
+  "review_group": "versions_ids_overlay"
+}

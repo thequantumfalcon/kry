@@ -1,0 +1,9 @@
+{
+  "id": "review_rehashed_ts_285",
+  "kind": "raw_json",
+  "description": "SPEC 3.2 requires numeric ts; a self-consistent sentinel public block is insufficient validation",
+  "input_raw_text": "{\"attestation_hash\":\"424c8a14ff627692f1f5a3c602d739bf4bfc610ff474c3b0f943ce667698b52a\",\"chain_head\":\"60224c7e8f059b16ceb343e9638cfd8a6656c8a04d4f0f4f281a96b51799207b\",\"chain_valid\":true,\"event_type_counts\":{\"cache_hit\":1},\"links\":[{\"chain_hash\":\"60224c7e8f059b16ceb343e9638cfd8a6656c8a04d4f0f4f281a96b51799207b\",\"earn_rate\":1.0,\"event_type\":\"cache_hit\",\"evidence_tier\":\"self_reported\",\"hash_version\":7,\"kry_minted\":100.0,\"metered_tokens\":null,\"receipt_hash\":\"0000000000000000000000000000000000000000000000000000000000000001\",\"receipt_id\":\"R0\",\"sealed_evidence\":\"opaque\",\"seq\":1,\"tokens_saved\":100.0,\"ts\":[]}],\"receipts\":1,\"total_kry\":100.0,\"usd_equivalent\":0.0025,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{\"self_reported\":100.0},\"self_reported_kry\":100.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  }
+}

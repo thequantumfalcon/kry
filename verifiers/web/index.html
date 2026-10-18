@@ -84,7 +84,7 @@
 </main>
 
 <script type="module">
-import { explain, setMultipliers } from "../js/verify.mjs";
+import { explain, setMultipliers, extractVector } from "../js/verify.mjs";
 
 // Published price-multiplier set (SPEC §3.4.1), inlined so this page is self-contained.
 setMultipliers([0.0, 0.002, 0.006, 0.02, 0.022, 0.022000000000000002, 0.024, 0.026, 0.028, 0.044,
@@ -174,12 +174,12 @@ async function loadDemo(vectorPath, label, storyText) {
     const raw = await (await fetch(vectorPath)).text();
     // Seed the textarea with the RAW input text — re-serializing would change number
     // spellings and (correctly) break the self-hash. Same extraction as cli.mjs.
-    const m = raw.match(/"input":\s*([\s\S]*?),\r?\n\s*"expected"/);
-    if (!m) throw new Error("vector shape");
-    $("in").value = m[1];
-    setAnchor(JSON.parse(raw).input_anchor, label);
+    const { spec, inputText } = extractVector(raw);
+    if (inputText === undefined) throw new Error("vector shape");
+    $("in").value = inputText;
+    setAnchor(spec.input_anchor, label);
     story(storyText);
-    show(explain($("in").value));
+    show(explain(inputText));
   } catch {
     story("Demo vectors not reachable — serve the repo root (python3 -m http.server) and open " +
           "this page via http://localhost:8000/verifiers/web/.");

@@ -1,0 +1,11 @@
+{
+  "id": "review_action_nonobject_veracity_4",
+  "kind": "action_attestation",
+  "description": "Present action veracity is [1], but \u00a74.1 requires object when present.",
+  "input_raw_text": "{\"action_count\":1,\"action_hash_version\":1,\"chain_tip\":\"e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba\",\"kind\":\"kry_action_attestation\",\"links\":[{\"action_hash_version\":1,\"agent_id\":\"agent-A\",\"args_commit\":\"ac8d8342bbb2362d13f0a559a3621bb407011368895164b628a54f7fc33fc43c\",\"chain_hash\":\"e0a63441277a49d8b4f1f12002926d8aa79b519a14f7029aa3e50e57c375aeba\",\"evidence_tier\":\"self_reported\",\"receipt_hash\":\"35b72e50fdd66eb49a33276d606ea45420c29edfa45d019e7c6df4bbac963196\",\"receipt_id\":\"ACT-00000000\",\"result_commit\":\"2659efe5502f101c13c3d4f2b330ba7bc6969f33ce5aee8377560e7470bf30b4\",\"server_evidence_commit\":null,\"status\":\"ok\",\"tool\":\"read_file\",\"ts\":1700000000.0}],\"veracity\":[1]}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a74.1 veracity field type",
+  "review_group": "action_schema"
+}

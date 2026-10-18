@@ -1,0 +1,11 @@
+{
+  "id": "review_savings_missing_chain_head",
+  "kind": "savings_attestation",
+  "description": "Empty savings attestation omits required chain_head.",
+  "input_raw_text": "{\"attestation_hash\":\"712503596e595b2a470f76eeab073b3a9e1a70ee897e60e8936e54d915e6f274\",\"chain_valid\":true,\"event_type_counts\":{},\"links\":[],\"receipts\":0,\"total_kry\":0.0,\"usd_equivalent\":0.0,\"veracity\":{\"anchored_kry\":0,\"by_tier\":{},\"self_reported_kry\":0.0,\"veracity_floor\":0.0}}",
+  "expected": {
+    "verdict": "INVALID"
+  },
+  "normative_section": "\u00a73.1 all envelope fields MUST be present",
+  "review_group": "savings_schema"
+}
