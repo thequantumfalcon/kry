@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-10-17
+
 ### Fixed
 
 - **Verifier handling of malformed shapes and cross-language types.** The new regressions cover
@@ -975,7 +977,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/thequantumfalcon/kry/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/thequantumfalcon/kry/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/thequantumfalcon/kry/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/thequantumfalcon/kry/compare/v0.1.5...v0.1.6
