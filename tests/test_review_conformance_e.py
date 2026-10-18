@@ -169,7 +169,8 @@ def test_document_size_limit_on_file_and_stdin(kind, delta, stdin, tmp_path):
     expected = "PARSE_ERROR" if delta else "VALID"
     for language in ("python", "js"):
         result = subprocess.run(_cli(kind, language) + (["-"] if stdin else [str(path)]),
-                                input=raw if stdin else None, capture_output=True, text=True, timeout=30)
+                                input=raw if stdin else None, capture_output=True, text=True, encoding="utf-8",
+                                env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=30)
         assert result.returncode == (1 if delta else 0) and f"VERDICT: {expected}" in result.stdout, (language, result.stdout, result.stderr)
 
 
