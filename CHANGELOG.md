@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An offline Anthropic usage estimator prices input and output separately for pinned
   `claude-haiku-4-5-20251001` ordinary text responses. It retains provider message/request
   identifiers, rejects unsupported categories and leaves actual charges unverified.
+- A bounded synthetic API evaluation summary records the observed callback/receipt counts,
+  preserved answer-format failures, revised run and private-evidence limitations.
 
 ### Changed
 

@@ -135,6 +135,10 @@ provider adapter. These tests exercise real cache and callback dispatch, without
 paid provider calls. The stdlib-only jobs may skip these optional modules; the integration
 job requires the dependency to import successfully.
 
+The [2026-10-20 synthetic API evaluation](evidence/LITELLM_SYNTHETIC_API_2026_10_20.md)
+records a bounded live run, the earlier answer-format failures and the limits of
+the privately retained evidence. It also lists publicly repeatable offline checks.
+
 ## Keep request identifiers and evidence sources distinct
 
 Use a unique LiteLLM call ID for each attempted request. The callback binds its receipt to
