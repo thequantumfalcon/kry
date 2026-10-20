@@ -51,6 +51,13 @@ tools or thinking; unsupported models and categories reject instead of using a g
 fallback rate. The price basis assumes standard first-party service: a non-null
 `usage.service_tier` must be `standard`, and an absent or null tier does not establish it.
 Batch discounts, regional premiums and negotiated prices are not calculated.
+For this pinned Haiku 4.5 model, [standard pricing applies without a geo
+surcharge](https://platform.claude.com/docs/en/manage-claude/data-residency);
+do not send the `inference_geo` request parameter, which the model does not support.
+The helper accepts `usage.inference_geo` as `global`, `not_available` or null.
+It preserves `not_available`, also listed in the [usage-report
+documentation](https://platform.claude.com/docs/en/manage-claude/usage-cost-api),
+without treating it as an observed global location. Other non-null values reject.
 The returned pricing assumptions are part of the estimate: missing or null optional
 metadata stays unknown and does not prove the absence of cache or tool charges.
 Use the helper only for the declared ordinary-request scope.

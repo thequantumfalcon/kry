@@ -20,7 +20,8 @@ def _load_script(name):
     return module
 
 
-def test_anthropic_cache_preserves_usage_and_separates_benchmark_from_cost(monkeypatch):
+@pytest.mark.parametrize("inference_geo", [None, "not_available"])
+def test_anthropic_cache_preserves_usage_and_separates_benchmark_from_cost(monkeypatch, inference_geo):
     import httpx
     from litellm.caching.caching import Cache
     from litellm.llms.custom_httpx.http_handler import HTTPHandler
@@ -38,7 +39,7 @@ def test_anthropic_cache_preserves_usage_and_separates_benchmark_from_cost(monke
                   "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
                   "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0},
                   "service_tier": "standard", "server_tool_use": None,
-                  "output_tokens_details": None, "inference_geo": None, "speed": None},
+                  "output_tokens_details": None, "inference_geo": inference_geo, "speed": None},
     }
     requests = []
     estimates = []
@@ -107,6 +108,7 @@ def test_anthropic_cache_preserves_usage_and_separates_benchmark_from_cost(monke
     assert estimates[0]["request_id"] == "req_constructed"
     assert estimates[0]["total_estimate_usd"] == "0.000032"
     assert estimates[0]["actual_charge_usd"] is None
+    assert estimates[0]["observed_usage"]["inference_geo"] == inference_geo
     rows = [json.loads(line) for line in kry_mint._MINT_LOG_PATH.read_text().splitlines()]
     assert len(rows) == 1
     assert rows[0]["event_type"] == "cache_hit"

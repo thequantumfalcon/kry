@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or completion token count. Both fallback components now require nonnegative integers.
 - Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.
   Duplicate checks, minting and replay-key registration now share one process-local lock.
+- The Anthropic usage estimator rejected Haiku 4.5's `inference_geo: "not_available"`
+  metadata. It now preserves that value and applies the pinned model's standard rates
+  without claiming an observed inference location.
 
 ### Added
 

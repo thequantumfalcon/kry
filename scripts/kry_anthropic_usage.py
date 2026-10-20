@@ -30,7 +30,9 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
     an observed zero. Provider identifiers are preserved, never synthesized.
     Optional metadata may be null, which remains unknown in observed_usage.
     Supplied cache/tool counters and thinking-token breakdowns must be integer
-    zero; service_tier and speed must be "standard", inference_geo "global".
+    zero; service_tier and speed must be "standard". inference_geo may be
+    "global" or "not_available"; the latter does not identify a location.
+    The pinned Haiku 4.5 model uses standard rates with no geo surcharge.
     The estimate assumes ordinary text with no cache/tool usage when those
     optional observations are absent or null. Other categories are unsupported.
     """
@@ -79,8 +81,8 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
         raise ValueError("only standard service pricing is supported")
     if usage.get("speed") not in (None, "standard"):
         raise ValueError("only standard speed pricing is supported")
-    if usage.get("inference_geo") not in (None, "global"):
-        raise ValueError("only global inference pricing is supported")
+    if usage.get("inference_geo") not in (None, "global", "not_available"):
+        raise ValueError("unsupported inference geography for the pinned model")
     if usage.get("server_tool_use") is not None:
         tools = usage["server_tool_use"]
         if (not isinstance(tools, dict) or not tools or set(tools) - set(_TOOL_COUNTS)
@@ -111,8 +113,10 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
             "source": PRICE_SOURCE,
             "basis": "standard input/output list prices",
             "assumptions": (
-                "Ordinary text, standard service/speed, global inference, no cache or server-tool "
-                "usage. Absent or null optional metadata is unknown, not an observed zero."
+                "Ordinary text, standard service/speed, no cache or server-tool usage. "
+                "Pinned Haiku 4.5 standard rates have no geo surcharge; not_available "
+                "does not identify an inference location. Absent or null optional metadata "
+                "is unknown, not an observed zero."
             ),
             "input_usd_per_million_tokens": format(_INPUT_USD_PER_M, "f"),
             "output_usd_per_million_tokens": format(_OUTPUT_USD_PER_M, "f"),

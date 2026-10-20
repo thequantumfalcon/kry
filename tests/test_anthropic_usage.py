@@ -74,6 +74,23 @@ def test_explicit_zero_cache_metadata_does_not_change_price_or_alias_input(respo
     assert response == before
 
 
+def test_haiku_45_unavailable_geo_preserves_metadata_with_zero_cache_counts(response):
+    response["usage"].update(
+        cache_creation_input_tokens=0, cache_read_input_tokens=0, service_tier="standard",
+        cache_creation={"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0},
+        inference_geo="not_available",
+    )
+    before = copy.deepcopy(response)
+    result = estimate(response)
+    assert result["observed_usage"] == before["usage"]
+    assert result["observed_usage"]["inference_geo"] == "not_available"
+    assert result["total_estimate_usd"] == "0.000034"
+    assert result["actual_charge_usd"] is None
+    assert result["financial_status"] == "unverified"
+    assert "global inference" not in result["pricing"]["assumptions"]
+    assert response == before
+
+
 def test_nullable_sdk_metadata_stays_unknown_and_does_not_change_estimate(response):
     names = (
         "cache_creation_input_tokens", "cache_read_input_tokens", "cache_creation",
