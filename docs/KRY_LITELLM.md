@@ -84,9 +84,17 @@ litellm.callbacks = [KryLiteLLMLogger()]
 An eligible response-cache hit attempts to mint one receipt (`tokens_saved` = the cached
 response's total tokens, used as an operator-asserted proxy for the avoided call;
 `avoided_model` = the requested model; the LiteLLM
-call id is the evidence key, minted at most once while retained in the process's
-bounded 4,096-key replay guard). Evicted IDs, process restarts and separate workers
-are outside that deduplication guarantee. Anything malformed or missing fails closed:
+call id is the evidence key). The callback checks the retained valid receipt log
+under its file lock, so these updated callback writers cannot mint a committed
+evidence hash again after guard eviction, restart or delivery to another updated
+worker sharing that log. Zero-value
+receipts count too. The bounded 4,096-key memory guard is only a fast path.
+This guarantee requires a filesystem supporting the repository's process lock;
+it does not cover separate logs, unreliable network filesystem locks or deletion
+of the authoritative history. Old or generic mint callers still use their own
+decay contract and can append repeated evidence. All concurrent writers must use
+the updated mint implementation's shared lock ordering; mixed-version writers
+are outside this guarantee. Anything malformed or missing fails closed:
 no receipt, never a guessed one, and the logging path never raises into your serving
 traffic.
 
@@ -163,11 +171,28 @@ its provenance. Its per-request mode matches token pairs, not request identity.
 5. Verify the chain and attestation, retaining any anchor separately. Keep benchmark value,
    list-price estimates and observed account charges in distinct fields.
 
-This procedure bounds an evaluation; it is not durable gateway delivery. The callback
-does not persist its replay guard across restarts or workers. A failed mint can consume
-decay allowance before a receipt commits, so a later retry may record fewer tokens.
-Storage preflight does not eliminate later failure. Production use requires an explicit
-recovery, idempotency and callback-completeness contract with corresponding failure tests.
+This procedure bounds an evaluation; it is not durable gateway delivery. Callback mints
+opt into `mint(..., idempotent_evidence=True)`: first events use full supplied tokens,
+and committed evidence hashes cannot mint twice through this path. Both strict and
+generic writers reserve shared decay allowance while holding the mint-file lock,
+before append. A failed append can consume a conservative reservation; a strict
+retry still receives full first-event tokens. Later generic replays use the shared
+decay count, preventing a second full first-event credit.
+A complete retained receipt blocks reminting even if its acknowledgement failed.
+That is replay suppression for a visible record, not proof of power-loss durability.
+An incomplete or corrupt log refuses further mints and requires operator recovery;
+the callback does not repair it or reconstruct a lost acknowledgement.
+
+The default generic `mint()` path still applies geometric decay and can conservatively
+consume allowance before a failed append. The opt-in path is not an atomic transaction
+across the receipt log, rollback checkpoint and balance ledger, nor a guarantee against
+power loss, history deletion or missed callbacks. An uncertain append may leave a
+receipt without the subsequent balance update; inspect the retained chain and use
+operator-led ledger reconciliation rather than assuming both committed.
+Storage preflight does not eliminate
+later failure. Production delivery and crash recovery still need a separate contract.
+Authoritative deduplication scans and verifies the retained log; no production
+throughput or multi-node filesystem guarantee is implied.
 
 ## Attest and hand it to a stranger
 

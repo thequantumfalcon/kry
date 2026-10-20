@@ -28,8 +28,11 @@ THE HONEST EVIDENCE BOUNDARY (read before quoting numbers):
 OPERATIONAL LIMITS: callbacks complete asynchronously relative to serving.
 Use an independent attempt inventory and bounded completion wait. Stop on missing
 receipts, persistence failure or process interruption; do not reset decay or
-remint an uncertain event under a new id. The replay guard is bounded and local
-to one process. A failed write can consume decay allowance before receipt commit.
+remint an uncertain event under a new id. The retained receipt log prevents
+duplicate evidence across restarts/workers where its file lock is supported.
+Callback mints reserve shared decay allowance but credit first events in full;
+failed-append retries retain that full credit. Partial writes still require
+operator recovery; a missing return can mean an uncertain committed receipt.
 
 AUTO-ROUTER RECEIPTS: when LiteLLM's auto-router sends a request to a cheaper model,
 the request metadata carries `routing_decision.savings_baseline_model`, the model the
@@ -68,11 +71,8 @@ from collections import deque
 from threading import Lock
 from typing import Any, Optional
 
-# In-process replay guard: LiteLLM may retry/replay a logging event; one call id
-# mints at most once while retained in the bounded guard. (Cross-process dedup is not attempted for T0
-# receipts — duplicates would be the operator's own ledger inflating itself,
-# which the magnitude/conservation checks price but cannot disprove; that is
-# exactly what the T0 label discloses.)
+# Bounded in-process fast path. The retained mint log supplies authoritative
+# evidence deduplication under its cross-process lock, including after eviction.
 _SEEN_MAX = 4096
 _seen_ids: set = set()
 _seen_order: deque = deque()
@@ -223,7 +223,8 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
 
     Never raises: this runs inside a serving gateway's logging hot path, and a
     foreign library's kwargs are a system boundary — attestation must not break
-    traffic. A failed mint is a missing receipt, not a corrupted ledger.
+    traffic. A missing return can reflect an uncertain append; retain the log
+    and reconcile it before retrying. Partial/corrupt logs fail closed.
     """
     try:
         event_type = "cache_hit"
@@ -241,7 +242,7 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
             receipt = kry_mint.mint(
                 event_type, fields["tokens_saved"], fields["detail"],
                 evidence=fields["evidence"], avoided_model=fields["avoided_model"],
-                served_model=fields.get("served_model"))
+                served_model=fields.get("served_model"), idempotent_evidence=True)
             if receipt is not None:
                 _seen_ids.add(call_id)
                 _seen_order.append(call_id)

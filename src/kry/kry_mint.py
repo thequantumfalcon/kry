@@ -457,6 +457,8 @@ def mint(
     metered_tokens: list | None = None,
     served_model: str | None = None,
     dedup_check: Callable[[], bool] | None = None,
+    *,
+    idempotent_evidence: bool = False,
 ) -> Optional[MintReceipt]:
     """Mint KRY from an efficiency event. Returns MintReceipt or None on failure.
 
@@ -474,7 +476,17 @@ def mint(
 
     Supply control: repeated mints of the same evidence_hash in-window decay
     geometrically (bounds phantom-minting from cache replay to a finite cap).
+
+    idempotent_evidence: opt into one receipt per evidence hash in the retained
+    valid log, checked under its cross-process lock. First events use full tokens
+    and reserve shared decay allowance before append, so generic replay remains
+    bounded. Failed appends can conservatively consume reservations; a strict
+    retry still receives full first-event credit. A complete but unacknowledged
+    receipt blocks replay; a partial/corrupt log requires operator recovery. This is not a
+    transaction spanning the receipt log, checkpoint and balance ledger.
     """
+    if type(idempotent_evidence) is not bool:
+        return None
     try:
         tokens_saved = _finite_number(tokens_saved, "tokens_saved", positive=True)
     except ValueError:
@@ -495,11 +507,6 @@ def mint(
         ).hexdigest()   # full SHA-256 (was truncated to 64 bits) — evidence id / decay key
 
         with _MINT_LOCK:
-            # Supply control: decay repeated mints of the same evidence
-            effective_tokens = _decayed_tokens(evidence_hash, tokens_saved)
-            if effective_tokens < 1.0:
-                return None   # decayed to dust — replay saving already banked
-
             # Cross-process atomic append: hold an exclusive file lock and re-read
             # the AUTHORITATIVE chain tip + counter from the file. A long-running
             # writer's in-memory _CHAIN_TIP / _RECEIPT_COUNTER go stale the moment
@@ -507,6 +514,29 @@ def mint(
             # tip is what keeps the chain unforked under concurrent writers.
             _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with cross_process_lock(_MINT_LOG_PATH):
+                if idempotent_evidence:
+                    # The retained log is the authority, including zero-value
+                    # receipts and complete writes whose acknowledgement failed.
+                    if not _MINT_LOG_PATH.exists():
+                        tip = _read_mint_tip()   # corruption must not imply a fresh history
+                        if tip is not None and (tip["count"] != 0 or tip["tip"] != "0" * 64):
+                            return None
+                    if not verify_chain()[0]:
+                        return None
+                    if _MINT_LOG_PATH.exists():
+                        with open(_MINT_LOG_PATH, encoding="utf-8") as f:
+                            for line in f:
+                                if not line.endswith("\n"):
+                                    return None   # never append onto an incomplete record
+                                if line.strip() and _json_loads(line).get("evidence_hash") == evidence_hash:
+                                    return None
+                # Both paths reserve under the mint lock before append. Strict
+                # first events receive full credit; their reservation prevents a
+                # later generic replay from receiving another full first credit.
+                decayed_tokens = _decayed_tokens(evidence_hash, tokens_saved)
+                effective_tokens = tokens_saved if idempotent_evidence else decayed_tokens
+                if effective_tokens < 1.0:
+                    return None   # decayed to dust — replay saving already banked
                 # MINT-1: an optional duplicate check UNDER the cross-process lock, atomic with the
                 # append. Two concurrent fresh-T2/tee mints of the SAME provider generation / measurement
                 # present transient-byte-differing payloads, so the evidence_hash decay (which only
