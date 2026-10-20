@@ -4,22 +4,35 @@
 LiteLLM (gateway/proxy) exposes a documented per-request hook: a CustomLogger
 subclass receives every completed call with `kwargs["cache_hit"]` (its response
 cache answered — the provider call did NOT happen) and `kwargs["response_cost"]`
-(LiteLLM's price-table estimate). This module turns each response-cache hit into
-a kry `cache_hit` receipt, so a proxy's claimed cache savings become a
-tamper-evident, stranger-verifiable ledger instead of a dashboard number.
+(LiteLLM's price-table estimate). This module records eligible response-cache
+events as kry `cache_hit` receipts in a tamper-evident, stranger-verifiable ledger.
 
 THE HONEST EVIDENCE BOUNDARY (read before quoting numbers):
   * Every receipt minted here is tier `self_reported` (T0). The cache-hit signal
     comes from the operator's own gateway — no external party witnesses it, so
-    the attestation's `veracity_floor` correctly stays 0.0 until receipts are
-    reconciled or anchored by stronger tiers. This integration proves the ledger
-    of claimed hits is INTACT and honestly priced; it cannot prove the hits
-    happened. That is kry's integrity-vs-veracity line, working as designed.
+    the attestation's `veracity_floor` stays 0.0 for these receipts. Verification
+    checks the recorded history and KRY benchmark arithmetic; it cannot prove
+    the hits happened or establish actual provider charges.
+  * Wording correction: "INTACT and honestly priced" becomes "recorded history
+    and KRY benchmark arithmetic". The callback values total prompt + completion
+    tokens at an output-price multiplier. Provider input/output billing can
+    differ; usd_equivalent is a benchmark, not an invoice or proven cash saving.
   * `cache_hit` is LiteLLM's RESPONSE cache, not provider-side prompt caching
     (`cached_tokens`); prompt-cache savings need a separate signal.
   * `response_cost` is LiteLLM's estimate from its price table (may be absent).
     It is recorded in the receipt detail as context, never used as evidence; so are
     LiteLLM's `saved_cache_cost` and `autorouter_savings` figures.
+  * The evidence key uses LiteLLM's call id, not a provider request/message id.
+    Retain provider identifiers separately; see docs/KRY_LITELLM.md.
+
+OPERATIONAL LIMITS: callbacks complete asynchronously relative to serving.
+Use an independent attempt inventory and bounded completion wait. Stop on missing
+receipts, persistence failure or process interruption; do not reset decay or
+remint an uncertain event under a new id. The retained receipt log prevents
+duplicate evidence across restarts/workers where its file lock is supported.
+Callback mints reserve shared decay allowance but credit first events in full;
+failed-append retries retain that full credit. Partial writes still require
+operator recovery; a missing return can mean an uncertain committed receipt.
 
 AUTO-ROUTER RECEIPTS: when LiteLLM's auto-router sends a request to a cheaper model,
 the request metadata carries `routing_decision.savings_baseline_model`, the model the
@@ -55,16 +68,15 @@ verifier) offline. Publish a chain anchor to make re-mints/truncation evident.
 from __future__ import annotations
 
 from collections import deque
+from threading import Lock
 from typing import Any, Optional
 
-# In-process replay guard: LiteLLM may retry/replay a logging event; one call id
-# mints at most once per process. (Cross-process dedup is not attempted for T0
-# receipts — duplicates would be the operator's own ledger inflating itself,
-# which the magnitude/conservation checks price but cannot disprove; that is
-# exactly what the T0 label discloses.)
+# Bounded in-process fast path. The retained mint log supplies authoritative
+# evidence deduplication under its cross-process lock, including after eviction.
 _SEEN_MAX = 4096
 _seen_ids: set = set()
 _seen_order: deque = deque()
+_seen_lock = Lock()
 
 
 def _usage_total_tokens(response_obj: Any) -> Optional[int]:
@@ -84,8 +96,8 @@ def _usage_total_tokens(response_obj: Any) -> Optional[int]:
     if isinstance(total, bool) or not isinstance(total, int):
         # fall back to prompt + completion if total is absent
         p, c = _field("prompt_tokens"), _field("completion_tokens")
-        if (isinstance(p, int) and not isinstance(p, bool)
-                and isinstance(c, int) and not isinstance(c, bool)):
+        if (isinstance(p, int) and not isinstance(p, bool) and p >= 0
+                and isinstance(c, int) and not isinstance(c, bool) and c >= 0):
             total = p + c
         else:
             return None
@@ -211,7 +223,8 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
 
     Never raises: this runs inside a serving gateway's logging hot path, and a
     foreign library's kwargs are a system boundary — attestation must not break
-    traffic. A failed mint is a missing receipt, not a corrupted ledger.
+    traffic. A missing return can reflect an uncertain append; retain the log
+    and reconcile it before retrying. Partial/corrupt logs fail closed.
     """
     try:
         event_type = "cache_hit"
@@ -222,19 +235,20 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
         if fields is None:
             return None
         call_id = fields["evidence"]
-        if call_id in _seen_ids:
-            return None
-        from kry import kry_mint
-        receipt = kry_mint.mint(
-            event_type, fields["tokens_saved"], fields["detail"],
-            evidence=fields["evidence"], avoided_model=fields["avoided_model"],
-            served_model=fields.get("served_model"))
-        if receipt is not None:
-            _seen_ids.add(call_id)
-            _seen_order.append(call_id)
-            if len(_seen_order) > _SEEN_MAX:
-                _seen_ids.discard(_seen_order.popleft())
-        return receipt
+        with _seen_lock:
+            if call_id in _seen_ids:
+                return None
+            from kry import kry_mint
+            receipt = kry_mint.mint(
+                event_type, fields["tokens_saved"], fields["detail"],
+                evidence=fields["evidence"], avoided_model=fields["avoided_model"],
+                served_model=fields.get("served_model"), idempotent_evidence=True)
+            if receipt is not None:
+                _seen_ids.add(call_id)
+                _seen_order.append(call_id)
+                if len(_seen_order) > _SEEN_MAX:
+                    _seen_ids.discard(_seen_order.popleft())
+            return receipt
     except Exception:
         return None
 

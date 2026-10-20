@@ -198,3 +198,41 @@ def test_same_routed_call_mints_once():
     assert klc.mint_from_litellm(_routed("route-replay"), ROUTED_RESP) is not None
     assert klc.mint_from_litellm(_routed("route-replay"), ROUTED_RESP) is None
     assert len(km._MINT_LOG_PATH.read_text().splitlines()) == 1
+
+
+@pytest.mark.parametrize("prompt_tokens,completion_tokens", [(-100, 200), (200, -100)])
+def test_negative_usage_component_never_mints(prompt_tokens, completion_tokens):
+    _fresh_seen()
+    import kry.kry_mint as km
+    response = {"usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens}}
+    assert klc.mint_from_litellm(_event("negative-component"), response) is None
+    rows = km._MINT_LOG_PATH.read_text().splitlines() if km._MINT_LOG_PATH.exists() else []
+    assert rows == []
+
+
+def test_concurrent_deliveries_of_same_call_mint_once(monkeypatch):
+    _fresh_seen()
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    import kry.kry_mint as km
+    start = threading.Barrier(2)
+    real_mint = km.mint
+
+    def slow_mint(*args, **kwargs):
+        time.sleep(0.1)   # widen the check/mint race without requiring concurrent mint entry
+        return real_mint(*args, **kwargs)
+
+    def deliver():
+        start.wait(timeout=10)
+        return klc.mint_from_litellm(_event("concurrent-replay"), RESP)
+
+    monkeypatch.setattr(km, "mint", slow_mint)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(deliver) for _ in range(2)]
+        receipts = [future.result(timeout=15) for future in futures]
+    assert sum(receipt is not None for receipt in receipts) == 1
+    assert len(km._MINT_LOG_PATH.read_text().splitlines()) == 1
+    ok, errors = km.verify_chain()
+    assert ok, errors

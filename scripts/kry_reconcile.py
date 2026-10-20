@@ -16,8 +16,11 @@ or a minimal `kry_t1_reconciliation_manifest/v1` derived from it.
 
 Two modes:
   - per-request (default): greedy 1:1 match of each T1 receipt to a provider
-    usage record. Requires a per-request export — OpenRouter's generation API
-    exposes this; OpenAI/Anthropic per-call usage logs do too.
+    usage record by token counts, not request identity. Requires a separately
+    retrievable per-request source, such as OpenRouter's generation API.
+    The standard OpenAI/Anthropic organization usage/cost APIs return time-bucket
+    aggregates; do not assume they supply per-call exports. An inference key
+    alone does not establish access to those reports.
   - aggregate: some providers (notably Google AI Studio / Vertex) expose NO
     per-request export, only aggregate SKU-level billing totals (Cloud Billing
     report / BigQuery, hours-delayed). There, sum our provider_metered tokens
@@ -25,8 +28,9 @@ Two modes:
     (+tolerance) — an excess is phantom T1. Window the receipts with --since/--until.
 
 Provider export: a JSON list of usage records (per-request) or an aggregate
-total / list of aggregates (aggregate mode). Common shapes are normalised —
-OpenAI/Anthropic `{usage:{prompt_tokens,completion_tokens}}`, OpenRouter
+total / list of aggregates (aggregate mode). This tool reads supplied JSON; it
+does not fetch or authenticate its source. Common shapes are normalised —
+`{usage:{prompt_tokens,completion_tokens}}`, OpenRouter
 generation API `{tokens_prompt,tokens_completion}`, or flat
 `{prompt_tokens,completion_tokens}`. An Anthropic record's prompt is
 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`, because
@@ -36,7 +40,16 @@ with `input_tokens` alone still matches and is counted in
 mode gives a cache-bearing record two counts it can match, so use `--tolerance`
 sparingly. Aggregate mode cannot tell old receipts from new ones: in a window
 holding receipts minted with the old count, their totals understate against the
-provider's, which loosens the check, so reconcile such windows per request.
+provider's, which loosens the check. Use a suitable per-request source for such
+windows when available; otherwise keep that limitation explicit.
+
+Source-claim correction: "OpenAI/Anthropic per-call usage logs do too" becomes
+"The standard OpenAI/Anthropic organization usage/cost APIs return time-bucket
+aggregates". A captured response body is not an independently retrieved report;
+matching token counts alone does not prove request identity or account charges.
+References:
+https://platform.claude.com/docs/en/manage-claude/usage-cost-api
+https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/completions
 
 Usage:
     python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export or_usage.json

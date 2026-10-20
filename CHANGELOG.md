@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The LiteLLM callback could mint a receipt from a positive sum containing a negative prompt
+  or completion token count. Both fallback components now require nonnegative integers.
+- Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.
+  Duplicate checks, minting and replay-key registration now share one process-local lock.
+- Failed LiteLLM receipt writes could consume decay allowance before a receipt existed,
+  reducing the tokens recorded on a later retry. The callback now uses an opt-in mint path
+  that checks the retained receipt log and credits the full first committed event.
+  It reserves shared decay allowance before append to preserve mixed-caller replay bounds.
+- Replayed LiteLLM events could mint another receipt after a restart, memory-guard eviction,
+  or delivery to another worker. Updated callback writers now check evidence hashes under
+  the shared receipt-log lock, including receipts with zero minted value.
+- The Anthropic usage estimator rejected Haiku 4.5's `inference_geo: "not_available"`
+  metadata. It now preserves that value and applies the pinned model's standard rates
+  without claiming an observed inference location.
+
+### Added
+
+- An offline Anthropic usage estimator prices input and output separately for pinned
+  `claude-haiku-4-5-20251001` ordinary text responses. It retains provider message/request
+  identifiers, rejects unsupported categories and leaves actual charges unverified.
+- A bounded synthetic API evaluation summary records the observed callback/receipt counts,
+  preserved answer-format failures, revised run and private-evidence limitations.
+
+### Changed
+
+- The LiteLLM integration guide distinguishes the 4,096-key memory fast path from durable
+  duplicate checks. The latter require updated writers sharing an intact retained log and
+  effective filesystem locks; generic mint callers keep their existing decay behavior.
+- LiteLLM documentation distinguishes KRY's total-token output-price benchmark from
+  category-specific provider cost estimates and actual charges. A constructed example shows
+  why verifier acceptance does not make `usd_equivalent` an invoice amount.
+- The integration guide separates provider request/message IDs from LiteLLM IDs and documents
+  bounded callback completion, independent inventory and stop rules for persistence failure
+  or interruption. Partial writes and interrupted balance updates still require operator
+  reconciliation; receipt deduplication does not make all persistence operations atomic.
+- The reconciliation script no longer assumes OpenAI/Anthropic organization reports expose
+  per-call exports. Its documentation states the aggregate-report boundary and that its
+  per-request mode matches token counts, not request identity or billing provenance.
+
 ## [0.1.10] - 2026-10-18
 
 ### Fixed
