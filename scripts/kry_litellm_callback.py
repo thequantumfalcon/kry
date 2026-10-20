@@ -55,16 +55,18 @@ verifier) offline. Publish a chain anchor to make re-mints/truncation evident.
 from __future__ import annotations
 
 from collections import deque
+from threading import Lock
 from typing import Any, Optional
 
 # In-process replay guard: LiteLLM may retry/replay a logging event; one call id
-# mints at most once per process. (Cross-process dedup is not attempted for T0
+# mints at most once while retained in the bounded guard. (Cross-process dedup is not attempted for T0
 # receipts — duplicates would be the operator's own ledger inflating itself,
 # which the magnitude/conservation checks price but cannot disprove; that is
 # exactly what the T0 label discloses.)
 _SEEN_MAX = 4096
 _seen_ids: set = set()
 _seen_order: deque = deque()
+_seen_lock = Lock()
 
 
 def _usage_total_tokens(response_obj: Any) -> Optional[int]:
@@ -84,8 +86,8 @@ def _usage_total_tokens(response_obj: Any) -> Optional[int]:
     if isinstance(total, bool) or not isinstance(total, int):
         # fall back to prompt + completion if total is absent
         p, c = _field("prompt_tokens"), _field("completion_tokens")
-        if (isinstance(p, int) and not isinstance(p, bool)
-                and isinstance(c, int) and not isinstance(c, bool)):
+        if (isinstance(p, int) and not isinstance(p, bool) and p >= 0
+                and isinstance(c, int) and not isinstance(c, bool) and c >= 0):
             total = p + c
         else:
             return None
@@ -222,19 +224,20 @@ def mint_from_litellm(kwargs: dict, response_obj: Any) -> Optional[Any]:
         if fields is None:
             return None
         call_id = fields["evidence"]
-        if call_id in _seen_ids:
-            return None
-        from kry import kry_mint
-        receipt = kry_mint.mint(
-            event_type, fields["tokens_saved"], fields["detail"],
-            evidence=fields["evidence"], avoided_model=fields["avoided_model"],
-            served_model=fields.get("served_model"))
-        if receipt is not None:
-            _seen_ids.add(call_id)
-            _seen_order.append(call_id)
-            if len(_seen_order) > _SEEN_MAX:
-                _seen_ids.discard(_seen_order.popleft())
-        return receipt
+        with _seen_lock:
+            if call_id in _seen_ids:
+                return None
+            from kry import kry_mint
+            receipt = kry_mint.mint(
+                event_type, fields["tokens_saved"], fields["detail"],
+                evidence=fields["evidence"], avoided_model=fields["avoided_model"],
+                served_model=fields.get("served_model"))
+            if receipt is not None:
+                _seen_ids.add(call_id)
+                _seen_order.append(call_id)
+                if len(_seen_order) > _SEEN_MAX:
+                    _seen_ids.discard(_seen_order.popleft())
+            return receipt
     except Exception:
         return None
 

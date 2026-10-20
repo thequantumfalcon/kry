@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The LiteLLM callback could mint a receipt from a positive sum containing a negative prompt
+  or completion token count. Both fallback components now require nonnegative integers.
+- Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.
+  Duplicate checks, minting and replay-key registration now share one process-local lock.
+
+### Changed
+
+- The LiteLLM integration guide now states that duplicate protection covers only IDs retained
+  in the process's 4,096-key replay guard; eviction, restarts and separate workers are outside it.
+
 ## [0.1.10] - 2026-10-18
 
 ### Fixed

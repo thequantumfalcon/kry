@@ -38,9 +38,11 @@ litellm.callbacks = [KryLiteLLMLogger()]
 
 Each response-cache hit mints one receipt (`tokens_saved` = the cached response's total
 tokens — the size of the avoided call; `avoided_model` = the requested model; the LiteLLM
-call id is the evidence key, minted at most once per process). Anything malformed or
-missing fails closed: no receipt, never a guessed one, and the logging path never raises
-into your serving traffic.
+call id is the evidence key, minted at most once while retained in the process's
+bounded 4,096-key replay guard). Evicted IDs, process restarts and separate workers
+are outside that deduplication guarantee. Anything malformed or missing fails closed:
+no receipt, never a guessed one, and the logging path never raises into your serving
+traffic.
 
 ## Auto-router receipts
 
