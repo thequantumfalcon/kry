@@ -4,22 +4,32 @@
 LiteLLM (gateway/proxy) exposes a documented per-request hook: a CustomLogger
 subclass receives every completed call with `kwargs["cache_hit"]` (its response
 cache answered — the provider call did NOT happen) and `kwargs["response_cost"]`
-(LiteLLM's price-table estimate). This module turns each response-cache hit into
-a kry `cache_hit` receipt, so a proxy's claimed cache savings become a
-tamper-evident, stranger-verifiable ledger instead of a dashboard number.
+(LiteLLM's price-table estimate). This module records eligible response-cache
+events as kry `cache_hit` receipts in a tamper-evident, stranger-verifiable ledger.
 
 THE HONEST EVIDENCE BOUNDARY (read before quoting numbers):
   * Every receipt minted here is tier `self_reported` (T0). The cache-hit signal
     comes from the operator's own gateway — no external party witnesses it, so
-    the attestation's `veracity_floor` correctly stays 0.0 until receipts are
-    reconciled or anchored by stronger tiers. This integration proves the ledger
-    of claimed hits is INTACT and honestly priced; it cannot prove the hits
-    happened. That is kry's integrity-vs-veracity line, working as designed.
+    the attestation's `veracity_floor` stays 0.0 for these receipts. Verification
+    checks the recorded history and KRY benchmark arithmetic; it cannot prove
+    the hits happened or establish actual provider charges.
+  * Wording correction: "INTACT and honestly priced" becomes "recorded history
+    and KRY benchmark arithmetic". The callback values total prompt + completion
+    tokens at an output-price multiplier. Provider input/output billing can
+    differ; usd_equivalent is a benchmark, not an invoice or proven cash saving.
   * `cache_hit` is LiteLLM's RESPONSE cache, not provider-side prompt caching
     (`cached_tokens`); prompt-cache savings need a separate signal.
   * `response_cost` is LiteLLM's estimate from its price table (may be absent).
     It is recorded in the receipt detail as context, never used as evidence; so are
     LiteLLM's `saved_cache_cost` and `autorouter_savings` figures.
+  * The evidence key uses LiteLLM's call id, not a provider request/message id.
+    Retain provider identifiers separately; see docs/KRY_LITELLM.md.
+
+OPERATIONAL LIMITS: callbacks complete asynchronously relative to serving.
+Use an independent attempt inventory and bounded completion wait. Stop on missing
+receipts, persistence failure or process interruption; do not reset decay or
+remint an uncertain event under a new id. The replay guard is bounded and local
+to one process. A failed write can consume decay allowance before receipt commit.
 
 AUTO-ROUTER RECEIPTS: when LiteLLM's auto-router sends a request to a cheaper model,
 the request metadata carries `routing_decision.savings_baseline_model`, the model the

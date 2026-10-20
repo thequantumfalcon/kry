@@ -14,10 +14,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.
   Duplicate checks, minting and replay-key registration now share one process-local lock.
 
+### Added
+
+- An offline Anthropic usage estimator prices input and output separately for pinned
+  `claude-haiku-4-5-20251001` ordinary text responses. It retains provider message/request
+  identifiers, rejects unsupported categories and leaves actual charges unverified.
+
 ### Changed
 
 - The LiteLLM integration guide now states that duplicate protection covers only IDs retained
   in the process's 4,096-key replay guard; eviction, restarts and separate workers are outside it.
+- LiteLLM documentation distinguishes KRY's total-token output-price benchmark from
+  category-specific provider cost estimates and actual charges. A constructed example shows
+  why verifier acceptance does not make `usd_equivalent` an invoice amount.
+- The integration guide separates provider request/message IDs from LiteLLM IDs and documents
+  bounded callback completion, independent inventory and stop rules for persistence failure
+  or interruption. Durable recovery and cross-worker idempotency remain outside the callback.
+- The reconciliation script no longer assumes OpenAI/Anthropic organization reports expose
+  per-call exports. Its documentation states the aggregate-report boundary and that its
+  per-request mode matches token counts, not request identity or billing provenance.
 
 ## [0.1.10] - 2026-10-18
 
