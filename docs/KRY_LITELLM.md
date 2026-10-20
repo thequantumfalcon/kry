@@ -114,9 +114,11 @@ category-specific bill.
   why the callback tests for `is True` rather than truthiness.
 
 The dedicated `litellm-integration` CI job installs LiteLLM 1.101.0 and runs
-`tests/test_litellm_integration.py` using mocked completions. These tests exercise real cache and
-callback dispatch, without API keys or paid provider calls. The stdlib-only jobs may skip this
-optional module; the integration job requires the dependency to import successfully.
+`tests/test_litellm_integration.py` using mocked completions and
+`tests/test_litellm_anthropic_integration.py` using a constructed HTTP response through the
+provider adapter. These tests exercise real cache and callback dispatch, without API keys or
+paid provider calls. The stdlib-only jobs may skip these optional modules; the integration
+job requires the dependency to import successfully.
 
 ## Keep request identifiers and evidence sources distinct
 

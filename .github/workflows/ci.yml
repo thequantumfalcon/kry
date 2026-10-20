@@ -112,7 +112,7 @@ jobs:
       - name: Require LiteLLM and exercise its real callback dispatch with mock responses
         run: |
           python -c "import litellm"
-          python -m pytest tests/test_litellm_integration.py -q
+          python -m pytest tests/test_litellm_integration.py tests/test_litellm_anthropic_integration.py -q
 
   release-gate:
     runs-on: ubuntu-latest
