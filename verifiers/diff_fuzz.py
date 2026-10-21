@@ -3,7 +3,8 @@
 
 Generates a large stream of mutated attestations (from real minted bases), records
 each verdict from BOTH verifiers, and reports divergences. This is the SC2 harness
-(roadmap §4): 0 divergences over a large N == implementation independence.
+(roadmap §4): zero divergences establishes agreement on the generated cases, not
+correctness or implementation independence.
 
     PYTHONPATH=src python3 verifiers/diff_fuzz.py [N]        # default 20000
 
@@ -151,11 +152,8 @@ def bases():
     b = []
     b.append(build_savings([{**CACHE, "detail": "q0", "evidence": "u0"}]))
     b.append(build_savings([{**CACHE, "detail": f"q{i}", "evidence": f"u{i}"} for i in range(3)]))
-    try:
-        b.append(build_savings([{**CACHE, "detail": "q0", "evidence": "u0"},
-                                {**DISP, "detail": "disp/or/deepseek-v4-pro/openrouter:gen-x", "evidence": "m0"}]))
-    except Exception:
-        pass
+    b.append(build_savings([{**CACHE, "detail": "q0", "evidence": "u0"},
+                            {**DISP, "detail": "disp/or/deepseek-v4-pro/openrouter:gen-x", "evidence": "m0"}]))
     for _hv in (4, 5, 6):          # the block shapes no vector and no other base exercises
         b.append(build_savings_at_version(_hv, 2))
     b.append(build_action(1, ["self_reported"]))
@@ -304,12 +302,19 @@ def main():
         res = subprocess.run(
             ["node", str(ROOT / "verifiers" / "js" / "cli.mjs"), "--batch", str(ndj), str(MULT)],
             capture_output=True, text=True)
+        if res.returncode:
+            print(f"FATAL: js batch exited {res.returncode}")
+            print(res.stderr[:2000])
+            sys.exit(2)
         js = res.stdout.strip("\n").split("\n")
         if len(js) != len(pys):
             print(f"FATAL: js emitted {len(js)} verdicts for {len(pys)} inputs")
             print(res.stderr[:2000])
             sys.exit(2)
         for text, p, j in zip(texts, pys, js):
+            if p == j == "CRASH":
+                print("FATAL: both verifiers returned CRASH")
+                sys.exit(2)
             if p == j:
                 agree[p] = agree.get(p, 0) + 1
             else:
