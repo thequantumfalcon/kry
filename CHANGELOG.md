@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Savings-log token normalization accepted booleans, strings and fractional values as
+  counts, lost precision through float conversion, and replaced explicit zero or null
+  with later aliases. It now retains nonnegative JSON integers exactly and selects
+  aliases by field presence; malformed counts keep the existing zero contribution.
+- The ordinary Anthropic usage estimator accepted missing or unsupported stopping
+  conditions. It now preserves supported stop reasons, labels truncated and refused
+  generations, and rejects continuations outside its scope. Its CLI bounds JSON input
+  to 16 MiB and reports nonstandard constants or parser recursion failures without an estimate.
+- Mint balance-update exceptions were silent, and persistence warnings could expose
+  exception text or imply that an unrecorded debit was recoverable from the mint chain.
+  Fixed diagnostics identify uncertain persistence without including exception text;
+  receipt, checkpoint and balance updates remain separate operations.
+- The Python verifier's price summary implied magnitude checks covered every legacy
+  receipt. Successful verification now reports checked and unchecked link counts and
+  states explicitly that source truth is not verified. Historical verdicts are unchanged.
 - The LiteLLM callback could mint a receipt from a positive sum containing a negative prompt
   or completion token count. Both fallback components now require nonnegative integers.
 - Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.

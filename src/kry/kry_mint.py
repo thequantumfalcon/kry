@@ -484,6 +484,8 @@ def mint(
     retry still receives full first-event credit. A complete but unacknowledged
     receipt blocks replay; a partial/corrupt log requires operator recovery. This is not a
     transaction spanning the receipt log, checkpoint and balance ledger.
+    A returned receipt does not confirm the balance update. Persistence failures
+    emit diagnostics without input or exception text; None does not prove no write occurred.
     """
     if type(idempotent_evidence) is not bool:
         return None
@@ -499,6 +501,7 @@ def mint(
             return None
     else:
         metered_tokens = None
+    stage = "preparation"
     try:
         global _CHAIN_TIP, _RECEIPT_COUNTER
         from kry._locks import cross_process_lock
@@ -564,23 +567,25 @@ def mint(
                         _minted_kry_in_window(receipt.ts - _cap[1]) + receipt.kry_minted > _cap[0] + 1e-9):
                     return None
                 # Append to mint log (append-only, like an event store)
+                stage = "receipt_append"
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
                     f.write(_json_dumps(asdict(receipt)) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
+                stage = "receipt_persisted"
                 try:
                     _write_mint_tip(count + 1, receipt.chain_hash)   # truncation/rollback checkpoint
-                except Exception as exc:
+                except Exception:
                     # The receipt is already durable and chain-valid; only the rollback checkpoint
                     # failed to advance. Letting this propagate to the outer handler would return None
                     # for a COMMITTED mint — the caller under-counts supply while verify_chain still
                     # accepts the line (its truncation guard fires only on a log SHORTER than the tip).
-                    # Keep the durable receipt and log loudly; the stale tip self-heals on the next mint
+                    # Keep the durable receipt and log loudly; a stale tip advances on the next new mint
                     # (_load_chain_tip reads the log file, not the checkpoint). Mirrors
                     # _rollback_registry's "log loudly rather than mask" discipline.
                     logger.error("mint receipt %s durably written but tip checkpoint did not advance "
-                                 "(stale rollback checkpoint; self-heals on next mint): %s",
-                                 receipt.receipt_id, exc)
+                                 "or was not acknowledged; inspect retained state before further writes",
+                                 receipt.receipt_id)
             # Refresh the in-memory cache to the just-written tip.
             _RECEIPT_COUNTER = count + 1
             _CHAIN_TIP = receipt.chain_hash
@@ -591,10 +596,14 @@ def mint(
             _earn(effective_tokens, event_type, detail, avoided_model=avoided_model,
                   served_model=served_model)
         except Exception:
-            pass
+            logger.error("mint receipt %s retained but balance update was not acknowledged; "
+                         "inspect retained receipt and balance before further writes",
+                         receipt.receipt_id)
 
         return receipt
     except Exception:
+        logger.error("mint receipt acknowledgement failed; stage=%s; a write may have occurred; "
+                     "inspect retained state before retrying", stage)
         return None
 
 

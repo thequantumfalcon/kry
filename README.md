@@ -77,15 +77,16 @@ The whole loop, on sample efficiency events, in one program:
 KRY external verification — attestation
   receipts:        3 (recomputed from links)
   total_kry:       2436.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.3924 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
+  veracity_floor:  0.3924 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
                    ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                      kry_tlsn_verify to independently check the underlying evidence doc
-  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
+  magnitude:       3/3 links checked; 0 unchecked (legacy inputs absent)
   anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                    here: a genesis re-mint with upgraded tiers passes this check.
                    Re-run with --anchor <operator's pre-published chain head> to make
                    a retroactive re-mint detectable.
-  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
+  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
 
 ──────────────────────────────────────────────────────────────────────
 6. CARBON — second denomination: avoided inference -> CO2 (ESTIMATE)
@@ -128,15 +129,16 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
   KRY external verification — attestation
     receipts:        11 (recomputed from links)
     total_kry:       3080.4984 (recomputed from links, not the declared field)
-    veracity_floor:  0.7078 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
+    veracity_floor:  0.7078 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
                      ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                        kry_tlsn_verify to independently check the underlying evidence doc
-    price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
+    price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
+    magnitude:       11/11 links checked; 0 unchecked (legacy inputs absent)
     anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
                      here: a genesis re-mint with upgraded tiers passes this check.
                      Re-run with --anchor <operator's pre-published chain head> to make
                      a retroactive re-mint detectable.
-    VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
+    VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
   ↑ confirmed by code that does NOT trust the producer — the whole point.
 
 ━━━━━━ T2  —  the same trust model, anchored to a REAL provider's TLS response ━━━━━━
@@ -354,9 +356,10 @@ classified by *how the event was witnessed*, weakest to strongest:
  verifier holding the published anchor then catches any retroactive re-mint
  (`kry_verify.py --anchor`). Absent a published anchor, a self-reported balance is
  operator-trusted by construction — which is exactly what `veracity_floor` discloses.
-- An attestation exposes a **`veracity_floor`** = the fraction backed by something stronger than
- bare self-report — an *external* anchor (provider-metered / TEE / TLSNotary) **or** an operator-run
- randomized holdout (`holdout_validated`). `verify_attestation()` **re-derives** the floor from the
+- An attestation exposes a **`veracity_floor`** = the fraction assigned to declared tiers above
+ bare self-report — provider-metered / TEE / TLSNotary **or** operator-run randomized holdout
+ (`holdout_validated`). These labels do not independently authenticate a source.
+ `verify_attestation()` **re-derives** the floor from the
  per-link tiers (so it can't be misstated *relative to the tiers shown*) and only credits a
  tier the public surface actually binds (v4) — a pre-v4 link claiming any tier other than
  `self_reported` makes the attestation INVALID, and its value is counted as `self_reported` when
@@ -389,8 +392,9 @@ documented in `src/kry/_locks.py` rather than the matrix; and real-world validat
 - **Source-truth of self-report** — a determined operator can still author conserved T0
  events for savings that didn't occur, and (controlling the runtime) re-derive the whole
  chain from genesis with upgraded tiers; `verify_chain` proves integrity, not veracity. The
- attestation *says so* (`veracity_floor = 0.0`), which is the contribution; publishing a
- `kry_chain_anchor` makes a retroactive re-mint detectable, but neither prevents it.
+ resulting chain can claim a positive `veracity_floor`: the verifier checks the declared
+ tiers' consistency, not whether their witnesses exist. An independently retained prior
+ `kry_chain_anchor` makes a later re-mint detectable; it cannot authenticate the original events.
 - **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
  not solve identity.
 - **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
@@ -444,9 +448,11 @@ Veracity is "*did the event happen*"; **magnitude** is "*is the KRY amount right
 are separate: the verifier checks magnitude against the published benchmark. Each receipt's amount is
 `tokens_saved × EARN_RATES[event] × value_multiplier(avoided_model)`, against a **dated,
 versioned price basis** (`PRICE_BASIS_AS_OF`, per-model `list` vs honest `estimate`
-quality, with provenance). The attestation exposes each link's `tokens_saved` + `earn_rate`
-(counts and a rate — no content, no model name), so the stranger's verifier **recomputes
-every amount** and rejects any receipt whose implied multiplier isn't a published value.
+quality, with provenance). Modern attestations expose each link's `tokens_saved` + `earn_rate`
+(counts and a rate — no content, no model name). The stranger's verifier recomputes amounts
+where those inputs are present and rejects an implied multiplier outside the published set.
+Accepted pre-v4 links may omit those inputs; their amounts remain unchecked. The Python CLI
+reports checked and unchecked link counts explicitly.
 That check does not establish which model was actually avoided or independently
 authenticate the supplied usage. Input/output billing and actual charges remain separate.
 This catches inflation **even when conservation is kept internally consistent** — a class

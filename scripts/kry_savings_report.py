@@ -46,7 +46,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from pathlib import Path
 
@@ -91,16 +90,9 @@ def _json_dumps(data: object, **kwargs) -> str:
 
 
 def _safe_tokens(v) -> int:
-    """Coerce a token count to a non-negative finite int. Hostile or malformed logs
-    (negative, NaN, inf, strings, None) must not poison the savings number or crash
-    the run — they clamp to 0 (the record is counted but contributes nothing)."""
-    try:
-        x = float(v)
-    except (TypeError, ValueError):
-        return 0
-    if not math.isfinite(x) or x < 0:
-        return 0
-    return int(x)
+    """Keep non-negative JSON integer counts exactly. Malformed counts (including
+    booleans, strings and floats) clamp to 0 without creating a positive saving."""
+    return v if type(v) is int and v >= 0 else 0
 
 
 def _load_records(path: str) -> list[dict]:
@@ -148,14 +140,15 @@ def normalize(rec: dict) -> dict | None:
     if not model:
         return None
     u = rec.get("usage", rec)
-    prompt = (u.get("prompt_tokens") or u.get("tokens_prompt")
-              or u.get("input_tokens") or u.get("native_tokens_prompt") or 0)
-    if not (u.get("prompt_tokens") or u.get("tokens_prompt")) and "input_tokens" in u:
+    # An explicitly present zero or malformed value must not select a later alias.
+    prompt = next((u[key] for key in ("prompt_tokens", "tokens_prompt", "input_tokens",
+                                     "native_tokens_prompt") if key in u), 0)
+    if "prompt_tokens" not in u and "tokens_prompt" not in u and "input_tokens" in u:
         # Anthropic reports cache reads and writes outside input_tokens; the whole prompt is the sum.
         prompt = (_safe_tokens(u.get("input_tokens")) + _safe_tokens(u.get("cache_read_input_tokens", 0))
                   + _safe_tokens(u.get("cache_creation_input_tokens", 0)))
-    completion = (u.get("completion_tokens") or u.get("tokens_completion")
-                  or u.get("output_tokens") or u.get("native_tokens_completion") or 0)
+    completion = next((u[key] for key in ("completion_tokens", "tokens_completion", "output_tokens",
+                                         "native_tokens_completion") if key in u), 0)
     try:
         cache_hit = _json_bool(rec.get("cache_hit", rec.get("cached", False)), "cache_hit")
         holdout = _json_bool(rec.get("holdout", False), "holdout")

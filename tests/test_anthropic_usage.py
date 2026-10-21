@@ -241,3 +241,141 @@ def test_cli_bad_usage_produces_no_estimate(response, tmp_path):
     assert result.stdout == ""
     assert "missing usage" in result.stderr
     assert "Fabricated content" not in result.stderr
+
+
+@pytest.mark.parametrize("reason,status", [
+    ("end_turn", "ended"),
+    ("stop_sequence", "stopped_by_sequence"),
+    ("max_tokens", "truncated"),
+    ("refusal", "refused"),
+    ("model_context_window_exceeded", "truncated"),
+])
+def test_generation_status_does_not_change_usage_or_establish_a_bill(response, reason, status):
+    response["stop_reason"] = reason
+    if reason == "stop_sequence":
+        response["stop_sequence"] = "PRIVATE_CONSTRUCTED_STOP_SEQUENCE"
+    before = copy.deepcopy(response)
+    result = estimate(response)
+    assert result["stop_reason"] == reason
+    assert result["generation_status"] == status
+    assert result["observed_usage"] == before["usage"]
+    assert result["total_estimate_usd"] == "0.000034"
+    assert result["actual_charge_usd"] is None
+    assert result["financial_status"] == "unverified"
+    assert "PRIVATE_CONSTRUCTED_STOP_SEQUENCE" not in json.dumps(result)
+    assert "Fabricated content" not in json.dumps(result)
+    assert response == before
+
+
+@pytest.mark.parametrize("reason", [
+    None, False, 0, 1.0, [], {}, "unknown", "tool_use", "pause_turn",
+])
+def test_unsupported_or_unknown_stopping_condition_fails_closed(response, reason):
+    response["stop_reason"] = reason
+    with pytest.raises(ValueError, match="stop reason"):
+        estimate(response)
+
+
+def test_missing_stop_reason_is_not_assumed_to_be_a_finished_turn(response):
+    del response["stop_reason"]
+    with pytest.raises(ValueError, match="stop reason"):
+        estimate(response)
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_cli_nonstandard_json_constant_is_rejected_even_outside_usage(response, tmp_path, constant):
+    source = tmp_path / "fabricated.json"
+    source.write_text(json.dumps(response)[:-1] + ', "ignored": ' + constant + '}', encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), str(source), "--request-id", "req_cli"],
+        capture_output=True, text=True)
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "nonstandard JSON constant" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert "Fabricated content" not in result.stderr
+
+
+@pytest.mark.parametrize("extra_bytes", [0, 1])
+def test_cli_document_byte_limit(response, tmp_path, extra_bytes):
+    source = tmp_path / "fabricated.json"
+    raw = json.dumps(response).encode("utf-8")
+    source.write_bytes(raw + b" " * (16 * 1024 * 1024 + extra_bytes - len(raw)))
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), str(source), "--request-id", "req_cli"],
+        capture_output=True, text=True)
+    if extra_bytes:
+        assert result.returncode != 0
+        assert result.stdout == ""
+        assert "16 MiB" in result.stderr
+        assert "Fabricated content" not in result.stderr
+    else:
+        assert result.returncode == 0
+        assert json.loads(result.stdout)["total_estimate_usd"] == "0.000034"
+        assert result.stderr == ""
+
+
+def test_cli_deep_json_is_a_controlled_error(response, tmp_path):
+    source = tmp_path / "fabricated.json"
+    document = json.dumps(response)[:-1] + ', "ignored": ' + '[' * 2000 + '0' + ']' * 2000 + '}'
+    try:
+        json.loads(document)
+        parser_overflow = False
+    except RecursionError:
+        parser_overflow = True
+    source.write_text(document, encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), str(source), "--request-id", "req_cli"],
+        capture_output=True, text=True)
+    if parser_overflow:
+        assert result.returncode != 0
+        assert result.stdout == ""
+        assert "too deeply nested" in result.stderr
+    else:
+        assert result.returncode == 0
+        assert json.loads(result.stdout)["total_estimate_usd"] == "0.000034"
+        assert result.stderr == ""
+    assert "Traceback" not in result.stderr
+    assert "Fabricated content" not in result.stderr
+
+
+def test_cli_bounded_read_does_not_load_an_entire_response(response, monkeypatch, capsys):
+    class BoundedResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size):
+            assert size == 16 * 1024 * 1024 + 1
+            return json.dumps(response).encode("utf-8")
+
+    def open_response(path, mode, *args, **kwargs):
+        assert mode == "rb"
+        return BoundedResponse()
+
+    monkeypatch.setattr(Path, "open", open_response)
+    monkeypatch.setattr(sys, "argv", [str(_SCRIPT), "fabricated.json", "--request-id", "req_cli"])
+    assert usage_estimate.main() == 0
+    assert json.loads(capsys.readouterr().out)["total_estimate_usd"] == "0.000034"
+
+
+def test_cli_parser_overflow_never_leaks_traceback_or_exception_text(
+        response, tmp_path, monkeypatch, capsys):
+    source = tmp_path / "fabricated.json"
+    source.write_text(json.dumps(response), encoding="utf-8")
+
+    def overflow(*args, **kwargs):
+        raise RecursionError("PRIVATE_PARSER_DETAIL")
+
+    monkeypatch.setattr(usage_estimate.json, "loads", overflow)
+    monkeypatch.setattr(sys, "argv", [str(_SCRIPT), str(source), "--request-id", "req_cli"])
+    with pytest.raises(SystemExit) as error:
+        usage_estimate.main()
+    assert error.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "too deeply nested" in captured.err
+    assert "Traceback" not in captured.err
+    assert "PRIVATE_PARSER_DETAIL" not in captured.err
