@@ -125,14 +125,41 @@ def ledger(monkeypatch, tmp_path):
     return log
 
 
-def test_displacement_receipt_carries_the_whole_prompt_and_reconciles(sr, ledger):
-    # The prompt-count fix changes what a new provider_metered receipt records. Mint one from usage
-    # that reports cache tokens, read the chain back, and reconcile it against the same provider call.
+def test_displacement_from_plain_log_keeps_prompt_arithmetic_without_provider_tier(sr, ledger):
     usage = {"input_tokens": 50, "cache_read_input_tokens": 1_000, "cache_creation_input_tokens": 248,
              "output_tokens": 340}
     record = {"id": "d1", "avoided_model": "gh/claude-opus-4.8", "served_model": "claude-sonnet-5",
               "usage": usage}
+    normalized = sr.normalize(record)
+    assert (normalized["prompt"], normalized["completion"]) == (1_298, 340)
     sr._mint_and_attest([record], None)
+    rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(rows) == 1
+    assert rows[0]["evidence_tier"] == "self_reported"
+    assert rows[0]["tokens_saved"] == 340
+    assert rows[0]["metered_tokens"] is None
+
+    spec = importlib.util.spec_from_file_location("kry_reconcile_e2e", _ROOT / "scripts" / "kry_reconcile.py")
+    rc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rc)
+    assert rc.load_t1_receipts(str(ledger)) == []
+
+
+def test_explicit_provider_receipt_carries_the_whole_prompt_and_reconciles(sr, ledger):
+    # This is an explicit provider-tier fixture, separate from the plain-log producer.
+    # It preserves full prompt arithmetic and reconciliation coverage without upgrading an import.
+    import kry.kry_mint as km
+
+    usage = {"input_tokens": 50, "cache_read_input_tokens": 1_000, "cache_creation_input_tokens": 248,
+             "output_tokens": 340}
+    record = {"id": "provider-d1", "avoided_model": "gh/claude-opus-4.8",
+              "served_model": "claude-sonnet-5", "usage": usage}
+    normalized = sr.normalize(record)
+    receipt = km.mint("short_circuit", normalized["completion"], "explicit provider fixture",
+                      evidence="provider-d1", avoided_model=record["avoided_model"],
+                      served_model=record["served_model"], evidence_tier=km.TIER_PROVIDER_METERED,
+                      metered_tokens=[normalized["prompt"], normalized["completion"]])
+    assert receipt is not None
     rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
     metered = [row for row in rows if row.get("evidence_tier") == "provider_metered"]
     assert len(metered) == 1
@@ -164,7 +191,8 @@ def test_holdout_and_displacement_spend_follow_the_same_rules(sr):
     assert rep["holdout"]["measurement_cost_kry"] == 400.0
     assert rep["spend_kry"] == 400.0
     assert rep["unpriced_spend_calls"] == 2
-    assert rep["by_class"]["y"]["tier"] == "provider_metered"
+    assert rep["by_class"]["y"]["tier"] == "self_reported"
+    assert rep["veracity"]["veracity_floor"] == 0.0
 
 
 # Batch API traffic bills at 50%. Valuing it at standard rates would report twice the true saving,

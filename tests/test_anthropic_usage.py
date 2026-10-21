@@ -379,3 +379,55 @@ def test_cli_parser_overflow_never_leaks_traceback_or_exception_text(
     assert "too deeply nested" in captured.err
     assert "Traceback" not in captured.err
     assert "PRIVATE_PARSER_DETAIL" not in captured.err
+
+
+@pytest.mark.parametrize("iterations", [
+    None, [], {}, False,
+    [{"type": "message", "model": usage_estimate.MODEL,
+      "input_tokens": 14, "output_tokens": 4,
+      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}],
+    [{"type": "fallback_message", "model": usage_estimate.MODEL,
+      "input_tokens": 14, "output_tokens": 4,
+      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}],
+    [{"type": "message", "model": "unsupported-model",
+      "input_tokens": 200, "output_tokens": 5,
+      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+     {"type": "fallback_message", "model": usage_estimate.MODEL,
+      "input_tokens": 14, "output_tokens": 4,
+      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}],
+])
+def test_iteration_metadata_cannot_be_priced_as_an_ordinary_single_attempt(response, iterations):
+    # Constructed shapes: no claim that the pinned model supports fallback.
+    # Additional attempts must not disappear behind valid top-level counts.
+    response["usage"]["iterations"] = iterations
+    before = copy.deepcopy(response)
+    with pytest.raises(ValueError, match="unsupported usage category"):
+        estimate(response)
+    assert response == before
+
+
+def test_fallback_content_is_outside_the_ordinary_text_profile(response):
+    response["content"].insert(0, {
+        "type": "fallback", "from": {"model": "unsupported-model"},
+        "to": {"model": usage_estimate.MODEL},
+    })
+    with pytest.raises(ValueError, match="ordinary text"):
+        estimate(response)
+
+
+def test_cli_iterations_emit_no_partial_price_or_response_content(response, tmp_path):
+    response["usage"]["iterations"] = [{
+        "type": "fallback_message", "model": usage_estimate.MODEL,
+        "input_tokens": 14, "output_tokens": 4,
+        "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0,
+    }]
+    source = tmp_path / "response.json"
+    source.write_text(json.dumps(response))
+    result = subprocess.run(
+        [sys.executable, str(_SCRIPT), str(source), "--request-id", "req_fabricated"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "unsupported usage category" in result.stderr
+    assert "Fabricated content" not in result.stderr

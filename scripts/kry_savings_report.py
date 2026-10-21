@@ -1,31 +1,16 @@
 #!/usr/bin/env python3
-"""KRY savings report — turn a routing log into a verifiable savings statement.
+"""KRY savings report — estimate savings from an operator-supplied routing log.
 
-Point this at a usage export from the gateway you already run (LiteLLM, OpenRouter,
-Helicone, or a flat JSON/JSONL of calls) and it produces the number you can put in
-front of a FinOps team, a customer, or an auditor:
+This operator tool reads JSON/JSONL usage records, values reported cache hits and
+model displacements, and estimates paid-call spend using the package price tables.
+Reported holdout counts can discount the estimate using a Wilson lower bound.
+Neither the log's shape nor its sample size authenticates the underlying events.
+Every imported saving is self_reported with veracity_floor 0, including holdout
+and displacement records. Dollars are estimates, not reconciled bill amounts.
 
-    how much did caching + routing actually SAVE — and how much of that is
-    MEASURED (holdout-validated) vs self-reported.
-
-It is an OPERATOR tool (like scripts/kry_reconcile.py): it reads the operator's own
-logs and may write into the operator's own mint chain. It reuses the KRY package for
-valuation, so the report and the on-chain receipts use identical math. The resulting
-attestation is then checkable by the stdlib-only stranger verifier
-(scripts/kry_verify.py) — the operator computes, a third party verifies.
-
-What it does:
-  - SPEND   : sums the real cost of paid calls (KRY and frontier-equivalent USD).
-  - SAVED   : values each cache hit at what it AVOIDED (edge-weighted by the avoided
-              model's price), and each displacement at the NET price difference.
-  - VERACITY: if the log carries holdout records (forced real calls — see
-              docs/KRY_COUNTERFACTUAL_HOLDOUT.md), it MEASURES the counterfactual
-              rate per request-class (Wilson 95% CI) and values the matching cache
-              hits at the CONSERVATIVE lower bound, tagged `holdout_validated`.
-              Classes with no holdout fall back to full value, tagged `self_reported`
-              (veracity_floor contribution 0 — the honest label).
-  - --mint / --attest : optionally write the savings into the hash chain and emit a
-              public attestation a stranger can verify.
+--mint / --attest can record these self-reported estimates in the operator's chain.
+The stranger verifier checks integrity and public arithmetic where checkable;
+it does not certify that the imported calls, savings or holdouts really happened.
 
 Input record fields (common gateway shapes are normalised automatically):
   id / request_id          — request identifier
@@ -66,11 +51,9 @@ from kry.kry_token import (  # noqa: E402
     value_multiplier,
 )
 
-# Minimum holdout sample before a class earns the `holdout_validated` trust LABEL.
-# Below this the measured magnitude is too thin to claim validation, so the savings
-# fall back to self_reported (full value, honest floor-0 label) — this is what stops
-# a handful of fabricated holdout records from claiming external anchoring. The
-# Wilson CI already discounts the magnitude for small n; this guards the LABEL.
+# Minimum reported holdout sample before applying the conservative Wilson factor.
+# This affects estimated magnitude only; any number of unauthenticated records
+# remains self_reported and cannot establish an externally anchored trust tier.
 import os  # noqa: E402
 
 MIN_HOLDOUT_N = int(os.environ.get("KRY_MIN_HOLDOUT_N", "30"))
@@ -227,10 +210,9 @@ def _provider_calls(records: list[dict], batch: bool = False):
 def analyze(records: list[dict], strict_baseline: bool = False, batch: bool = False) -> dict:
     """Compute the savings report (read-only — no minting, no persisted state).
 
-    strict_baseline (external-facing mode): value cache-hit classes WITHOUT a measured holdout at 0
-    instead of full self-reported value, so an external report never presents un-validated savings as
-    dollars. Default False keeps the internal-analysis behaviour (full value, honest self_reported
-    label, veracity_floor still 0).
+    strict_baseline: value cache-hit classes WITHOUT sufficient reported holdout at 0
+    instead of full self-reported value. Either mode leaves source assurance unchanged:
+    every imported saving is self_reported with veracity_floor 0.
 
     Two passes: first tally per-class holdout outcomes (the counterfactual
     measurement), then value each cache hit at the holdout-conservative rate where a
@@ -275,7 +257,7 @@ def analyze(records: list[dict], strict_baseline: bool = False, batch: bool = Fa
             displacements.append(n)
             cost, priced = _report_spend(n["served_model"], n["completion"])
             unpriced_spend_calls += not priced
-            spend_kry += cost                  # the cheap leg is real spend
+            spend_kry += cost                  # estimated spend for the reported cheap leg
         else:
             by_kind["paid_call" if spend_cost(n["model"], n["completion"]) > 0 else "free_call"] += 1
             cost, priced = _report_spend(n["model"], n["completion"])
@@ -290,12 +272,10 @@ def analyze(records: list[dict], strict_baseline: bool = False, batch: bool = Fa
         b = by_class[n["request_class"]]
         if b["holdout_n"] >= MIN_HOLDOUT_N:
             lo, _ = wilson_interval(b["holdout_paid_n"], b["holdout_n"])
-            factor, tier = lo, "holdout_validated"      # measured on enough samples -> conservative + validated
+            factor, tier = lo, "self_reported"   # statistical discount, not authenticated evidence
         else:
-            # unmeasured OR too-thin a holdout to claim validation -> full value, honest
-            # self_reported label (floor contribution 0). Stops a few fabricated holdout
-            # records from buying the validated tier; thin samples must grow to count.
-            # --strict-baseline zeroes these for external reports (don't present un-validated savings).
+            # Insufficient reported holdout: retain the existing full-value estimate,
+            # or zero it in strict mode. Neither choice establishes source truth.
             factor, tier = (0.0 if strict_baseline else 1.0), "self_reported"
         kry = n["completion"] * rate * value_multiplier(n["avoided_model"]) * factor
         saved_kry += kry
@@ -303,25 +283,28 @@ def analyze(records: list[dict], strict_baseline: bool = False, batch: bool = Fa
         b["tier"] = tier
         tier_kry[tier] += kry
 
-    # Displacements: net saving, anchored by the real cheap leg (provider_metered).
+    # Displacements: estimated net saving; an imported usage payload is not authentication.
     for n in displacements:
         kry = n["completion"] * EARN_RATES.get("short_circuit", 1.0) * \
             net_value_multiplier(n["avoided_model"], n["served_model"])
         saved_kry += kry
         b = by_class[n["request_class"]]
         b["saved_kry"] += kry
-        if b["treated_n"] == 0:        # label a pure-displacement class by its real tier
-            b["tier"] = "provider_metered"
-        tier_kry["provider_metered"] += kry
+        tier_kry["self_reported"] += kry
 
     anchored = tier_kry["holdout_validated"] + tier_kry["provider_metered"]
     total_flow = saved_kry + spend_kry
     return {
         "records": len(norm),
         "strict_baseline": strict_baseline,
+        "source_assurance": {
+            "source": "operator_supplied_log",
+            "authenticated": False,
+            "scope": "imported_savings_estimates",
+        },
         "by_kind": by_kind,
         "saved_kry": round(saved_kry, 2),
-        "saved_usd": round(saved_kry * USD_PER_KRY, 4),       # retained dollars
+        "saved_usd": round(saved_kry * USD_PER_KRY, 4),       # list-price-equivalent estimate
         "spend_kry": round(spend_kry, 2),
         "spend_usd": round(spend_kry * USD_PER_KRY, 4),
         "unpriced_spend_calls": unpriced_spend_calls,
@@ -360,12 +343,7 @@ def _mint_and_attest(records: list[dict], attest_path: str | None) -> str | None
     optionally, emit a public attestation a stranger can verify."""
     from kry.kry_attest import build_attestation
     from kry.kry_baseline import wilson_interval as _wi
-    from kry.kry_mint import (
-        TIER_HOLDOUT_VALIDATED,
-        TIER_PROVIDER_METERED,
-        TIER_SELF_REPORTED,
-        mint,
-    )
+    from kry.kry_mint import TIER_SELF_REPORTED, mint
 
     norm = [n for n in (normalize(r) for r in records) if n]
     # rebuild per-class holdout counts for the conservative factor
@@ -381,7 +359,7 @@ def _mint_and_attest(records: list[dict], attest_path: str | None) -> str | None
             hn, hp = counts.get(n["request_class"], [0, 0])
             if hn >= MIN_HOLDOUT_N:
                 lo, _ = _wi(hp, hn)
-                tokens, tier = n["completion"] * lo, TIER_HOLDOUT_VALIDATED
+                tokens, tier = n["completion"] * lo, TIER_SELF_REPORTED
             else:
                 tokens, tier = float(n["completion"]), TIER_SELF_REPORTED
             if tokens >= 1.0:
@@ -391,8 +369,7 @@ def _mint_and_attest(records: list[dict], attest_path: str | None) -> str | None
         elif n["served_model"] and n["avoided_model"] and n["served_model"] != n["avoided_model"]:
             mint("short_circuit", n["completion"], f"displacement:{n['id']}",
                  evidence=f"disp:{n['id']}", avoided_model=n["avoided_model"],
-                 served_model=n["served_model"], evidence_tier=TIER_PROVIDER_METERED,
-                 metered_tokens=[n["prompt"], n["completion"]])
+                 served_model=n["served_model"], evidence_tier=TIER_SELF_REPORTED)
     if attest_path:
         att = build_attestation()
         Path(attest_path).write_text(att.to_public_json(), encoding="utf-8")
@@ -405,20 +382,20 @@ def _print(report: dict) -> None:
     h = report["holdout"]
     print("KRY savings report")
     print(f"  records analysed:     {report['records']}  {report['by_kind']}")
-    print(f"  SAVED (retained):     {report['saved_kry']:>12,.2f} KRY   "
+    print(f"  SAVED (estimated):     {report['saved_kry']:>12,.2f} KRY   "
           f"= ${report['saved_usd']:,.4f}")
-    print(f"  SPEND (real):         {report['spend_kry']:>12,.2f} KRY   "
+    print(f"  SPEND (estimated):         {report['spend_kry']:>12,.2f} KRY   "
           f"= ${report['spend_usd']:,.4f}")
     print(f"  efficiency_ratio:     {report['efficiency_ratio']:.2%}  (saved / (saved+spend))")
     print(f"  veracity_floor:       {v['veracity_floor']:.2%}  "
-          f"(holdout-validated + provider-metered share of savings)")
+          f"(operator-supplied log; source truth is not verified)")
     print(f"    self_reported:      {v['self_reported_kry']:>12,.2f} KRY")
     print(f"    holdout_validated:  {v['holdout_validated_kry']:>12,.2f} KRY")
     print(f"    provider_metered:   {v['provider_metered_kry']:>12,.2f} KRY")
     if h["classes_measured"]:
         print(f"  holdout measurement:  {h['classes_measured']} class(es) measured; "
               f"cost {h['measurement_cost_kry']:,.2f} KRY (${h['measurement_cost_usd']:,.4f}) "
-              f"— the price of veracity")
+              f"— estimated cost of reported holdouts")
     if report["unpriced_spend_calls"]:
         print(f"  unpriced calls:       {report['unpriced_spend_calls']} (no spend rate or dated list "
               f"price for the model; not counted in SPEND)")
@@ -451,8 +428,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="every record in this log was billed through a provider Batch API (50%% of "
                         "standard): value nothing in the prompt-cache block at standard rates")
     p.add_argument("--strict-baseline", action="store_true",
-                   help="value cache-hit savings WITHOUT a measured holdout at 0 (external reports — "
-                        "never present un-validated savings as dollars)")
+                   help="value cache-hit savings WITHOUT sufficient reported holdout at 0; "
+                        "all imported savings remain self-reported estimates")
     args = p.parse_args(argv)
 
     records = _load_records(args.usage_log)

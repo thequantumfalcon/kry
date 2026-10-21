@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a buyer-facing retained-dollars report from a verified KRY artifact."""
+"""Render usage-based estimates and evidence scopes from a verified KRY artifact."""
 from __future__ import annotations
 
 import argparse
@@ -278,7 +278,10 @@ def build_report(
         },
         "headline": headline,
         "ship_scope": scope,
-        "retained_dollars": savings.get("saved_usd", 0.0),
+        "retained_dollars": savings.get("saved_usd", 0.0),  # compatibility key; estimate only
+        "estimated_savings_usd": savings.get("saved_usd", 0.0),
+        "amount_basis": "operator_supplied_log_list_price_estimate",
+        "assurance_scopes": artifact.get("assurance_scopes") or {},
         "saved_kry": savings.get("saved_kry", 0.0),
         "spend_usd": savings.get("spend_usd", 0.0),
         "spend_kry": savings.get("spend_kry", 0.0),
@@ -391,6 +394,8 @@ def render_markdown(report: dict) -> str:
         return "\n".join([
             "# KRY Retained-Dollars Report",
             "",
+            "Monetary figures are usage-based estimates, not verified charges or retained cash.",
+            "",
             "Artifact verification failed. Do not use this report.",
             "",
             errors,
@@ -432,25 +437,32 @@ def render_markdown(report: dict) -> str:
     lines = [
         "# KRY Retained-Dollars Report",
         "",
+        "Monetary figures are usage-based estimates, not verified charges or retained cash.",
+        "",
         f"Status: {report['headline']}",
         f"Ship scope: `{report['ship_scope']}`",
         f"Artifact hash: `{report['artifact_hash']}`",
         "",
-        "## Retained Dollars",
+        "## Estimated Savings",
         "",
-        f"- Retained dollars: {_money(report['retained_dollars'])}",
+        f"- Estimated savings: {_money(report['estimated_savings_usd'])}",
         f"- Saved amount: {_kry(report['saved_kry'])}",
-        f"- Real spend: {_money(report['spend_usd'])} ({_kry(report['spend_kry'])})",
+        f"- Estimated spend: {_money(report['spend_usd'])} ({_kry(report['spend_kry'])})",
+        "- Basis: operator-supplied usage and list prices; not actual charges or retained cash.",
         f"- Efficiency ratio: {_pct(report['efficiency_ratio'])}",
         "",
         "## Veracity",
         "",
-        f"- Veracity floor: {_pct(report['veracity_floor'])}",
+        f"- Imported-log source floor: {_pct(report['veracity_floor'])}",
+        "- Receipt tiers are declared separately and do not authenticate the imported log.",
+        f"- Declared receipt floor: {_pct((report['assurance_scopes'].get('attestation_declared_veracity') or {}).get('veracity_floor', 0.0))}",
         f"- Self-reported: {_kry(report['veracity_breakdown']['self_reported_kry'])}",
         f"- Holdout-validated: {_kry(report['veracity_breakdown']['holdout_validated_kry'])}",
         f"- Provider-metered: {_kry(report['veracity_breakdown']['provider_metered_kry'])}",
         "",
         "## Claim Status",
+        "",
+        "Legacy packet eligibility below does not establish billing, settlement or causal savings.",
         "",
         f"- {claim_line}",
         f"- Provider reconciled: {report['provider_reconciled']}",
@@ -521,14 +533,14 @@ def render_markdown(report: dict) -> str:
         "",
         f"- Verified command: `{report['verification']['verify_command']}`",
         f"- Doctor command: `{report['verification']['doctor_command']}`",
-        "- This is retained-dollars accounting, not a tradeable token or exchange instrument.",
+        "- This is usage-based estimation, not a statement of retained cash and not a tradeable token.",
         "",
     ]
     return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="Render a KRY FinOps retained-dollars report from artifact.json")
+    p = argparse.ArgumentParser(description="Render KRY usage estimates and evidence scopes from artifact.json")
     p.add_argument("artifact", help="verified-savings artifact JSON")
     p.add_argument("--json", action="store_true", help="emit kry_finops_report/v1 JSON")
     p.add_argument("--out", default=None, help="write report to this path instead of stdout")

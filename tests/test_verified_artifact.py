@@ -55,6 +55,32 @@ def _non_bundled_usage_log(tmp_path: Path) -> Path:
     return path
 
 
+def _mint_explicit_fixture(sr, records, att_path):
+    """Construct positive T1 explicitly; imported plain logs remain untrusted."""
+    import kry.kry_attest as ka
+    import kry.kry_mint as km
+
+    displacements = []
+    other = []
+    for record in records:
+        normalized = sr.normalize(record)
+        if (normalized and not normalized["cache_hit"] and normalized["served_model"]
+                and normalized["avoided_model"] and normalized["served_model"] != normalized["avoided_model"]):
+            displacements.append(normalized)
+        else:
+            other.append(record)
+    sr._mint_and_attest(other, None)
+    for normalized in displacements:
+        receipt = km.mint(
+            "short_circuit", normalized["completion"], "constructed explicit provider fixture",
+            evidence=f"fixture:{normalized['id']}", avoided_model=normalized["avoided_model"],
+            served_model=normalized["served_model"], evidence_tier=km.TIER_PROVIDER_METERED,
+            metered_tokens=[normalized["prompt"], normalized["completion"]],
+        )
+        assert receipt is not None and receipt.kry_minted > 0
+    Path(att_path).write_text(ka.build_attestation().to_public_json(), encoding="utf-8")
+
+
 @pytest.fixture
 def minted_sample(tmp_path, monkeypatch):
     import kry.kry_attest as ka
@@ -76,7 +102,7 @@ def minted_sample(tmp_path, monkeypatch):
     sr = _load(_SR, "kry_savings_report_for_artifact_test")
     records = [json.loads(ln) for ln in usage_log.read_text(encoding="utf-8").splitlines() if ln.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     return usage_log, att_path, log
 
 
@@ -474,7 +500,7 @@ def test_bundled_sample_cannot_be_declared_real_for_external_candidate(tmp_path,
     art = _load(_ARTIFACT, "kry_verified_artifact_bundled_sample_block")
     records = [json.loads(ln) for ln in _SAMPLE.read_text(encoding="utf-8").splitlines() if ln.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
