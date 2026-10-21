@@ -67,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An opt-in Anthropic projection checks a narrowly supported saved Messages
+  response and declared acquisition metadata before producing a normalized
+  provider row. It preserves unknown account scope and keeps source authenticity,
+  receipt binding and actual charges separate from projection consistency.
 - An opt-in prospective row-link profile commits individual displacement estimates
   and scoped supplied-provider identities into existing receipts. Its verifier
   checks full selected-row coverage and receipt openings without upgrading source

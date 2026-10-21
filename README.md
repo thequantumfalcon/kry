@@ -628,6 +628,9 @@ reconciliation diagnostics from exact supplied-export T1 token consistency. It d
 not authenticate exports or establish actual charges. For new receipts, optional
 [individual row commitments](docs/KRY_USAGE_LINKS.md) bind selected displacement
 rows and supplied request identities before minting; source truth remains unverified.
+The optional [Anthropic projection](docs/KRY_ANTHROPIC_PROJECTION.md) checks a
+narrow saved-response profile before producing a normalized provider row; it does
+not authenticate the capture or establish a provider charge.
 
 ```text
 src/kry/ the package (stdlib only) — see Modules
