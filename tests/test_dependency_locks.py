@@ -15,7 +15,8 @@ from scripts import kry_release_verify as release_verify
 def locked_project(tmp_path):
     (tmp_path / ".github").mkdir()
     shutil.copy(locks.ROOT / "pyproject.toml", tmp_path)
-    for name in ("dev-requirements.txt", "litellm-requirements.in", "litellm-requirements.txt"):
+    for name in ("dev-requirements.txt", "litellm-requirements.in", "litellm-requirements.txt",
+                 "crypto-requirements.in", "crypto-requirements.txt"):
         shutil.copy(locks.ROOT / ".github" / name, tmp_path / ".github")
     return tmp_path
 
@@ -24,12 +25,13 @@ def test_checked_in_inputs_match_locks():
     assert locks.check_locks() == []
 
 
-@pytest.mark.parametrize("source", ["pyproject.toml", ".github/litellm-requirements.in"])
+@pytest.mark.parametrize("source", ["pyproject.toml", ".github/litellm-requirements.in",
+                                     ".github/crypto-requirements.in"])
 def test_dependency_bump_requires_lock_refresh(locked_project, source):
     path = locked_project / source
     original = path.read_text(encoding="utf-8")
     old = (release_verify.DEV_REQUIREMENTS[0] if source == "pyproject.toml"
-           else next(line for line in original.splitlines() if line.startswith("litellm==")))
+           else next(line for line in original.splitlines() if "==" in line and not line.startswith("#")))
     path.write_text(original.replace(old, old.split("==")[0] + "==999.0.0"), encoding="utf-8")
     assert any("regenerate the lock" in error for error in locks.check_locks(locked_project))
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Optional TEE and post-quantum tests lacked a dependency-enabled CI job. A
+  separate job now verifies the native library and executes these suites with
+  real ML-DSA operations, failing on unavailable dependencies or skipped cases.
+
 - CI and the release gate installed test tools and integration dependencies without
   artifact hashes, including floating transitive dependencies. Complete hash locks
   now cover these installs, direct-pin drift fails before installation, and external

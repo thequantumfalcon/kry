@@ -21,10 +21,12 @@ def check_locks(root: Path = ROOT) -> list[str]:
     with (root / "pyproject.toml").open("rb") as handle:
         dev = tomllib.load(handle)["project"]["optional-dependencies"]["dev"]
     integration = _pins((root / ".github/litellm-requirements.in").read_text(encoding="utf-8"))
+    crypto = _pins((root / ".github/crypto-requirements.in").read_text(encoding="utf-8"))
     errors = []
     for filename, direct in (
         ("dev-requirements.txt", dev),
         ("litellm-requirements.txt", [*dev, *integration]),
+        ("crypto-requirements.txt", [*dev, *crypto]),
     ):
         text = (root / ".github" / filename).read_text(encoding="utf-8")
         records = _pins(text.replace("\\\n", " "))

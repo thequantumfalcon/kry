@@ -1,0 +1,3 @@
+# Tested optional-crypto CI environment; not a core runtime dependency.
+cryptography==50.0.2
+liboqs-python==0.16.0.1
