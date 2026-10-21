@@ -1,0 +1,2 @@
+# Integration-only dependency; core runtime remains stdlib-only.
+litellm==1.101.0

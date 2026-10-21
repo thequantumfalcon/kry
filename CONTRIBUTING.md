@@ -49,6 +49,9 @@ python examples/try_kry.py # 30s end-to-end: earn → mint → attest → verify
 ```
 Optional crypto tiers, from a checkout only: `pip install -e ".[tee]"` (adds `cryptography` for the `tee_attested` tier). The PyPI wheel ships only `kry/` and `kry_verify.py`, so the `tee` and `pqc` extras do nothing on a PyPI install.
 
+CI uses complete hash-locked tool dependencies. See [CI dependency locks](docs/CI_DEPENDENCIES.md)
+for the matching local setup and the required regeneration step when changing a dev or integration pin.
+
 ## Workflow
 
 - Branch off `main` (`feature/*`, `fix/*`, `docs/*`). **`main` is canonical.**
