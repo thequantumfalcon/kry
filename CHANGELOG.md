@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The LiteLLM callback accepted contradictory total and component token counts and
+  could ignore malformed components when a total was present. Cache and route
+  extraction now reject these inconsistencies while preserving supported null-total
+  fallback and partial usage shapes.
+- Savings reports could crash on non-object records or usage containers, or count
+  malformed usage as a usable zero-token event. Non-string model/class metadata and
+  floating-point boolean flags could also enter valuation. These records are now
+  unusable under the existing skip policy; valid records retain their arithmetic.
 - Savings-log token normalization accepted booleans, strings and fractional values as
   counts, lost precision through float conversion, and replaced explicit zero or null
   with later aliases. It now retains nonnegative JSON integers exactly and selects
@@ -41,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An opt-in LiteLLM observation hook retains allowlisted callback-visible usage
+  categories, field presence, separate model labels and hashed identifier candidates.
+  It preserves exact supported integer counts and cost ticks without changing receipt
+  values or tiers. Observations remain private, normalized metadata; billing is unverified.
 - An offline Anthropic usage estimator prices input and output separately for pinned
   `claude-haiku-4-5-20251001` ordinary text responses. It retains provider message/request
   identifiers, rejects unsupported categories and leaves actual charges unverified.

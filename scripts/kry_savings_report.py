@@ -118,9 +118,9 @@ def _json_bool(value, field: str) -> bool:
     the record rather than guess)."""
     if isinstance(value, bool):
         return value
-    if value in (None, 0):
+    if value is None or (type(value) is int and value == 0):
         return False
-    if value == 1:
+    if type(value) is int and value == 1:
         return True
     if isinstance(value, str):
         lowered = value.strip().lower()
@@ -133,13 +133,17 @@ def _json_bool(value, field: str) -> bool:
 
 def normalize(rec: dict) -> dict | None:
     """Normalise a gateway record to the fields this tool needs. Returns None if it
-    carries no model (unusable) or carries a malformed boolean flag."""
+    has an unusable container, model/class field, or boolean flag."""
+    if not isinstance(rec, dict):
+        return None
     # A cache hit is served from cache, so it may carry no `model` (no call was
     # made) — only the `avoided_model` it stood in for. Accept either.
     model = rec.get("model") or rec.get("model_name") or rec.get("avoided_model")
-    if not model:
+    if not isinstance(model, str) or not model:
         return None
     u = rec.get("usage", rec)
+    if not isinstance(u, dict):
+        return None
     # An explicitly present zero or malformed value must not select a later alias.
     prompt = next((u[key] for key in ("prompt_tokens", "tokens_prompt", "input_tokens",
                                      "native_tokens_prompt") if key in u), 0)
@@ -156,11 +160,15 @@ def normalize(rec: dict) -> dict | None:
         return None   # malformed boolean flag → unusable record (skip rather than miscount)
     served_model = rec.get("served_model")
     avoided_model = rec.get("avoided_model") or (model if cache_hit else None)
+    if any(value is not None and not isinstance(value, str) for value in (served_model, avoided_model)):
+        return None
     # Request class: prefer explicit; else the model being avoided (cache hit) or
     # the model called (holdout / real). Holdout and treated must share a class to
     # match, so an explicit request_class is recommended for accuracy.
     request_class = (rec.get("request_class") or rec.get("class") or rec.get("tag")
                      or avoided_model or model)
+    if not isinstance(request_class, str):
+        return None
     return {
         "id": rec.get("id") or rec.get("request_id") or rec.get("requestId") or "",
         "model": model,
