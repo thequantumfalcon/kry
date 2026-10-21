@@ -122,7 +122,10 @@ def _finite(value: Any) -> Optional[float]:
         return None
     if value != value or value in (float("inf"), float("-inf")):
         return None
-    return float(value)
+    try:
+        return float(value)
+    except OverflowError:
+        return None
 
 
 def _standard_logging_number(kwargs: dict, key: str) -> Optional[float]:
@@ -174,10 +177,8 @@ def receipt_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dic
     tokens = _usage_total_tokens(response_obj)
     if tokens is None:
         return None
-    cost = kwargs.get("response_cost")
-    cost_note = (f" litellm_cost_estimate={cost:.6f}"
-                 if isinstance(cost, (int, float)) and not isinstance(cost, bool)
-                 and cost == cost else "")   # NaN != NaN -> excluded
+    cost = _finite(kwargs.get("response_cost"))
+    cost_note = f" litellm_cost_estimate={cost:.6f}" if cost is not None else ""
     saved = _standard_logging_number(kwargs, "saved_cache_cost")
     saved_note = f" litellm_saved_cache_cost={saved:.6f}" if saved is not None else ""
     return {

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aggregate reconciliation reported empty or zero-token receipt windows as
+  successful in the CLI. It now preserves `NO_T1_RECEIPTS` and exits nonzero.
+- Floating-point rounding could reject the exact aggregate tolerance boundary or
+  accept a one-token excess at large totals. The comparison now uses exact decimal
+  tolerance arithmetic, and the diagnostic fraction avoids overflow from large totals.
+- Oversized optional LiteLLM cost estimates could suppress an otherwise eligible
+  callback receipt, and infinite response costs could appear in its detail. Invalid
+  contextual estimates are now omitted while valid usage retains its receipt and tier.
 - Optional post-quantum verification accepted short key pins and inconsistent
   quorum metadata, and some malformed inputs caused uncaught errors. It now
   requires at least 16 hexadecimal fingerprint characters, checks envelope and
