@@ -1,38 +1,30 @@
 #!/usr/bin/env python3
-"""Mint a KRY T2 receipt from an attested-hardware measurement (AWS Nitro Enclaves).
+"""Verify a Nitro attestation and optionally mint a declared KRY T2 receipt.
 
-The honest claim of `tee_attested` (read first, so it is never overclaimed —
-consistent with docs/KRY_TEE_OPTIONS.md and docs/KRY_VERACITY_BINDING.md):
+A valid signature authenticates the attestation document and its included bytes,
+not the truth of the measurement represented by them. The bundled poc/nitro workload
+forwards parent-supplied JSON to NSM; it does not observe token usage or calculate
+savings. Keep that demonstration in --dry-run mode. A trusted measurement claim needs
+reviewed measurement code, trusted inputs and a verified enclave-image pin; neither
+the signed payload nor the tee_attested label establishes avoided provider charges.
 
-  A cloud-TEE attestation proves *"the code that produced this measurement ran inside
-  an attested enclave"* — it does NOT prove the closed model provider's OWN inference
-  ran in a TEE (no major provider exposes a customer-facing attestation). So a KRY
-  `tee_attested` receipt means exactly:
-
-      "the holdout / savings MEASUREMENT (the token accounting, the savings claim) ran
-       in attested hardware, so the operator could not have fabricated it."
-
-  That UPGRADES the `self_reported` / `holdout_validated` path (operator-trust →
-  hardware-attested). It is NOT a provider-inference proof and must not be marketed as
-  one (Avoid A1/A8). `tlsn_attested` remains the tier that proves the provider call
-  happened (cryptographically notarized bytes).
-
-How the trust is established (mirrors scripts/kry_tlsn_verify.py, where the Rust verifier
-was the root of trust):
+Verification and minting boundaries:
   - `verify_attestation()` is the cryptographic boundary. It CBOR-decodes the Nitro
     COSE_Sign1 attestation document, verifies the ES384 (ECDSA-P384/SHA-384) COSE
     signature under the enclave's leaf certificate, walks the X.509 chain leaf → CA
-    bundle → the PINNED AWS Nitro Enclaves root (G1), and checks validity/freshness/PCR0.
+    bundle → the supplied root, and checks validity/freshness and PCR0 when pinned.
+    The CLI defaults to the pinned AWS Nitro Enclaves root G1 fingerprint.
     The asymmetric signature + X.509 step uses the audited `cryptography` library — we do
     NOT hand-roll security-critical crypto and we FAIL CLOSED if it is unavailable (never
     mint claiming a verification we did not perform). The pinned-root trust anchor itself
     is a pure-stdlib `hashlib` fingerprint compare against the AWS-published checksum.
-  - `run()` consumes that ALREADY-VERIFIED output and mints (pure stdlib) — fresh
+  - The nonce is returned, not matched to an expected challenge. CLI overrides are
+    operator inputs outside the signed payload; they are not authenticated by it.
+  - `run()` consumes that ALREADY-VERIFIED document output and mints (pure stdlib) — fresh
     tee_attested value, or a net-zero tier UPGRADE of a prior self_reported/holdout
     measurement receipt for the same measurement id (no double-credit).
 
-The enclave workload runs the KRY holdout/measurement and places the measurement result
-JSON into the attestation document's `user_data` field:
+Expected JSON in the attestation document's `user_data` field:
     {"measurement_id": "...", "tokens_saved": <float>, "avoided_model": "...",
      "served_model": "..."(optional), "event_type": "..."(optional)}
 
@@ -43,9 +35,6 @@ only to mint (the mint log never leaves the machine).
 Usage:
     # verify only (no mint), against the pinned AWS Nitro root cert (DER or PEM):
     python3 scripts/kry_tee_verify.py attestation.cbor --root AWS_NitroEnclaves_Root-G1.der --dry-run
-    # mint a tee_attested receipt for an attested measurement:
-    python3 scripts/kry_tee_verify.py attestation.cbor --root AWS_NitroEnclaves_Root-G1.der \
-        --avoided-model gh/claude-opus-4.8
 """
 from __future__ import annotations
 
@@ -295,12 +284,14 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
       3. The X.509 chain leaf → cabundle → root verifies (each cert signed by the next),
          every cert is within its validity window, and the chain terminates at EXACTLY the
          pinned root (byte-equal to root_cert_der — the trust anchor).
-      4. Freshness: the attestation timestamp is within max_age_s of `now` (not in future).
+      4. Freshness: no older than max_age_s and no more than 300 seconds ahead of `now`.
       5. PCR0 matches expected_pcr0 when pinned (the enclave-image identity).
 
     The asymmetric crypto uses the audited `cryptography` lib; ABSENT it we return
     verified=False with a clear error (never a silent skip). Returns a dict consumed by
     run(): {verified, errors, measurement, module_id, timestamp, nonce, pcr0, doc_sha256}.
+    This authenticates document fields, not their measurement truth. The nonce is
+    returned without comparison to an expected challenge.
     """
     errs: list[str] = []
     now = time.time() if now is None else now
@@ -459,9 +450,10 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         measurement_id: str | None, dry_run: bool) -> dict:
     """Consume an ALREADY-VERIFIED attestation (verify_attestation output) and mint.
 
-    Mirrors kry_tlsn_verify.run: fail-closed gate → extract the attested measurement →
+    Mirrors kry_tlsn_verify.run: fail-closed gate → extract the declared payload →
     promote a prior self_reported/holdout measurement receipt to tee_attested (no
-    double-credit), or mint fresh tee_attested value when none exists."""
+    double-credit), or mint fresh tee_attested value when none exists. Overrides are
+    operator inputs, not authenticated values from the document."""
     if att.get("verified") is not True:
         return {"verdict": "REJECTED", "errors": att.get("errors") or ["attestation not verified"]}
 
@@ -570,7 +562,10 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Mint a KRY T2 (tee_attested) receipt from an AWS Nitro attestation document")
+        description="Verify an AWS Nitro document and optionally mint a KRY T2 (tee_attested) receipt",
+        epilog="Verification authenticates document fields, not measurement truth. The nonce is "
+               "not checked against an expected challenge. Overrides are operator input outside "
+               "the signed payload. Keep parent-supplied PoC demonstrations in --dry-run mode.")
     p.add_argument("attestation", help="the Nitro COSE_Sign1 attestation document (binary CBOR file)")
     p.add_argument("--root", required=True,
                    help="the pinned AWS Nitro Enclaves root certificate (PEM or DER). The chain "
@@ -581,8 +576,8 @@ def main(argv: list[str] | None = None) -> int:
                         "Nitro root G1 fingerprint, so the genuine root passes and any other "
                         "root is refused. Override for a different partition/generation")
     p.add_argument("--pcr0", default=None,
-                   help="PIN the enclave image measurement (PCR0 hex) — minting is refused unless "
-                        "the attestation's PCR0 matches (identifies WHICH enclave produced it)")
+                   help="if supplied, require this enclave image PCR0 (hex); without it, no "
+                        "enclave-image allowlist comparison is performed")
     p.add_argument("--max-age", type=float, default=3600.0,
                    help="reject attestations older than this many seconds (default 3600)")
     p.add_argument("--event-type", default="short_circuit",

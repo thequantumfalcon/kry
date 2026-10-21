@@ -340,7 +340,7 @@ classified by *how the event was witnessed*, weakest to strongest:
 | **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — a **permanent** floor for them | shipped |
 | **T1** | `provider_metered` | the **provider**, for a call that *did* happen | a displacement's cheap leg, with a retained real `usage` payload | shipped + reconcilable (F1) |
 | **T2** | `tlsn_attested` (TLS-notary) | a TLS-notary signature over a real provider TLS session | a provider call that *did* happen (a displacement's cheap leg) — not a cache-hit counterfactual | mint shipped (`scripts/kry_tlsn_verify.py`, 2026-06-04) and exercised end-to-end against openrouter.ai; **self-hosted notary, so not yet a neutral third party** |
-| **T2** | `tee_attested` (TEE) | an attested hardware enclave (AWS Nitro) | the savings *measurement* ran in attested hardware — the only external route for cache-hit counterfactuals; not proof that a provider's inference ran in a TEE | verify + mint shipped (`scripts/kry_tee_verify.py`, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06 |
+| **T2** | `tee_attested` (TEE) | a signed enclave attestation document (AWS Nitro) | authenticates the document and its payload; the bundled PoC signs parent-supplied demonstration data, so trusted measurement code and input binding are still required to establish measurement truth | verify + mint shipped (`scripts/kry_tee_verify.py`, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06 |
 
 - The tier is **bound into the receipt hash** (`hash_version >= 2`): editing one receipt's
  tier in place breaks the chain, and a legacy v1 receipt (which does not bind the tier) may
