@@ -109,27 +109,27 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
     minted savings into the chain; attestation -> <tmp>/att.json
   KRY savings report
     records analysed:     48  {'cache_hit': 10, 'holdout': 35, 'displacement': 1, 'paid_call': 2, 'free_call': 0}
-    SAVED (retained):         3,080.50 KRY   = $0.0770
-    SPEND (real):            17,017.60 KRY   = $0.4254
+    SAVED (estimated):         3,080.50 KRY   = $0.0770
+    SPEND (estimated):         17,017.60 KRY   = $0.4254
     efficiency_ratio:     15.33%  (saved / (saved+spend))
-    veracity_floor:       70.78%  (holdout-validated + provider-metered share of savings)
-      self_reported:            900.00 KRY
-      holdout_validated:      1,798.10 KRY
-      provider_metered:         382.40 KRY
-    holdout measurement:  1 class(es) measured; cost 15,000.00 KRY ($0.3750) — the price of veracity
+    veracity_floor:       0.00%  (operator-supplied log; source truth is not verified)
+      self_reported:          3,080.50 KRY
+      holdout_validated:          0.00 KRY
+      provider_metered:           0.00 KRY
+    holdout measurement:  1 class(es) measured; cost 15,000.00 KRY ($0.3750) — estimated cost of reported holdouts
     prompt cache:         provider prompt-cache discount, computed from reported usage at list price; not minted, not attested, self-reported (list prices as of 2026-09-16)
       records:            priced 0, unpriced 38, modifier-excluded 0, malformed 0; 1-hour write price assumed for 0
     by request-class:
-      code                                 treated=0     holdout=0    p̂=—                saved=    382.40 KRY [provider_metered]
+      code                                 treated=0     holdout=0    p̂=—                saved=    382.40 KRY [self_reported]
       greet                                treated=2     holdout=0    p̂=—                saved=      0.00 KRY [self_reported]
-      summarize                            treated=5     holdout=35   p̂=86% (CI≥71%)     saved=  1,798.10 KRY [holdout_validated]
+      summarize                            treated=5     holdout=35   p̂=86% (CI≥71%)     saved=  1,798.10 KRY [self_reported]
       translate                            treated=3     holdout=0    p̂=—                saved=    900.00 KRY [self_reported]
 
 ━━━━━━ STRANGER CHECK  —  verify that statement with stdlib only (imports nothing from KRY) ━━━━━━
   KRY external verification — attestation
     receipts:        11 (recomputed from links)
     total_kry:       3080.4984 (recomputed from links, not the declared field)
-    veracity_floor:  0.7078 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
+    veracity_floor:  0.0000 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
                      ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
                        kry_tlsn_verify to independently check the underlying evidence doc
     price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
@@ -251,7 +251,7 @@ python3 scripts/kry_doctor.py
 # (WARN lines for the optional modules cryptography and oqs concern the TEE and post-quantum
 #  tiers and appear only when those modules are not installed; safe to ignore here)
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl
-# reports SAVED vs SPEND and the veracity_floor (holdout-validated vs self-reported)
+# estimates SAVED vs SPEND; imported logs remain self_reported with floor 0
 python3 scripts/kry_savings_report.py examples/sample_usage_log.jsonl --mint --attest "$tmp/att.json"
 python3 scripts/kry_verify.py "$tmp/att.json" # the stranger's check — stdlib only
 # ↑ WITHOUT --anchor, the anchored fraction is operator-asserted (a genesis re-mint
@@ -622,6 +622,12 @@ spec, so passing it is meaningful precisely because it doesn't trust the produce
 ---
 
 ## Repository layout
+
+Optional [evidence assessment](docs/KRY_EVIDENCE_ASSESSMENT.md) separates ordinary
+reconciliation diagnostics from exact supplied-export T1 token consistency. It does
+not authenticate exports or establish actual charges. For new receipts, optional
+[individual row commitments](docs/KRY_USAGE_LINKS.md) bind selected displacement
+rows and supplied request identities before minting; source truth remains unverified.
 
 ```text
 src/kry/ the package (stdlib only) — see Modules

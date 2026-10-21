@@ -51,11 +51,12 @@ def test_analyze_sample_log(sr):
     assert rep["by_kind"]["displacement"] == 1
     assert rep["by_kind"]["paid_call"] == 2
     assert rep["saved_kry"] > 0 and rep["spend_kry"] > 0
-    assert 0.0 < rep["veracity"]["veracity_floor"] < 1.0   # honest mix, not 0, not 1
+    assert rep["veracity"]["veracity_floor"] == 0.0
+    assert rep["veracity"]["self_reported_kry"] == rep["saved_kry"]
 
     cls = rep["by_class"]
-    # summarize: measured -> holdout_validated, valued at CI lower bound (< full)
-    assert cls["summarize"]["tier"] == "holdout_validated"
+    # Reported holdout still discounts magnitude, but does not authenticate the log.
+    assert cls["summarize"]["tier"] == "self_reported"
     assert 0.0 < cls["summarize"]["ci_lo"] < 1.0
     full_summarize = 5 * 500 * 1.0 * 1.0           # 5 hits x 500 tok x rate1 x opus-mult1
     assert cls["summarize"]["saved_kry"] < full_summarize
@@ -64,10 +65,10 @@ def test_analyze_sample_log(sr):
     assert abs(cls["translate"]["saved_kry"] - 900.0) < 1e-6
     # greet: caching a FREE-tier call saved nothing (honest zero)
     assert cls["greet"]["saved_kry"] == 0.0
-    # displacement class is labeled by its real anchored tier
-    assert cls["code"]["tier"] == "provider_metered"
+    # A usage-shaped displacement in a plain log does not establish provider provenance.
+    assert cls["code"]["tier"] == "self_reported"
 
-    # holdout has a measured, non-zero price of veracity
+    # Reported holdout spend retains its non-zero estimate.
     assert rep["holdout"]["classes_measured"] == 1
     assert rep["holdout"]["measurement_cost_kry"] > 0
 
@@ -188,7 +189,19 @@ def test_mint_and_attest_produces_verifiable_attestation(sr, tmp_path, monkeypat
     v = _load(_VERIFIER, "kry_verify_standalone")
     ok, errs = v.verify_attestation(att)
     assert ok, errs                                   # a stranger validates it
-    assert att["veracity"]["veracity_floor"] > 0      # holdout + displacement anchored
+    assert att["veracity"]["veracity_floor"] == 0.0
+    assert all(link["evidence_tier"] == "self_reported" for link in att["links"])
+    assert recon.load_t1_receipts(str(log)) == []
+
+    # Preserve explicit T1 token retention coverage separately from the plain-log import.
+    displacement = next(sr.normalize(record) for record in records if record.get("served_model"))
+    assert [displacement["prompt"], displacement["completion"]] == [2000, 400]
+    receipt = km.mint("short_circuit", displacement["completion"], "explicit provider fixture",
+                      evidence="explicit-provider-token-fixture",
+                      avoided_model=displacement["avoided_model"],
+                      served_model=displacement["served_model"], evidence_tier=km.TIER_PROVIDER_METERED,
+                      metered_tokens=[displacement["prompt"], displacement["completion"]])
+    assert receipt is not None
 
     t1 = recon.load_t1_receipts(str(log))
     assert len(t1) == 1

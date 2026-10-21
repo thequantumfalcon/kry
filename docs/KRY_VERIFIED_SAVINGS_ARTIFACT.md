@@ -7,8 +7,8 @@ The packet is built by `scripts/kry_verified_artifact.py`. It does not create ne
 evidence. It composes the existing evidence and emits explicit gates:
 
 - **Product gate:** the usage log has records, savings are positive, the public
- attestation verifies, and the attestation total/veracity floor/event counts match
- the savings report.
+ attestation verifies, the attestation total/event counts match the savings report,
+ and every imported estimate remains self-reported with source floor zero.
 - **Science gate:** the corpus is operator-declared real, a structured corpus
  manifest is attached and hash-bound to the usage/provider files, that manifest
  carries a pre-registered `kry_validation_plan/v1` block, a provider export and
@@ -21,6 +21,41 @@ evidence. It composes the existing evidence and emits explicit gates:
 - **Kill gate:** failed attestation, no positive savings, provider reconciliation
  discrepancy, assessment error, missing T1 reconciliation source with a supplied
  provider export, or independent agreement below the bar.
+
+## Imported Logs and Receipt Tiers
+
+The savings report imports unauthenticated usage. Reported holdout sample size
+still changes the Wilson magnitude discount; it cannot authenticate that sample.
+Displacement estimates likewise remain `self_reported`. New receipts created by
+this importer use that tier and a fresh chain has `veracity_floor = 0`.
+
+A separately created receipt can declare a stronger evidence tier. Its declared
+floor and the imported report's source floor measure different scopes, so the
+artifact no longer requires them to be equal. It verifies the attestation and
+retains the total and event-count checks; `report_source_assurance_self_reported`
+checks that the report has not upgraded its source assurance. `assurance_scopes`
+exposes the imported source and the separately declared receipt breakdown.
+Neither value authenticates source truth. Previously retained receipts are not
+rewritten, and historical verifier/vector verdicts are unchanged.
+
+Internal bundles from logs with no T1 receipts omit the optional T1 manifest.
+Explicit T1-manifest requests still reject an empty set; a filter cannot silently
+remove existing T1 receipts. Supplying a provider export without T1 receipts
+retains the missing-source failure and cannot establish provider reconciliation.
+
+The FinOps report labels savings and spend as estimates. Its `retained_dollars`
+JSON key remains a compatibility alias for `estimated_savings_usd`, with
+`amount_basis = operator_supplied_log_list_price_estimate`; it does not establish
+charges, invoices, settlement or retained cash. Legacy packet eligibility remains
+subject to the existing science and review gates. Passing those gates does not
+make unauthenticated inputs authentic or prove causal savings. Equal totals and
+event counts still do not bind individual report components to receipt rows.
+Use the separate optional evidence assessment for its explicitly narrower claim.
+
+Changed source code changes the tool manifest and review basis. Rebuild affected
+packets and obtain fresh reviews; do not transplant old approvals. Existing
+artifact JSON remains readable, but a stale packet does not become current by
+retaining its old hash or review declarations.
 
 ## T1 Manifest Privacy Boundary
 

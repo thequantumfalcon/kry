@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from test_verified_artifact import _mint_explicit_fixture
+
 ROOT = Path(__file__).resolve().parents[1]
 DOCTOR = ROOT / "scripts" / "kry_doctor.py"
 SAVINGS_REPORT = ROOT / "scripts" / "kry_savings_report.py"
@@ -287,7 +289,7 @@ def test_doctor_can_verify_saved_artifact(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_artifact")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     packet = art.build_artifact(str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     out = tmp_path / "artifact.json"
     out.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -334,7 +336,7 @@ def test_doctor_reports_external_candidate_from_verified_claim_register(monkeypa
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -384,7 +386,7 @@ def test_doctor_fails_external_candidate_without_portable_packet(monkeypatch, tm
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -439,7 +441,7 @@ def test_doctor_detects_stale_packet_report(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_report")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
 
@@ -476,7 +478,7 @@ def test_doctor_fails_packet_missing_derived_surfaces(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_missing_surfaces")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     (bundle / "finops_report.md").unlink()
@@ -502,7 +504,7 @@ def test_doctor_detects_stale_packet_checklist(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_checklist")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
 
@@ -530,7 +532,7 @@ def test_doctor_detects_private_mint_log_in_packet(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_privacy")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     (bundle / "kry_mint_log.jsonl").write_text(log.read_text(), encoding="utf-8")
@@ -555,7 +557,7 @@ def test_doctor_detects_symlink_in_packet(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_symlink")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     try:
@@ -583,7 +585,7 @@ def test_doctor_detects_unbound_directory_in_packet(monkeypatch, tmp_path):
     doctor = _load(DOCTOR, "kry_doctor_packet_unbound_directory")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     bundle = tmp_path / "packet"
     art.write_bundle(bundle, str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     (bundle / "extra_evidence").mkdir()
@@ -609,7 +611,7 @@ def test_doctor_detects_private_usage_content_in_packet(monkeypatch, tmp_path):
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -656,7 +658,7 @@ def test_doctor_detects_private_provider_content_in_packet(monkeypatch, tmp_path
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -702,7 +704,7 @@ def test_doctor_detects_private_public_manifest_content_in_packet(monkeypatch, t
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -749,7 +751,7 @@ def test_doctor_detects_private_review_content_in_packet(monkeypatch, tmp_path):
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
     provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
@@ -795,7 +797,7 @@ def test_doctor_detects_nonportable_packet_absolute_inputs(monkeypatch, tmp_path
     doctor = _load(DOCTOR, "kry_doctor_packet_nonportable")
     records = [json.loads(line) for line in SAMPLE.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     packet = art.build_artifact(str(SAMPLE), attestation=str(att_path), mint_log=str(log))
     packet_dir = tmp_path / "packet"
     packet_dir.mkdir()

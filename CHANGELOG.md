@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Imported savings logs could acquire holdout-validated or provider-metered tiers
+  from sample size or usage-shaped data. They now retain the same arithmetic as
+  self-reported estimates with source floor zero, including newly minted receipts.
+- Artifact and FinOps reports conflated imported-log source assurance with declared
+  receipt tiers. They now display those scopes separately and label monetary values
+  as estimates, while retaining total, event-count, reconciliation and review checks.
+- Internal bundles from entirely self-reported logs now omit the optional T1
+  manifest. Explicit T1-manifest requests still require provider-metered receipts.
+
 - The LiteLLM callback accepted contradictory total and component token counts and
   could ignore malformed components when a total was present. Cache and route
   extraction now reject these inconsistencies while preserving supported null-total
@@ -49,6 +58,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An opt-in prospective row-link profile commits individual displacement estimates
+  and scoped supplied-provider identities into existing receipts. Its verifier
+  checks full selected-row coverage and receipt openings without upgrading source
+  assurance or claiming actual billing. Historical receipts are not retrofitted.
+- An optional offline evidence assessment keeps reconciliation diagnostics separate
+  from exact T1 token consistency with a supplied export. It binds input bytes and
+  checks full receipt coverage without asserting source authenticity or actual charges.
 - An opt-in LiteLLM observation hook retains allowlisted callback-visible usage
   categories, field presence, separate model labels and hashed identifier candidates.
   It preserves exact supported integer counts and cost ticks without changing receipt

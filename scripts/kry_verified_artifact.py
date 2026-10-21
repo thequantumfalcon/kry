@@ -2233,17 +2233,28 @@ def build_artifact(
     )
 
     att_total = float(att.get("total_kry")) if isinstance(att, dict) and att.get("total_kry") is not None else None
-    att_floor = None
-    if isinstance(att, dict) and isinstance(att.get("veracity"), dict):
-        att_floor = att["veracity"].get("veracity_floor")
+    report_veracity = savings["veracity"]
+    report_source_assurance = savings["source_assurance"]
+    report_self_reported = (
+        report_source_assurance == {
+            "source": "operator_supplied_log",
+            "authenticated": False,
+            "scope": "imported_savings_estimates",
+        }
+        and report_veracity["veracity_floor"] == 0.0
+        and report_veracity["holdout_validated_kry"] == 0.0
+        and report_veracity["provider_metered_kry"] == 0.0
+        and report_veracity["self_reported_kry"] == savings["saved_kry"]
+        and all(row["tier"] == "self_reported" for row in savings["by_class"].values())
+    )
     product_checks = [
         _check("usage_log_has_records", savings["records"] > 0, f"{savings['records']} normalized records"),
         _check("positive_savings", savings["saved_kry"] > 0, f"{savings['saved_kry']} KRY saved"),
         _check("attestation_verifies", att_verify["ok"], "; ".join(att_verify["errors"]) or "stdlib verifier accepted"),
         _check("attestation_matches_report_total", _near(att_total, savings["saved_kry"]),
                f"attestation total {att_total} vs report {savings['saved_kry']}"),
-        _check("attestation_matches_report_floor", _near(att_floor, savings["veracity"]["veracity_floor"], tol=0.0001),
-               f"attestation floor {att_floor} vs report {savings['veracity']['veracity_floor']}"),
+        _check("report_source_assurance_self_reported", report_self_reported,
+               "plain-log estimates must remain self-reported; receipt tiers are a separate scope"),
         _check("attestation_matches_report_event_counts",
                isinstance(att, dict) and att.get("event_type_counts") == _savings_event_counts(savings),
                f"attestation {att.get('event_type_counts') if isinstance(att, dict) else None} "
@@ -2443,6 +2454,11 @@ def build_artifact(
         },
         "inputs": {**input_hashes, "corpus": corpus},
         "savings_report": savings,
+        "assurance_scopes": {
+            "report_source_assurance": report_source_assurance,
+            "attestation_declared_veracity": att.get("veracity") if isinstance(att, dict) else None,
+            "attestation_source_truth_authenticated": False,
+        },
         "attestation_verification": att_verify,
         "research_assessment": research,
         "t1_manifest_attestation_binding": t1_binding,
@@ -3021,8 +3037,12 @@ def write_bundle(
         "legal_review": _copy_bundle_file(legal_review, bundle, "legal_review.json"),
     }
     if copied["t1_manifest"] is None and mint_log:
-        write_t1_manifest(mint_log, bundle / "t1_manifest.json", since=since, until=until)
-        copied["t1_manifest"] = "t1_manifest.json"
+        kry_reconcile._validate_window(since, until)
+        # An all-self-reported log needs no T1 manifest. Existing T1 cannot be
+        # silently dropped merely because the selected window excludes it.
+        if kry_reconcile.load_t1_receipts(str(_resolve_path(mint_log))):
+            write_t1_manifest(mint_log, bundle / "t1_manifest.json", since=since, until=until)
+            copied["t1_manifest"] = "t1_manifest.json"
     artifact = build_artifact(
         copied["usage_log"],
         attestation=copied["attestation"],

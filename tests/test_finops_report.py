@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from test_verified_artifact import _mint_explicit_fixture
+
 ROOT = Path(__file__).resolve().parents[1]
 FINOPS = ROOT / "scripts" / "kry_finops_report.py"
 SAVINGS_REPORT = ROOT / "scripts" / "kry_savings_report.py"
@@ -127,7 +129,7 @@ def _minted_artifact(monkeypatch, tmp_path):
     usage_log = _non_bundled_usage_log(tmp_path)
     records = [json.loads(line) for line in usage_log.read_text(encoding="utf-8").splitlines() if line.strip()]
     att_path = tmp_path / "attestation.json"
-    sr._mint_and_attest(records, str(att_path))
+    _mint_explicit_fixture(sr, records, att_path)
     return art, usage_log, att_path, log
 
 
