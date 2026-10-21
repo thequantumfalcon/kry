@@ -130,10 +130,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      OQS_INSTALL_PATH: ${{ runner.temp }}/kry-oqs
       # The pinned wrapper rejects this before its fallback clone; missing native code must fail.
       PYOQS_VERSION: disabled-by-kry-ci
-      KRY_DATA_DIR: ${{ runner.temp }}/kry-crypto-data
       PYTHONDONTWRITEBYTECODE: "1"
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
     steps:
@@ -146,6 +144,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
+      - name: Set temporary crypto paths
+        run: |
+          printf '%s\n' "OQS_INSTALL_PATH=$RUNNER_TEMP/kry-oqs" "KRY_DATA_DIR=$RUNNER_TEMP/kry-crypto-data" >> "$GITHUB_ENV"
       - name: Install hash-locked optional crypto tools
         run: |
           python scripts/check_dependency_locks.py
