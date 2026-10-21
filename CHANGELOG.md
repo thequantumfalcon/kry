@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CodeQL skipped pull requests targeting another feature branch. It now scans
+  all pull requests, including stacked changes, before they reach `main`.
 - Aggregate reconciliation reported empty or zero-token receipt windows as
   successful in the CLI. It now preserves `NO_T1_RECEIPTS` and exits nonzero.
 - Floating-point rounding could reject the exact aggregate tolerance boundary or

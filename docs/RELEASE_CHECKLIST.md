@@ -23,6 +23,14 @@ blocked until real evidence exists.
  - `scripts/kry_verified_artifact.py`
  - `scripts/kry_finops_report.py`
  - `scripts/kry_doctor.py`
+- Additional checkout-only evidence tools, listed under [Unreleased](../CHANGELOG.md#unreleased)
+ and not included in the published 0.1.10 package:
+ - `scripts/kry_evidence_assess.py` — supplied-export token consistency assessment.
+ - `scripts/kry_usage_link.py` — individual row commitment and linkage checks.
+ - `scripts/kry_anthropic_usage.py` — a narrow, pinned-model list-price estimate.
+ - `scripts/kry_anthropic_projection.py` — consistency checks on a supplied saved response.
+ - `scripts/kry_litellm_observation.py` — optional private normalized-usage observations.
+ These tools do not authenticate supplied records or establish account charges or settlement.
 - Verified-savings packet workflow for internal/demo artifacts:
  doctor -> savings report -> mint/attest -> verify -> bundle -> verify artifact
  -> FinOps report.

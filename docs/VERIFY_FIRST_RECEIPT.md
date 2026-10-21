@@ -21,7 +21,8 @@ kry-try
 
 `kry-try` records two made-up efficiency events in a temporary ledger, hash-chains them, writes the
 public attestation to `kry-demo-attestation.json` in the current directory, and verifies it. The
-temporary ledger is deleted when it finishes. Output (paths shortened):
+temporary ledger is deleted when it finishes. Representative output from the current
+checkout (paths shortened; wording can differ in the published package):
 
 ```text
 kry-try: SYNTHETIC demo data. These events are made up; this is not a savings claim.
@@ -35,9 +36,10 @@ temporary ledger: /tmp/kry_try_xxxxxxxx (deleted on exit)
 KRY external verification — attestation
   receipts:        2 (recomputed from links)
   total_kry:       1480.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.0 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
-  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
-  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; trust surface honest (read veracity_floor for what is operator-asserted).
+  veracity_floor:  0.0 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
+  magnitude:       2/2 links checked; 0 unchecked (legacy inputs absent)
+  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
 
 Next:
   kry-verify /path/to/kry-demo-attestation.json
@@ -66,8 +68,8 @@ save, and run `kry-verify` again:
 KRY external verification — attestation
   receipts:        2 (recomputed from links)
   total_kry:       1481.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.0 (fraction anchored by more than self-report — external OR operator-run; witnesses the event, NOT the magnitude)
-  price basis:     $25.0/M frontier, as of 2026-09-15 (magnitude recomputed from the public price table)
+  veracity_floor:  0.0 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
+  price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
   VERDICT: INVALID
     - seq 1: chain link broken — receipt inserted/removed/altered
     - total_kry mismatch: declared 1480.0, chain sums to 1481.0
@@ -87,12 +89,15 @@ It runs a second, independent implementation (JavaScript) entirely in the page; 
 
 ## What this proves, and what it does not
 
-- **Proven:** the receipts form an unbroken hash chain, the declared totals equal the sum of the
-  receipts, each receipt's magnitude is consistent with the public price table, and the declared trust
-  surface matches the receipts.
+- **Proven for this demo:** the receipts form an unbroken hash chain, the declared totals equal
+  the sum of the receipts, both receipts' amounts match the published benchmark arithmetic,
+  and the declared evidence-tier totals match the receipts. Legacy receipts can lack the
+  inputs needed to check magnitude; the current verifier reports that coverage separately.
 - **Not proven:** that the events happened. Both demo events are self-reported, so `veracity_floor` is
   0.0: nothing anchors them beyond the operator's word. See [`CLAIMS_BOUNDARY.md`](CLAIMS_BOUNDARY.md)
-  for what kry can and cannot claim.
+  for what kry can and cannot claim. Verification does not establish an account charge or
+  cash saving. Detecting a complete re-mint requires an independently retained prior chain
+  anchor; this demo does not publish one.
 
 ## Next
 

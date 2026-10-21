@@ -16,8 +16,9 @@ testable without it).
   (`scripts/kry_chain_anchor.py`) to also make retroactive edits/truncation detectable.
 - `cache_hit` is **LiteLLM's response cache**, not provider-side prompt caching
   (`cached_tokens`) — prompt-cache savings need a separate signal.
-- `response_cost` is LiteLLM's **price-table estimate**; it is recorded in the receipt
-  detail as context, never used as evidence.
+- `response_cost` is LiteLLM's **price-table estimate**; a finite numeric value is
+  recorded in the receipt detail as context, never used as evidence. Invalid optional
+  cost estimates are omitted without suppressing an otherwise eligible receipt.
 
 Wording correction: “attest your proxy's cache savings” → “record your proxy's cache events”;
 “intact and honestly priced” → “intact, with verifiable KRY benchmark arithmetic”.
@@ -94,9 +95,9 @@ it does not cover separate logs, unreliable network filesystem locks or deletion
 of the authoritative history. Old or generic mint callers still use their own
 decay contract and can append repeated evidence. All concurrent writers must use
 the updated mint implementation's shared lock ordering; mixed-version writers
-are outside this guarantee. Anything malformed or missing fails closed:
-no receipt, never a guessed one, and the logging path never raises into your serving
-traffic.
+are outside this guarantee. Missing required identity or invalid usage prevents a
+receipt; optional contextual cost estimates do not determine eligibility. The
+logging path never raises into your serving traffic.
 
 Both callback paths reject non-null token counts that are boolean, non-integer or
 negative, and reject a supplied total that differs from prompt plus completion
