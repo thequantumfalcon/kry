@@ -1,8 +1,10 @@
 # kry_pqc — optional post-quantum authenticity tier for KRY
 
 An **opt-in** tier that signs a KRY attestation with NIST-standard post-quantum
-signatures (ML-DSA / FIPS 204), so a stranger can verify **who** produced an
-attestation — unforgeably, and safe against a future quantum adversary.
+signatures (ML-DSA / FIPS 204), so a stranger can verify a signature over the exact
+attestation bytes under a published public key. Key ownership must be established
+separately. ML-DSA is designed to resist classical and quantum forgery; running
+this optional tier is not a FIPS validation or a guarantee about future attacks.
 
 It is built to be adopted by KRY *as its own* without compromising anything:
 
@@ -21,16 +23,15 @@ provide (stdlib has no public-key crypto). This tier fills exactly that gap:
 | Axis | Question it answers | Owned by |
 |------|--------------------|----------|
 | **integrity** | Is the ledger intact / untampered? | KRY core — SHA-256 chain (`scripts/kry_verify.py`) |
-| **authenticity** | *Who* produced this attestation? Can they fork history? | **this tier** — ML-DSA signatures |
-| **veracity** | Did the savings actually happen? | KRY tiers — TEE (Nitro/SEV-SNP) + TLSNotary |
+| **authenticity** | Did the holder of the pinned key sign these bytes? | **this tier** — ML-DSA signatures |
+| **veracity** | Did the savings actually happen? | External source and financial evidence; not established by this tier |
 
 Today a stranger can recompute KRY's chain from the same receipts, so a real
 ledger and a fabricated one are cryptographically indistinguishable. A signature
-binds the attestation to a **published public key**: the operator can no longer
-silently re-vouch a different history, and because KRY is a credit meant to
-*retain dollar value over time*, the signature is **post-quantum** so it can't be
-retroactively forged decades later. (SHA-256 integrity is fine under Grover;
-signed *authenticity* is the part that needs PQC.)
+binds the attestation to a **published public key**. A legitimate key holder can
+still sign two divergent histories. Detecting that behavior requires retained
+prior commitments or external witnessing. A signature does not establish that
+the underlying events happened, that a bill was paid, or that a saving occurred.
 
 ## Two modes
 
@@ -52,26 +53,33 @@ python -m kry_pqc.signer sign \
  --out attestation.sig.json
 
 # The operator publishes keys/kry_pqc_public.key (or its sha256 fingerprint) out-of-band.
-# A stranger verifies against THAT published copy (needs only liboqs-python + stdlib):
+# With KRY importable, require both the signature and chain checks:
 python -m kry_pqc.verify --attestation attestation.json --signature attestation.sig.json \
- --public-key keys/kry_pqc_public.key
+ --public-key keys/kry_pqc_public.key --require-v2 --require-chain
 ```
 ```
 [PASS] message digest matches signed bytes
 [PASS] ML-DSA signature valid (authenticity)
 [PASS] KRY hash chain intact (integrity) # auto-runs if KRY is importable
-RESULT: VERIFIED -- signed by the holder of the PINNED public key ... and post-quantum authentic.
+RESULT: VERIFIED -- signed by the holder of the PINNED public key ... with an ML-DSA signature valid under the supplied key pin.
 ```
 Without `--public-key` or `--expect-fingerprint <published fingerprint>`, the verifier can use only
 the key embedded in the signature artifact, which anyone can generate and self-sign with. It then
 prints `RESULT: UNVERIFIED` and exits 2: the signature is internally consistent, but authenticity is
 not established.
 
-### 2. m-of-n threshold — make operator-trust a tunable number (`threshold.py`)
-Distribute trust across a council of N signers; require M to vouch. **If the N keys are
-really held by independent parties, no single party — not even the operator — can produce a
-valid proof alone**, and operator-trust becomes **M/N**, driven toward zero by adding independent
-signers. The verifier cannot check that independence: it accepts whatever keys the
+Use the full public key obtained through a trusted channel when possible. A full
+64-character SHA-256 fingerprint is also supported. Prefixes of 16–63 hex
+characters remain accepted for compatibility, with a warning: a 16-character
+prefix identifies only 64 bits and is not a full post-quantum identity binding.
+Shorter prefixes fail. Key generation refuses either existing key file and keeps
+both halves of an existing keypair unchanged.
+
+### 2. m-of-n multi-signature quorum (`threshold.py`)
+Require M distinct registered keys from a council of N to sign. **M/N is a quorum
+setting, not a probability or measure of operator trust.** A threshold of one
+requires only one key. The verifier cannot establish independent ownership or
+custody: it accepts whatever keys the
 `council.json` it is given lists. A stranger must take the council's public keys from where each
 member published them; a `council.json` handed over with the attestation proves nothing, because
 an operator who generates all N keys *is* the council.
@@ -82,7 +90,7 @@ python -m kry_pqc.threshold init-policy \
  --signer alice=alice_public.key \
  --signer bob=bob_public.key \
  --signer carol=carol_public.key \
- --threshold 2 --out council.json # 2-of-3 -> trust 2/3
+ --threshold 2 --out council.json # 2-of-3 distinct registered keys
 
 # each signer independently signs the attestation
 python -m kry_pqc.threshold contribute --attestation attestation.json --policy council.json \
@@ -97,39 +105,47 @@ python -m kry_pqc.threshold verify \
  --attestation attestation.json --artifact threshold.json --policy council.json
 ```
 ```
-RESULT: VERIFIED -- 2 of 3 independent signers vouched (>= 2 required).
- No single party could have produced this.
+RESULT: VERIFIED -- 2 of 3 distinct registered keys signed (>= 2 required).
+ Key ownership and signer independence are not established by this check.
 ```
 
 **Honest framing of the mechanism:** this is an M-of-N *multi-signature* (N
-independent ML-DSA keys, verify requires ≥M distinct valid ones), **not** a single
-aggregated FROST-style threshold signature. Multi-sig needs no interactive key
-ceremony and is exactly as sound for distributing trust; the only cost is artifact
-size (M signatures). FROST is the optional future upgrade if compactness matters.
+ML-DSA keys, verification requires ≥M distinct valid ones), **not** an aggregated
+threshold signature. Each contribution binds the exact attestation bytes and
+the council policy. Policy setup and independent key custody remain operational
+responsibilities; the verifier checks signatures, not the identity of people.
 
 ## Threat model — what it does and does NOT prove
 
 - **Does prove:** these exact attestation bytes were signed by the holder(s) of
  the named public key(s); with the council, that ≥M of the listed keys signed (≥M
- independent parties only if those keys were independently published and held);
- and that this remains unforgeable against a quantum adversary.
+ independent parties only if those keys were independently published and held).
 - **Does NOT prove veracity** — that the underlying savings happened. That is the
- job of KRY's TEE + TLSNotary tiers. This tier adds *who attested*, not *was it
- true*. Don't conflate the two.
-- Key custody is out of scope: a leaked secret key can sign. Threshold mode is the
- mitigation (compromise M keys, not one).
+ subject of separate source, counterfactual, and financial evidence. This tier
+ binds a key to signed bytes and does not increase the receipt's evidence tier.
+- Key custody is out of scope: a leaked secret key can sign. Threshold mode
+ requires M keys; protection depends on how those keys are controlled.
 
 ## Status (optional; not part of the default release gate)
 
 - `kry_pqc/test_kry_pqc.py` passes only when `liboqs-python` provides the `oqs`
  module. In environments without `oqs`, the optional test is skipped and this
  tier must be treated as unverified for that release run.
+- Run `python -m pytest kry_pqc/ -q -rs` to include both the signing suite and
+ boundary regressions. The default `pytest tests/` command does not collect them.
 - Prior validation covered **8 tests** against a *real* KRY attestation:
  single-signer roundtrip / tamper / wrong-key; threshold quorum-met /
  insufficient-quorum / outsider-ignored / tamper / wrong-council.
-- Validated with **liboqs-python 0.15.0** (liboqs 0.15.0), ML-DSA-65, Python 3.13.
+- That historical validation used **liboqs-python 0.15.0** (liboqs 0.15.0),
+ ML-DSA-65, Python 3.13; it does not replace testing the current release environment.
 - Default algorithm: **ML-DSA-65** (FIPS 204, NIST level 3); override with `--alg`
- (e.g. `ML-DSA-87`, or `SPHINCS+-SHA2-128f-simple` for hash-based signatures).
+ using `ML-DSA-44`, `ML-DSA-65`, or `ML-DSA-87`. Other signature families are
+ outside this verifier's allowlist.
+
+The native liboqs dependency describes its scope as research and prototyping;
+successful local tests are not an independent security audit or FIPS module
+validation. Review the [upstream limitations](https://github.com/open-quantum-safe/liboqs/tree/0.16.0#limitations-and-security)
+and the exact dependency versions before deployment.
 
 Designed but not yet built: PQC-inside-the-enclave, privacy-preserving verifiable
 totals, and a FIPS-204 known-answer test harness.

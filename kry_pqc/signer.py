@@ -3,18 +3,18 @@
 OPTIONAL TIER. KRY's core (``src/kry/*``) is zero-dependency, pure stdlib, and does
 NOT import this module. This tier alone depends on liboqs-python (the ``oqs``
 module). It signs the *exact bytes* of a KRY attestation with a NIST-standard
-post-quantum signature (ML-DSA / FIPS 204), so a third party can verify WHO
-produced an attestation and be safe against a future quantum adversary forging
-historical proofs.
+post-quantum signature (ML-DSA / FIPS 204), so a third party can verify the
+signature under a separately pinned public key. Key ownership and resistance to
+future attacks are not established by a local signing roundtrip.
 
 Three independent axes — this tier owns exactly one:
 
     integrity    — KRY's SHA-256 hash chain (scripts/kry_verify.py)        [KRY core]
     authenticity — ML-DSA signature binds an attestation to a public key   [THIS tier]
-    veracity     — TEE (Nitro / SEV-SNP) + TLSNotary tiers                 [KRY tiers]
+    veracity     — separate source, counterfactual and financial evidence [external]
 
-The signature is taken over the attestation file's raw bytes; this tier never
-parses or reconstructs KRY internals, so it cannot drift from — or break — the core.
+The v2 signature covers a domain tag followed by the exact attestation bytes.
+This tier does not reconstruct KRY's valuation or authenticate the source events.
 """
 from __future__ import annotations
 
@@ -74,7 +74,9 @@ def _b64(b: bytes) -> str:
 
 
 def _unb64(s: str) -> bytes:
-    return base64.b64decode(s.encode())
+    if not isinstance(s, str):
+        raise ValueError("base64 value must be a string")
+    return base64.b64decode(s.encode(), validate=True)
 
 
 def sign_attestation(attestation_path: Path, secret_key: bytes, public_key: bytes,
@@ -102,13 +104,20 @@ def _cmd_keygen(args) -> int:
     out.mkdir(parents=True, exist_ok=True)
     pk_path = out / "kry_pqc_public.key"
     sk_path = out / "kry_pqc_secret.key"
-    pk_path.write_text(_b64(public_key))
+    # Refuse either existing half of a keypair before writing any key material.
+    pk_fd = os.open(pk_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     # L2: create the SECRET key 0o600 from the start via O_EXCL — a plain write_text() then
     # chmod() leaves a brief window where the key is umask-default (group/world) readable.
     # O_EXCL also refuses to clobber an existing secret key rather than silently overwriting it.
-    sk_fd = os.open(sk_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(sk_fd, "w") as f:
-        f.write(_b64(secret_key))
+    try:
+        sk_fd = os.open(sk_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except OSError:
+        os.close(pk_fd)
+        pk_path.unlink()  # only this call's newly created public file
+        raise
+    with os.fdopen(pk_fd, "w") as public_file, os.fdopen(sk_fd, "w") as secret_file:
+        public_file.write(_b64(public_key))
+        secret_file.write(_b64(secret_key))
     print(f"alg:         {args.alg}")
     print(f"public key:  {pk_path}  (share this)")
     print(f"secret key:  {sk_path}  (KEEP SECRET -- never share or commit)")
