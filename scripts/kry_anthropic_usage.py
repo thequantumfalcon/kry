@@ -20,6 +20,14 @@ _COUNTS = ("input_tokens", "output_tokens")
 _CACHE_COUNTS = ("cache_creation_input_tokens", "cache_read_input_tokens")
 _CACHE_DETAILS = ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
 _TOOL_COUNTS = ("web_search_requests", "web_fetch_requests")
+_JSON_MAX_BYTES = 16 * 1024 * 1024
+_GENERATION_STATUS = {
+    "end_turn": "ended",
+    "stop_sequence": "stopped_by_sequence",
+    "max_tokens": "truncated",
+    "refusal": "refused",
+    "model_context_window_exceeded": "truncated",
+}
 
 
 def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
@@ -35,12 +43,18 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
     The pinned Haiku 4.5 model uses standard rates with no geo surcharge.
     The estimate assumes ordinary text with no cache/tool usage when those
     optional observations are absent or null. Other categories are unsupported.
+    A recognized ordinary nonstreaming stop reason is required. Truncated or
+    refused output can still have priced usage; generation_status describes
+    the reported stop, not answer adequacy, transport completion, or billing.
     """
     if not isinstance(response, dict):
         raise ValueError("response must be an object")
     if (response.get("type") != "message" or response.get("role") != "assistant"
             or response.get("model") != MODEL):
         raise ValueError("unsupported response type, role, or model")
+    stop_reason = response.get("stop_reason")
+    if not isinstance(stop_reason, str) or stop_reason not in _GENERATION_STATUS:
+        raise ValueError("missing or unsupported ordinary nonstreaming stop reason")
     if response.get("container") is not None:
         raise ValueError("container-tool usage is outside the ordinary-text scope")
     message_id = response.get("id")
@@ -104,6 +118,8 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
         "model": MODEL,
         "message_id": message_id,
         "request_id": request_id,
+        "stop_reason": stop_reason,
+        "generation_status": _GENERATION_STATUS[stop_reason],
         "observed_usage": {
             name: dict(value) if isinstance(value, dict) else value
             for name, value in usage.items()
@@ -129,6 +145,10 @@ def estimate_anthropic_usage(response: dict, *, request_id: str) -> dict:
     }
 
 
+def _reject_json_constant(value: str) -> None:
+    raise ValueError("nonstandard JSON constant")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Estimate ordinary Anthropic text usage at pinned list prices; not a bill.")
@@ -136,8 +156,14 @@ def main() -> int:
     parser.add_argument("--request-id", required=True, help="Provider request-id response header")
     args = parser.parse_args()
     try:
-        response = json.loads(args.response.read_text(encoding="utf-8"))
+        with args.response.open("rb") as stream:
+            raw = stream.read(_JSON_MAX_BYTES + 1)
+        if len(raw) > _JSON_MAX_BYTES:
+            raise ValueError("response JSON exceeds 16 MiB")
+        response = json.loads(raw.decode("utf-8"), parse_constant=_reject_json_constant)
         result = estimate_anthropic_usage(response, request_id=args.request_id)
+    except RecursionError:
+        parser.error("response JSON is too deeply nested")
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     print(json.dumps(result, indent=2))

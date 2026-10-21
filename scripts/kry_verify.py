@@ -973,15 +973,19 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  receipts:        {len(_links)} (recomputed from links)")
     print(f"  total_kry:       {round(_recomputed_total, 4)} (recomputed from links, not the declared field)")
     print(f"  veracity_floor:  {v.get('veracity_floor', 0.0)} "
-          f"(fraction anchored by more than self-report — external OR operator-run; "
-          f"witnesses the event, NOT the magnitude)")
+          f"(fraction assigned to declared tiers above self-report; "
+          f"source evidence requires separate verification)")
     if _floor > 0.0:
         # H2: this verifier confirms anchored tiers are CHAIN-BOUND and internally consistent, but it does
         # NOT re-run the underlying TEE/TLSN evidence verification (that happened at mint time).
         print("                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /")
         print("                     kry_tlsn_verify to independently check the underlying evidence doc")
     print(f"  price basis:     ${_FRONTIER_USD_PER_M}/M frontier, as of {_PRICE_AS_OF} "
-          f"(magnitude recomputed from the public price table)")
+          f"(published benchmark; see magnitude coverage)")
+    if ok:
+        _checked_magnitudes = sum("tokens_saved" in ln and "earn_rate" in ln for ln in _links)
+        print(f"  magnitude:       {_checked_magnitudes}/{len(_links)} links checked; "
+              f"{len(_links) - _checked_magnitudes} unchecked (legacy inputs absent)")
     if anchor_line:
         print(f"  anchor check:    {anchor_line}")
     elif _floor > 0.0:
@@ -998,7 +1002,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  registry anchor: {registry_anchor_line}")
     if ok:
         print("  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; "
-              "trust surface honest (read veracity_floor for what is operator-asserted).")
+              "source truth is not verified (read veracity_floor as declared tiers).")
     else:
         print("  VERDICT: INVALID")
         for e in errors:

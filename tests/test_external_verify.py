@@ -546,6 +546,34 @@ def test_stranger_still_accepts_legacy_pre_v4_versions(hash_version):
     assert ok, errs
 
 
+@pytest.mark.parametrize("has_inputs", [False, True])
+def test_cli_reports_legacy_magnitude_coverage(tmp_path, capsys, has_inputs):
+    v = _load_verifier()
+    att = _legacy_attestation(v, 1)
+    if not has_inputs:
+        for key in ("tokens_saved", "earn_rate"):
+            del att["links"][0][key]
+        att["attestation_hash"] = v._attestation_hash(att)
+    path = tmp_path / "legacy.json"
+    path.write_text(json.dumps(att), encoding="utf-8")
+    assert v.main([str(path)]) == 0
+    output = capsys.readouterr().out
+    assert f"magnitude:       {int(has_inputs)}/1 links checked; {int(not has_inputs)} unchecked" in output
+    assert "source truth is not verified" in output
+    assert "trust surface honest" not in output
+
+
+def test_cli_reports_modern_magnitude_coverage(tmp_path, capsys):
+    v = _load_verifier()
+    vector = _VERIFIER.parents[1] / "vectors/savings/valid/chain_three.json"
+    path = tmp_path / "modern.json"
+    path.write_text(json.dumps(json.loads(vector.read_text())["input"]), encoding="utf-8")
+    assert v.main([str(path)]) == 0
+    output = capsys.readouterr().out
+    assert "magnitude:       3/3 links checked; 0 unchecked" in output
+    assert "source truth is not verified" in output
+
+
 @pytest.mark.parametrize("field", ["total_kry", "usd_equivalent", "veracity"])
 def test_stranger_rejects_absent_required_envelope_field(isolated, field):
     """SPEC §3.1: these envelope keys MUST be present. An absent one used to be indistinguishable

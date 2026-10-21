@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The LiteLLM callback accepted contradictory total and component token counts and
+  could ignore malformed components when a total was present. Cache and route
+  extraction now reject these inconsistencies while preserving supported null-total
+  fallback and partial usage shapes.
+- Savings reports could crash on non-object records or usage containers, or count
+  malformed usage as a usable zero-token event. Non-string model/class metadata and
+  floating-point boolean flags could also enter valuation. These records are now
+  unusable under the existing skip policy; valid records retain their arithmetic.
+- Savings-log token normalization accepted booleans, strings and fractional values as
+  counts, lost precision through float conversion, and replaced explicit zero or null
+  with later aliases. It now retains nonnegative JSON integers exactly and selects
+  aliases by field presence; malformed counts keep the existing zero contribution.
+- The ordinary Anthropic usage estimator accepted missing or unsupported stopping
+  conditions. It now preserves supported stop reasons, labels truncated and refused
+  generations, and rejects continuations outside its scope. Its CLI bounds JSON input
+  to 16 MiB and reports nonstandard constants or parser recursion failures without an estimate.
+- Mint balance-update exceptions were silent, and persistence warnings could expose
+  exception text or imply that an unrecorded debit was recoverable from the mint chain.
+  Fixed diagnostics identify uncertain persistence without including exception text;
+  receipt, checkpoint and balance updates remain separate operations.
+- The Python verifier's price summary implied magnitude checks covered every legacy
+  receipt. Successful verification now reports checked and unchecked link counts and
+  states explicitly that source truth is not verified. Historical verdicts are unchanged.
 - The LiteLLM callback could mint a receipt from a positive sum containing a negative prompt
   or completion token count. Both fallback components now require nonnegative integers.
 - Concurrent deliveries of the same LiteLLM logging event could mint duplicate receipts.
@@ -26,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An opt-in LiteLLM observation hook retains allowlisted callback-visible usage
+  categories, field presence, separate model labels and hashed identifier candidates.
+  It preserves exact supported integer counts and cost ticks without changing receipt
+  values or tiers. Observations remain private, normalized metadata; billing is unverified.
 - An offline Anthropic usage estimator prices input and output separately for pinned
   `claude-haiku-4-5-20251001` ordinary text responses. It retains provider message/request
   identifiers, rejects unsupported categories and leaves actual charges unverified.

@@ -79,8 +79,8 @@ _seen_order: deque = deque()
 _seen_lock = Lock()
 
 
-def _usage_total_tokens(response_obj: Any) -> Optional[int]:
-    """Total tokens of the served (cached) response — the size of the avoided call."""
+def _usage_counts(response_obj: Any) -> Optional[tuple[Optional[int], Optional[int], Optional[int]]]:
+    """Validate supplied total/prompt/completion counts without filling unknown fields."""
     usage = None
     if isinstance(response_obj, dict):
         usage = response_obj.get("usage")
@@ -92,15 +92,27 @@ def _usage_total_tokens(response_obj: Any) -> Optional[int]:
         if isinstance(usage, dict):
             return usage.get(name)
         return getattr(usage, name, None)
-    total = _field("total_tokens")
-    if isinstance(total, bool) or not isinstance(total, int):
-        # fall back to prompt + completion if total is absent
-        p, c = _field("prompt_tokens"), _field("completion_tokens")
-        if (isinstance(p, int) and not isinstance(p, bool) and p >= 0
-                and isinstance(c, int) and not isinstance(c, bool) and c >= 0):
-            total = p + c
-        else:
+    total, p, c = (_field(name) for name in ("total_tokens", "prompt_tokens", "completion_tokens"))
+    if any(value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0)
+           for value in (total, p, c)):
+        return None
+    if total is not None and any(value is not None and value > total for value in (p, c)):
+        return None
+    if total is not None and p is not None and c is not None and total != p + c:
+        return None
+    return total, p, c
+
+
+def _usage_total_tokens(response_obj: Any) -> Optional[int]:
+    """Total tokens of the served (cached) response — the size of the avoided call."""
+    counts = _usage_counts(response_obj)
+    if counts is None:
+        return None
+    total, p, c = counts
+    if total is None:   # LiteLLM may represent an unavailable total as None.
+        if p is None or c is None:
             return None
+        total = p + c
     return total if total > 0 else None
 
 
@@ -121,11 +133,11 @@ def _standard_logging_number(kwargs: dict, key: str) -> Optional[float]:
 
 def _completion_tokens(response_obj: Any) -> Optional[int]:
     """Output tokens of the served response: what a cheaper route saves on."""
-    usage = response_obj.get("usage") if isinstance(response_obj, dict) else getattr(response_obj, "usage", None)
-    value = usage.get("completion_tokens") if isinstance(usage, dict) else getattr(usage, "completion_tokens", None)
-    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+    counts = _usage_counts(response_obj)
+    if counts is None:
         return None
-    return value
+    value = counts[2]
+    return value if value is not None and value > 0 else None
 
 
 def _request_metadata(kwargs: dict) -> Optional[dict]:
@@ -260,12 +272,55 @@ except Exception:                                    # litellm not installed
 
 if CustomLogger is not None:
     class KryLiteLLMLogger(CustomLogger):
-        """LiteLLM CustomLogger that mints a kry receipt per response-cache hit."""
+        """Mint eligible T0 receipts; optionally observe bounded normalized metadata.
+
+        usage_observer must be a fast synchronous callable. It owns persistence;
+        failures are counted locally and do not stop serving or receipt minting.
+        """
+
+        def __init__(self, *args, usage_observer=None, **kwargs):
+            import inspect
+            if usage_observer is not None and (
+                not callable(usage_observer) or inspect.iscoroutinefunction(usage_observer)
+                or inspect.iscoroutinefunction(getattr(usage_observer, "__call__", None))
+            ):
+                raise TypeError("usage_observer must be a synchronous callable")
+            super().__init__(*args, **kwargs)
+            self._usage_observer = usage_observer
+            self.observation_failures = 0
+            self._observation_lock = Lock()
+            if usage_observer is not None:
+                # Load the sibling helper for both proxy imports and file-based integrations.
+                import importlib.util
+                from pathlib import Path
+                spec = importlib.util.spec_from_file_location(
+                    "kry_litellm_observation", Path(__file__).with_name("kry_litellm_observation.py"))
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                self._project_usage = module.observe_litellm_usage
+
+        def _observe_usage(self, kwargs, response_obj):
+            if self._usage_observer is None:
+                return
+            try:
+                import inspect
+                result = self._usage_observer(self._project_usage(kwargs, response_obj))
+                if inspect.isawaitable(result):
+                    if inspect.iscoroutine(result):
+                        result.close()
+                    raise TypeError("usage_observer must complete synchronously")
+            except Exception:
+                with self._observation_lock:
+                    self.observation_failures += 1
+                import logging
+                logging.getLogger(__name__).warning("kry usage observation failed")
 
         def log_success_event(self, kwargs, response_obj, start_time, end_time):
+            self._observe_usage(kwargs, response_obj)
             mint_from_litellm(kwargs, response_obj)
 
         async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
+            self._observe_usage(kwargs, response_obj)
             mint_from_litellm(kwargs, response_obj)
 
     kry_logger = KryLiteLLMLogger()   # instance for litellm_config.yaml `callbacks:`

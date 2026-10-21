@@ -98,6 +98,14 @@ are outside this guarantee. Anything malformed or missing fails closed:
 no receipt, never a guessed one, and the logging path never raises into your serving
 traffic.
 
+Both callback paths reject non-null token counts that are boolean, non-integer or
+negative, and reject a supplied total that differs from prompt plus completion
+when all three counts are available. A known component cannot exceed the total,
+even if the other component is unknown. A response-cache hit may use a positive total
+alone, or fall back to prompt plus completion when the total is absent or null.
+A route may use completion alone. Missing or null optional counts are unknown;
+these consistency checks do not authenticate the reported usage.
+
 ## Auto-router receipts
 
 When LiteLLM's auto-router sends a request to a cheaper model, the request metadata carries
@@ -214,3 +222,44 @@ The verifier re-derives the chain, the KRY benchmark arithmetic, and the `veraci
 the floor will honestly read `0.0` for a pure cache-hit ledger. That is the feature, not
 a bug: the number states exactly how much still rests on your word, instead of hiding it
 behind a green checkmark. See `docs/CLAIMS_BOUNDARY.md` for what you may claim on top.
+
+## Optional private usage observation
+
+`KryLiteLLMLogger(usage_observer=save_private_observation)` calls your fast,
+synchronous callable with one sanitized observation before receipt minting in
+each success callback. The default logger does not capture observations. This
+hook adds no storage or network sink; your application owns private persistence
+and must compare retained observations with its independent attempt inventory.
+Register the logger once. Repeated callbacks produce repeated observations while
+receipt deduplication still prevents a second mint for the same evidence key.
+
+`scripts/kry_litellm_observation.py` preserves an allowlist of normalized usage
+categories, including cache TTL splits, reasoning/context counts and exact xAI
+cost ticks when exposed. Counts remain integers up to `2**63 - 1`, including
+values above JavaScript's exact-number range. Missing, null, zero and malformed
+fields have distinct states; unsupported fields are flagged without copying
+names or values. Categories are not summed or priced. Requested and normalized
+response model names remain separate, with exact string comparison only.
+
+The projection hashes LiteLLM call and normalized response identifiers. Its
+provider request-ID candidate comes only from the tested
+`_hidden_params.additional_headers["llm_provider-request-id"]` field. No raw
+identifier, prompt, generated text, arbitrary metadata or other header is copied.
+Flattened headers cannot reveal duplicate wire headers, and ambiguous candidates
+are unusable. Model names can contain private routing labels: retain the entire
+observation privately unless separately reviewed for publication.
+
+These are **LiteLLM-normalized callback observations**. Adapters can already have
+replaced missing/null counts with zero or synthesized identities. The hook cannot
+recover those distinctions, authenticate a provider, authorize a model's price,
+prove all attempts were captured or reconcile an invoice. It always leaves
+`actual_charge_usd` null and `billing_reconciliation` as `not_performed`.
+The installed-adapter test uses constructed HTTP responses and response caching;
+it does not contact a provider or establish real billing behavior.
+
+Observer errors increment `logger.observation_failures` and emit only the fixed
+message `kry usage observation failed`; serving and receipt minting continue.
+That counter is process-local, resets with the logger, and does not establish
+persistence. Stop evidence processing on any failure or unexplained missing
+observation. Async observers are unsupported; a slow synchronous observer can
+delay the callback. This feature changes no receipt arithmetic or evidence tier.

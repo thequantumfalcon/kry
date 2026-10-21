@@ -438,7 +438,7 @@ class KRYLedger:
                 os.replace(tmp, _LEDGER_PATH)
             except Exception:
                 # Do NOT swallow, and do NOT adopt the merged state. earn()/spend() wrap save() to warn
-                # + fall back to the mint chain on a persistence failure — that warning only fires if we
+                # that persistence is unconfirmed — that warning only fires if we
                 # re-raise. Leaving self/_baseline UNADVANCED means the unpersisted delta is retried in
                 # FULL on the next save instead of being silently dropped (adopting before the write
                 # would zero the delta and lose it).
@@ -648,9 +648,9 @@ def earn(tokens: float, event_type: str, detail: str = "",
         # ever MEASURED as a problem (it wasn't — the batching was premature).
         try:
             ledger.save()
-        except Exception as exc:
-            logger.warning("KRY earn: ledger.save() failed (%s) — credit is in memory only; "
-                           "reconcile_ledger_from_chain() recovers it from the mint chain", exc)
+        except Exception:
+            logger.warning("KRY earn: ledger persistence unconfirmed; credit may be in memory only; "
+                           "inspect retained receipt and balance before further writes")
     logger.debug("KRY earn: +%.1f (%s, %s, x%.2f)", kry, event_type, detail, vmult)
     return kry
 
@@ -710,9 +710,9 @@ def spend(model: str, output_tokens: int, detail: str = "") -> float:
             tx_id=uuid.uuid4().hex))
         try:
             ledger.save()  # R22: save every spend (was % 10 — same loss window)
-        except Exception as exc:
-            logger.warning("KRY spend: ledger.save() failed (%s) — debit is in memory only; "
-                           "reconcile_ledger_from_chain() recovers state from the mint chain", exc)
+        except Exception:
+            logger.warning("KRY spend: ledger persistence unconfirmed; debit may be in memory only; "
+                           "the mint chain cannot recover an unrecorded debit")
     logger.debug("KRY spend: -%.1f (%s)", actual, model)
     return actual
 
