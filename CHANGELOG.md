@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Optional post-quantum verification accepted short key pins and inconsistent
+  quorum metadata, and some malformed inputs caused uncaught errors. It now
+  requires at least 16 hexadecimal fingerprint characters, checks envelope and
+  native key/signature lengths, and reports malformed inputs without verification.
+  Full public keys or full SHA-256 fingerprints remain the recommended pins.
+- Optional key generation could replace an existing public key before refusing
+  to overwrite its secret key. Both key files now use exclusive creation.
+- Threshold-signing output claimed independent signers from distinct keys. It
+  now states the verified key quorum and leaves custody independence unverified.
 - Imported savings logs could acquire holdout-validated or provider-metered tiers
   from sample size or usage-shaped data. They now retain the same arithmetic as
   self-reported estimates with source floor zero, including newly minted receipts.

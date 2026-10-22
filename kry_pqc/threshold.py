@@ -1,24 +1,19 @@
 """KRY-PQC threshold signing — make "trust the operator" a tunable m-of-n number.
 
-Single-signer authenticity (signer.py) still rests on ONE key: compromise it and
-history can be silently re-vouched. This module distributes that trust across an
-explicit council of N independent signers and requires M of them to vouch for an
-attestation. If the council's keys are really held by independent parties, no
-single party — not even the operator — can produce a valid threshold proof alone,
-and operator-trust becomes M/N, driven toward zero by adding independent signers.
-verify_threshold() cannot check that independence: it trusts the policy it is
-given, so a verifier must take the council's public keys from where their holders
-published them, not from the operator (an operator who generates all N keys is
-the council).
+Single-signer authenticity (signer.py) rests on one key. This module requires
+M distinct registered keys from a council of N to sign the attestation. M/N is
+a quorum setting, not a probability or measure of operator trust. Key custody,
+independent control, and the truth of the attestation remain external facts.
+verify_threshold() trusts the supplied policy: a verifier must obtain that policy
+and its public keys through trusted channels. An operator who controls all N keys
+can produce the entire quorum, and a threshold of one requires only one key.
 
-Honest framing of the mechanism: this is an M-of-N MULTI-signature — N independent
+Honest framing of the mechanism: this is an M-of-N MULTI-signature — N distinct
 ML-DSA keys, each producing its own signature over the same attestation bytes,
 verified by requiring >= M distinct valid signatures from the registered council.
-It is NOT a single aggregated FROST-style threshold signature (that needs an
-interactive distributed key generation + threshold-sig scheme). Multi-sig needs
-no interaction and is exactly as sound for the trust-distribution goal; the only
-cost is artifact size (M signatures instead of one). FROST is the optional future
-upgrade if compact signatures ever matter.
+It is not a single aggregated threshold signature. Each contribution binds the
+attestation and council policy; independent key custody remains an operational
+requirement that signature verification cannot establish.
 """
 from __future__ import annotations
 
@@ -60,7 +55,7 @@ def _canon(obj) -> bytes:
 def make_policy(signers: list[tuple[str, bytes]], threshold: int,
                 alg: str = DEFAULT_ALG) -> dict:
     """Build a public council policy: who may vouch, and how many are required."""
-    if not (1 <= threshold <= len(signers)):
+    if type(threshold) is not int or not (1 <= threshold <= len(signers)):
         raise ValueError(f"threshold {threshold} out of range 1..{len(signers)}")
     entries = [{"name": name, "public_key": _b64(pk), "fingerprint": fingerprint(pk)}
                for name, pk in signers]
@@ -123,11 +118,15 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     # kry_pqc.verify's M1) — an arbitrary alg otherwise reaches oqs.Signature(alg) below.
     if not isinstance(policy, dict) or "threshold" not in policy:
         return False, {"error": "policy must be a JSON object carrying a threshold"}
-    if policy.get("alg") not in ALLOWED_ALGS:
+    if not isinstance(policy.get("alg"), str) or policy["alg"] not in ALLOWED_ALGS:
         return False, {"error": f"policy.alg {policy.get('alg')!r} not allowed (need {sorted(ALLOWED_ALGS)})"}
     _signers = policy.get("signers")
     if not isinstance(_signers, list) or not _signers:
         return False, {"error": "policy.signers must be a non-empty list"}
+    if type(policy["threshold"]) is not int or not 1 <= policy["threshold"] <= len(_signers):
+        return False, {"error": "policy.threshold must be an integer in 1..council_size"}
+    if not isinstance(artifact, dict) or not isinstance(artifact.get("signatures"), list):
+        return False, {"error": "artifact must be a JSON object carrying a signatures list"}
     try:
         for _e in _signers:
             if not isinstance(_e, dict) or not isinstance(_e.get("fingerprint"), str):
@@ -158,7 +157,11 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     check("artifact bound to this council policy",
           artifact.get("policy_sha256") == policy_digest(policy))
     check("artifact threshold matches policy",
-          artifact.get("threshold") == policy["threshold"])
+          type(artifact.get("threshold")) is int and artifact["threshold"] == policy["threshold"])
+    check("artifact algorithm matches policy", artifact.get("alg") == policy["alg"])
+    check("artifact council size matches policy",
+          type(artifact.get("council_size")) is int
+          and artifact["council_size"] == len(policy["signers"]))
 
     # HOLE #19: independently enforce the invariant make_policy guarantees. A degenerate threshold
     # (<= 0, > council size, or a non-int true/false/float) otherwise makes the quorum gate
@@ -172,6 +175,9 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     # could meet an m-of-n quorum by relabeling its single key, defeating "no single party could
     # have produced this". The constructor (make_policy) enforces this; the stranger verifier must too.
     _pks = [_unb64(e["public_key"]) for e in policy["signers"]]
+    with oqs.Signature(policy["alg"]) as v:
+        check("policy public keys have the algorithm's required length",
+              all(len(pk) == v.details["length_public_key"] for pk in _pks))
     check("policy fingerprints match public keys",
           all(fingerprint(pk) == e.get("fingerprint")
               for pk, e in zip(_pks, policy["signers"])))
@@ -185,6 +191,8 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
     signed_message = threshold_signed_message(attestation_bytes, policy_digest(policy))
     counted: set[str] = set()
     for s in artifact.get("signatures", []):
+        if not isinstance(s, dict) or not isinstance(s.get("fingerprint"), str):
+            continue
         fp = s.get("fingerprint")
         if fp not in by_fp or fp in counted:
             continue
@@ -199,6 +207,9 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
         except (binascii.Error, ValueError):
             continue
         with oqs.Signature(alg) as v:
+            if (len(by_fp[fp]) != v.details["length_public_key"]
+                    or len(sig) != v.details["length_signature"]):
+                continue
             if v.verify(signed_message, sig, by_fp[fp]):
                 counted.add(fp)
     report["valid_signers"] = sorted(counted)
@@ -225,7 +236,7 @@ def _cmd_init_policy(args) -> int:
     policy = make_policy(signers, args.threshold, args.alg)
     Path(args.out).write_text(json.dumps(policy, indent=2))
     print(f"council: {len(signers)} signers, threshold {args.threshold} "
-          f"(trust {args.threshold}/{len(signers)}) -> {args.out}")
+          f"(quorum {args.threshold}/{len(signers)}) -> {args.out}")
     print(f"policy digest: {policy_digest(policy)}")
     return 0
 
@@ -250,10 +261,17 @@ def _cmd_combine(args) -> int:
 
 
 def _cmd_verify(args) -> int:
-    attestation_bytes = Path(args.attestation).read_bytes()
-    artifact = json.loads(Path(args.artifact).read_text())
-    policy = json.loads(Path(args.policy).read_text())
+    try:
+        attestation_bytes = Path(args.attestation).read_bytes()
+        artifact = json.loads(Path(args.artifact).read_text())
+        policy = json.loads(Path(args.policy).read_text())
+    except (OSError, ValueError) as e:
+        print(f"RESULT: FAILED -- malformed threshold input: {e}")
+        return 1
     ok, report = verify_threshold(attestation_bytes, artifact, policy)
+    if "error" in report:
+        print(f"RESULT: FAILED -- {report['error']}")
+        return 1
     print(f"council      : {report['trust_ratio']} (threshold/size)")
     for c in report["checks"]:
         print(f"[{'PASS' if c['pass'] else 'FAIL'}] {c['name']}")
@@ -262,8 +280,8 @@ def _cmd_verify(args) -> int:
     print()
     if ok:
         print(f"RESULT: VERIFIED -- {report['valid_count']} of {report['council_size']} "
-              f"independent signers vouched (>= {report['threshold']} required). "
-              "No single party could have produced this.")
+              f"distinct registered keys signed (>= {report['threshold']} required). "
+              "Key ownership and signer independence are not established by this check.")
         return 0
     print("RESULT: FAILED — quorum not met or artifact invalid; do not trust.")
     return 1

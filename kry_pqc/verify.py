@@ -31,7 +31,9 @@ except ImportError:  # pragma: no cover
 
 
 def _unb64(s: str) -> bytes:
-    return base64.b64decode(s.encode())
+    if not isinstance(s, str):
+        raise ValueError("base64 value must be a string")
+    return base64.b64decode(s.encode(), validate=True)
 
 
 # M1: the signature algorithm is read from the attacker-supplied .sig.json. Pin it to the
@@ -52,6 +54,9 @@ _DOMAIN_SINGLE = b"kry-pqc/v2/single\x00"
 def verify_signature(attestation_bytes: bytes, signature: bytes, public_key: bytes,
                      alg: str) -> bool:
     with oqs.Signature(alg) as verifier:
+        if (len(public_key) != verifier.details["length_public_key"]
+                or len(signature) != verifier.details["length_signature"]):
+            return False
         return bool(verifier.verify(attestation_bytes, signature, public_key))
 
 
@@ -79,8 +84,8 @@ def main(argv=None) -> int:
                         "it the artifact's embedded key is self-provided and authenticity is "
                         "UNVERIFIABLE (anyone can self-sign their own artifact).")
     p.add_argument("--expect-fingerprint", default=None,
-                   help="pin the signer's key by its published sha256 fingerprint (any prefix); "
-                        "verification fails if the key does not match it.")
+                   help="pin the signer's published sha256 fingerprint (16-64 hex characters); "
+                        "use the full 64-character hash or --public-key for the strongest binding.")
     p.add_argument("--require-chain", action="store_true",
                    help="fail unless KRY's chain-integrity check can also run and passes")
     p.add_argument("--require-v2", action="store_true",
@@ -88,11 +93,11 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
 
     att_path = Path(args.attestation)
-    attestation_bytes = att_path.read_bytes()
     # The .sig.json artifact is attacker-supplied. Parse it and read its required fields behind a
     # guard so a malformed artifact (not JSON / not an object / missing alg|signature|public_key /
     # non-base64) yields the documented "RESULT: FAILED" + exit 1, not an uncaught traceback.
     try:
+        attestation_bytes = att_path.read_bytes()
         artifact = json.loads(Path(args.signature).read_text())
         if not isinstance(artifact, dict):
             raise ValueError("signature artifact is not a JSON object")
@@ -109,7 +114,7 @@ def main(argv=None) -> int:
         else:
             public_key = _unb64(artifact["public_key"])
             key_source = "SELF-PROVIDED (embedded in the artifact)"
-    except (ValueError, KeyError, TypeError, binascii.Error, json.JSONDecodeError) as e:
+    except (OSError, ValueError, KeyError, TypeError, binascii.Error, json.JSONDecodeError) as e:
         print(f"RESULT: FAILED — malformed signature artifact: {e}")
         return 1
     full_fp = hashlib.sha256(public_key).hexdigest()
@@ -132,12 +137,13 @@ def main(argv=None) -> int:
             print("[FAIL] --require-v2: legacy v1 artifact refused")
             ok = False
 
-    if args.expect_fingerprint:
+    if args.expect_fingerprint is not None:
         want = args.expect_fingerprint.strip().lower()
-        if 0 < len(want) < 16:
-            print(f"[warn] --expect-fingerprint is only {len(want)} hex chars; a short prefix is "
-                  "brute-forceable — pin >= 16 hex (64-bit) for a meaningful binding")
-        fp_ok = bool(want) and full_fp.startswith(want)
+        if 16 <= len(want) < 64:
+            print(f"[warn] truncated fingerprint provides only {4 * len(want)} bits of binding; "
+                  "prefer the full SHA-256 fingerprint or --public-key")
+        fp_ok = (16 <= len(want) <= 64 and all(c in "0123456789abcdef" for c in want)
+                 and full_fp.startswith(want))
         print(f"[{'PASS' if fp_ok else 'FAIL'}] key fingerprint matches pinned --expect-fingerprint")
         ok = ok and fp_ok
 
@@ -169,7 +175,7 @@ def main(argv=None) -> int:
     print()
     if ok and pinned:
         print(f"RESULT: VERIFIED -- signed by the holder of the PINNED public key {pk_fp} "
-              "and post-quantum authentic.")
+              "with an ML-DSA signature valid under the supplied key pin.")
         return 0
     if ok and not pinned:
         print("RESULT: UNVERIFIED -- the signature is internally consistent, but the public "
