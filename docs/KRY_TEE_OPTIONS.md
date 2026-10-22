@@ -6,16 +6,17 @@ tier, mirroring the existing `promote_to_tlsn` pattern.
 
 ## What tee_attested can HONESTLY claim (read first)
 
-A cloud-TEE attestation proves *"the code that produced this measurement ran inside an
-attested enclave on AWS/Azure/Phala"* — it does **NOT** prove the closed model
-provider's *own* inference ran in a TEE (no major provider exposes a customer-facing
-attestation; Anthropic's confidential inference is internal-only). So the honest meaning
-of a KRY `tee_attested` receipt is: **"the counterfactual/holdout measurement (token
-accounting, the savings claim) ran in attested hardware, so the operator could not have
-fabricated it."** That is a real upgrade to the `self_reported`/`holdout_validated`
-path (operator-trust → hardware-attested) — NOT a provider-inference proof, and must
-not be marketed as one (Avoid A1/A8). `tlsn_attested` remains the tier that proves the
-provider call happened.
+**Implementation scope correction (2026-10-21):** the shipped Nitro verifier authenticates
+an attestation document and its payload. The bundled PoC forwards parent-supplied JSON to
+NSM; it does not measure token usage or calculate savings inside the enclave. Its signed
+payload therefore demonstrates attestation transport, not independently measured savings.
+
+The trusted-measurement design below additionally requires reviewed measurement code,
+trusted inputs and a verified enclave-image pin. A signature alone does not establish the
+truth of supplied values or a cache-hit counterfactual. The verifier compares PCR0 only
+when explicitly pinned, and it returns a nonce without checking an expected challenge.
+Neither the PoC nor a `tee_attested` label proves provider inference ran in a TEE or that
+a provider charge was avoided. The remaining research and build sketch retain their original date.
 
 ## Decision: build order
 
@@ -60,5 +61,5 @@ optimistic/fraud-proof tiers (need a challenger ecosystem to bootstrap).
 ## One real dependency to weigh
 
 Raw SGX/TDX DCAP quotes are the only SDK-heavy verify path; the lightest is `dcap-qvl`
-(Rust, Python bindings on PyPI). Avoid it by using Nitro (COSE) + Azure (MAA JWT), both
-of which verify with stdlib crypto — keeping the zero-dependency ethos intact.
+(Rust, Python bindings on PyPI). The implemented Nitro verifier uses the optional
+`cryptography` package for signature and certificate checks; KRY core stays stdlib-only.

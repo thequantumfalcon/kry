@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Nitro PoC could terminate unrelated enclaves and leave its own enclave
+  running after a failed verification. Cleanup now targets only the created
+  enclave, preserves the original failure, and reports cleanup failures.
+- Nitro parent setup used unpinned Python dependencies and ignored access-group
+  failures. It now selects Python 3.11, enforces runtime wheel hashes, and stops
+  when a required setup command fails.
+- TEE guidance overstated what a signature over parent-supplied data proves.
+  It now distinguishes attestation verification from trusted measurement and
+  keeps the demonstration in dry-run mode.
+
 - Optional TEE and post-quantum tests lacked a dependency-enabled CI job. A
   separate job now verifies the native library and executes these suites with
   real ML-DSA operations, failing on unavailable dependencies or skipped cases.
