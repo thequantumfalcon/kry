@@ -17,10 +17,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # De-privileged gate (audit round 5 deferred item). `kry_release_verify` builds throwaway venvs and
-  # pip-installs the package + DEV_REQUIREMENTS with no --require-hashes, so it must not run anywhere
-  # near a signing credential. This job is read-only — no id-token, no contents:write — so an
-  # un-hashed install here cannot reach the OIDC identity or the release. `publish` needs it.
+  # Keep tests and their hash-locked tooling in a read-only job, away from the signing identity.
+  # Hash verification restricts downloaded artifacts; it does not make third-party code trusted.
   gate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -54,7 +52,6 @@ jobs:
       - name: Release gate (must pass before anything is published)
         run: |
           set -euo pipefail
-          python -m pip install -e ".[dev]"
           python3 scripts/kry_release_verify.py --full --json-out release-verify.json
 
       # Hand the proof to `publish` — it is a release asset, and publish must not re-run the gate to
@@ -119,10 +116,10 @@ jobs:
           # a tampered/substituted artifact fails the release closed instead of being pulled by a
           # floating `--upgrade`. Nothing else resolves from an index: `[project] dependencies` and
           # `[build-system] requires` are both empty and the backend is in-tree.
-          python -m pip install --require-hashes -r .github/build-requirements.txt
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/build-requirements.txt
           mkdir -p dist
-          python -m build --wheel --outdir dist
-          python -m build --sdist --outdir dist    # the PyPI source distribution (PKG-INFO included)
+          python -m build --no-isolation --wheel --outdir dist
+          python -m build --no-isolation --sdist --outdir dist    # the PyPI source distribution (PKG-INFO included)
           git archive --format=tar.gz --prefix="kry-${GITHUB_REF_NAME}/" \
             -o "dist/kry-${GITHUB_REF_NAME}-source.tar.gz" HEAD
           ( cd dist && sha256sum ./* > checksums.txt )

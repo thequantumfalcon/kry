@@ -128,6 +128,14 @@ responsibilities; the verifier checks signatures, not the identity of people.
 
 ## Status (optional; not part of the default release gate)
 
+The dedicated `optional-crypto` CI job uses pinned Python packages and a hash-verified
+native liboqs build. It exercises real ML-DSA-44/65/87 signing, verification and
+altered-message rejection, then runs this complete suite alongside the TEE verifier
+fixtures with zero skips required. See [CI dependency locks](../docs/CI_DEPENDENCIES.md)
+for source identity, loader controls and the limits of this coverage. Nitro coverage
+replays a retained genuine fixture alongside constructed cases; SNP coverage uses
+constructed reports, without a genuine EPYC fixture or fresh hardware capture.
+
 - `kry_pqc/test_kry_pqc.py` passes only when `liboqs-python` provides the `oqs`
  module. In environments without `oqs`, the optional test is skipped and this
  tier must be treated as unverified for that release run.

@@ -26,10 +26,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - name: Install tooling (stdlib-only package — just the test/lint tools)
-        run: python -m pip install --upgrade pip
       - name: Install package
-        run: python -m pip install -e ".[dev]"   # dev tools pinned in pyproject (single source of truth)
+        run: |
+          python scripts/check_dependency_locks.py
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/dev-requirements.txt
+          python -m pip install --no-deps --no-build-isolation -e .
       - name: Lint (must stay clean)
         run: ruff check src/ scripts/ tests/ examples/ lab/
       - name: Tests
@@ -72,7 +73,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        run: python -m pip install -e ".[dev]"
+        run: |
+          python scripts/check_dependency_locks.py
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/dev-requirements.txt
+          python -m pip install --no-deps --no-build-isolation -e .
       - name: Tests
         run: python -m pytest tests/ -q
 
@@ -90,7 +94,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install package
-        run: python -m pip install -e ".[dev]"
+        shell: bash
+        run: |
+          python scripts/check_dependency_locks.py
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/dev-requirements.txt
+          python -m pip install --no-deps --no-build-isolation -e .
       - name: Tests
         run: python -m pytest tests/ -q
 
@@ -108,11 +116,69 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install package and integration dependency
-        run: python -m pip install -e ".[dev]" "litellm==1.101.0"
+        run: |
+          python scripts/check_dependency_locks.py
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/litellm-requirements.txt
+          python -m pip install --no-deps --no-build-isolation -e .
+          python -m pip check
       - name: Require LiteLLM and exercise its real callback dispatch with mock responses
         run: |
           python -c "import litellm"
-          python -m pytest tests/test_litellm_integration.py tests/test_litellm_anthropic_integration.py -q
+          python -m pytest tests/test_litellm_integration.py tests/test_litellm_anthropic_integration.py tests/test_litellm_observation_integration.py -q
+
+  optional-crypto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The pinned wrapper rejects this before its fallback clone; missing native code must fail.
+      PYOQS_VERSION: disabled-by-kry-ci
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    steps:
+      - uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Set temporary crypto paths
+        run: |
+          printf '%s\n' "OQS_INSTALL_PATH=$RUNNER_TEMP/kry-oqs" "KRY_DATA_DIR=$RUNNER_TEMP/kry-crypto-data" >> "$GITHUB_ENV"
+      - name: Install hash-locked optional crypto tools
+        run: |
+          python scripts/check_dependency_locks.py
+          python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/crypto-requirements.txt
+          python -m pip install --no-deps --no-build-isolation -e .
+          python -m pip check
+      - name: Verify and build the pinned native signature library
+        run: |
+          set -euo pipefail
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://codeload.github.com/open-quantum-safe/liboqs/tar.gz/refs/tags/0.16.0 \
+            --output "$RUNNER_TEMP/liboqs.tar.gz"
+          printf '%s  %s\n' '162d5b510518ee5f285f82fa1f16402a885176e818bf1b1a4c3c91c9a2f01eae' "$RUNNER_TEMP/liboqs.tar.gz" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/liboqs-source"
+          tar -xzf "$RUNNER_TEMP/liboqs.tar.gz" -C "$RUNNER_TEMP/liboqs-source" --strip-components=1
+          cmake -S "$RUNNER_TEMP/liboqs-source" -B "$RUNNER_TEMP/liboqs-build" \
+            -DCMAKE_INSTALL_PREFIX="$OQS_INSTALL_PATH" -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_SHARED_LIBS=ON -DOQS_BUILD_ONLY_LIB=ON -DOQS_USE_OPENSSL=OFF \
+            '-DOQS_MINIMAL_BUILD=SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87' \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/liboqs-build" --parallel 2
+          cmake --install "$RUNNER_TEMP/liboqs-build"
+      - name: Exercise real ML-DSA and optional attestation fixtures with no skips
+        run: |
+          python scripts/kry_optional_crypto_check.py \
+            --native-library "$OQS_INSTALL_PATH/lib/liboqs.so" \
+            --junit "$RUNNER_TEMP/optional-crypto.xml"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: always()
+        with:
+          name: optional-crypto-tests
+          path: ${{ runner.temp }}/optional-crypto.xml
 
   release-gate:
     runs-on: ubuntu-latest

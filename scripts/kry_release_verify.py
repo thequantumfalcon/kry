@@ -114,11 +114,13 @@ def _verify_install(mode: str, temp_root: Path) -> dict[str, object]:
         return {"name": f"install:{mode}", "ok": False, "steps": steps}
 
     py = _venv_python(venv)
-    install_cmd = [py, "-m", "pip", "install", "-e", str(ROOT)] if mode == "editable" else [
+    install_cmd = [py, "-m", "pip", "install", "--no-deps", "--no-build-isolation", "-e", str(ROOT)] if mode == "editable" else [
         py,
         "-m",
         "pip",
         "install",
+        "--no-deps",
+        "--no-build-isolation",
         str(ROOT),
     ]
     steps.append(_run(f"pip-install:{mode}", install_cmd, env=env))
@@ -248,10 +250,15 @@ def _prepare_dev_tools(temp_root: Path) -> tuple[dict[str, object], list[str], l
     venv = temp_root / "venv-tools"
     env = _clean_python_env()
     steps: list[dict[str, object]] = []
-    steps.append(_run("venv:tools", [_python(), "-m", "venv", str(venv)], env=env))
+    steps.append(_run("dependency-locks", [_python(), "scripts/check_dependency_locks.py"], env=env))
+    if steps[-1]["ok"]:
+        steps.append(_run("venv:tools", [_python(), "-m", "venv", str(venv)], env=env))
     if steps[-1]["ok"]:
         py = _venv_python(venv)
-        steps.append(_run("pip-install:tools", [py, "-m", "pip", "install", *DEV_REQUIREMENTS], env=env))
+        steps.append(_run("pip-install:tools", [
+            py, "-m", "pip", "install", "--require-hashes", "--only-binary=:all:",
+            "-r", str(ROOT / ".github" / "dev-requirements.txt"),
+        ], env=env))
 
     ruff_bin = str(venv / ("Scripts/ruff.exe" if os.name == "nt" else "bin/ruff"))
     pytest_cmd = [_venv_python(venv), "-B", "-m", "pytest", "tests/", "-q"]

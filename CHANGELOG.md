@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Optional TEE and post-quantum tests lacked a dependency-enabled CI job. A
+  separate job now verifies the native library and executes these suites with
+  real ML-DSA operations, failing on unavailable dependencies or skipped cases.
+
+- CI and the release gate installed test tools and integration dependencies without
+  artifact hashes, including floating transitive dependencies. Complete hash locks
+  now cover these installs, direct-pin drift fails before installation, and external
+  source builds and the floating pip upgrade are disabled.
+- Four existing LiteLLM observation integration cases were omitted from the
+  dependency-enabled CI job; that job now runs all eight integration cases.
 - CodeQL skipped pull requests targeting another feature branch. It now scans
   all pull requests, including stacked changes, before they reach `main`.
 - Aggregate reconciliation reported empty or zero-token receipt windows as
