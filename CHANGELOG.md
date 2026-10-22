@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The differential fuzz gate could accept matching verifier crashes or an abnormal
+  JavaScript process exit, and silently omit a failed mixed-evidence base. These
+  outcomes now fail the run; successful agreement is not a correctness proof.
 - The Nitro PoC could terminate unrelated enclaves and leave its own enclave
   running after a failed verification. Cleanup now targets only the created
   enclave, preserves the original failure, and reports cleanup failures.
