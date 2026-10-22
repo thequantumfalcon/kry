@@ -61,5 +61,5 @@ optimistic/fraud-proof tiers (need a challenger ecosystem to bootstrap).
 ## One real dependency to weigh
 
 Raw SGX/TDX DCAP quotes are the only SDK-heavy verify path; the lightest is `dcap-qvl`
-(Rust, Python bindings on PyPI). Avoid it by using Nitro (COSE) + Azure (MAA JWT), both
-of which verify with stdlib crypto — keeping the zero-dependency ethos intact.
+(Rust, Python bindings on PyPI). The implemented Nitro verifier uses the optional
+`cryptography` package for signature and certificate checks; KRY core stays stdlib-only.
