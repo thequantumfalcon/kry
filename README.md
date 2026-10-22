@@ -227,8 +227,10 @@ and step 4 uses them.
 [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
 The steps below use a checkout.
 
-The LiteLLM durability changes and separate Anthropic usage helper are listed under
-[Unreleased](CHANGELOG.md#unreleased); use this checkout for those features.
+The LiteLLM capture and durability changes, optional evidence assessment and row
+commitments, Anthropic helpers, and aggregate reconciliation fixes are listed under
+[Unreleased](CHANGELOG.md#unreleased). Use this checkout for those features; they
+are not included in the published 0.1.10 package.
 
 ```bash
 # 0) Create a virtual environment (Python 3.11 or newer), then install this checkout with the test tools
@@ -581,6 +583,8 @@ python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export u
 # --mode per-request requires a separately retrievable per-request source, such as OpenRouter's generation API.
 # Standard OpenAI/Anthropic organization reports are time-bucket aggregates, not per-call exports.
 # --mode aggregate requires --since/--until; here --tolerance-pct defaults to 2.0 (max 5.0).
+# Aggregate tolerance is applied exactly to integer token totals. Empty or zero-token
+# receipt windows return NO_T1_RECEIPTS and exit nonzero, not successful reconciliation.
 # Supplying JSON does not establish its provenance; matching token pairs does not prove request identity.
 # An aggregate-mode external packet (kry_verified_artifact.py) is capped at --tolerance-pct 2.0, and that
 # script defaults to 5.0, so pass --tolerance-pct 2 (or lower) to it explicitly.

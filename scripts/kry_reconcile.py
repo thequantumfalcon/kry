@@ -63,6 +63,7 @@ import argparse
 import json
 import math
 import sys
+from fractions import Fraction
 
 T1_MANIFEST_SCHEMA = "kry_t1_reconciliation_manifest/v1"
 MAX_AGGREGATE_TOLERANCE_PCT = 5.0
@@ -328,6 +329,8 @@ def aggregate_reconcile(t1_receipts: list[dict], provider_records: object,
 
     provider_records: one aggregate object, a list of them (summed), or a
     {data:[...]} / {records:[...]} envelope.
+    The validated decimal tolerance is applied exactly to integer token totals.
+    A zero minted-token total is NO_T1_RECEIPTS, not a successful reconciliation.
     """
     tol_pct = _validate_tolerance_pct(tol_pct)
     if isinstance(provider_records, dict):
@@ -356,7 +359,7 @@ def aggregate_reconcile(t1_receipts: list[dict], provider_records: object,
         sum_c += c
     our_total = sum_p + sum_c
 
-    allowance = prov_total * (1.0 + tol_pct / 100.0)
+    allowance = prov_total * (1 + Fraction(str(tol_pct)) / 100)
     reconciled = our_total <= allowance
     return {
         "mode": "aggregate",
@@ -365,7 +368,7 @@ def aggregate_reconcile(t1_receipts: list[dict], provider_records: object,
         "provider_billed_tokens": {"prompt": prov_p, "completion": prov_c, "total": prov_total},
         "tolerance_pct": tol_pct,
         "overclaim_tokens": our_total - prov_total,
-        "reconciled_fraction": round(min(1.0, prov_total / our_total), 4) if our_total else None,
+        "reconciled_fraction": round(min(prov_total, our_total) / our_total, 4) if our_total else None,
         "verdict": ("NO_T1_RECEIPTS" if not our_total
                     else "RECONCILED" if reconciled else "DISCREPANCY"),
         "note": ("aggregate F1: summed provider_metered tokens must not exceed the "
@@ -446,6 +449,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  provider billed total:          {prov['total']} "
               f"(prompt {prov['prompt']} + completion {prov['completion']})")
         print(f"  tolerance:                      {result['tolerance_pct']:.1f}%")
+        if result["verdict"] == "NO_T1_RECEIPTS":
+            print("  VERDICT: NO_T1_RECEIPTS — no metered tokens to reconcile.")
+            return 1
         if result["verdict"] == "DISCREPANCY":
             print(f"  VERDICT: DISCREPANCY — minted {result['overclaim_tokens']} tokens "
                   f"OVER the provider's billed total: phantom T1 (more claimed than billed).")

@@ -13,11 +13,13 @@
 
 ## The problem (load-bearing, previously unsolved)
 
-The KRY mint chain proves **integrity**: every receipt links
-`chain_hash[i] = SHA256(chain_hash[i-1] : receipt_hash[i])`, so no receipt can be
-inserted, removed, or altered after minting, and the conserved balance follows
-from the chain. An external party running `verify_attestation()` confirms all of
-that without seeing a single prompt.
+The KRY mint chain checks **integrity**. Modern receipts link
+`chain_hash[i] = SHA256(chain_hash[i-1] : receipt_hash[i] : public_block[i])`, where
+the public block binds the fields specified for that hash version in `SPEC.md`.
+The verifier checks that linkage and the declared totals without seeing prompts.
+Edits break the retained chain, but a complete re-mint or tail removal requires an
+independently retained prior chain-head anchor to detect; the chain alone cannot
+establish that its history is complete.
 
 Integrity is **not veracity**. The chain says nothing about whether the efficiency
 events *actually happened*. An operator can author a perfectly conserved chain of
@@ -39,7 +41,8 @@ call that was never made. So cache-hit veracity has no external anchor available
 
 Displacement is different: the **cheap leg that *did* happen** leaves a real
 provider `usage` record, and the avoided expensive call has a public list price.
-Displacement savings *can* be externally anchored; pure cache savings cannot.
+The cheap leg's usage can be reconciled against a provider record. That alone does
+not prove the avoided call would have happened or establish cash saved.
 
 This asymmetry is the honest core of the problem, and it is why "just meter it
 with the provider" does not rescue the bulk of the balance.
@@ -56,29 +59,29 @@ Every mint is classified by **how the event was witnessed** (weakest → stronge
 
 | Tier | Constant | Trust source | What earns it |
 |------|----------|--------------|---------------|
-| **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — **permanent** floor for them |
+| **T0** | `self_reported` | the operator's runtime, full stop | ordinary unattested cache logs and callback receipts |
 | **T1** | `provider_metered` | the provider, for a call that *did* happen | displacement's cheap leg, with a retained real `usage` payload |
-| **T2** | `tee_attested` | hardware / TEE measurement witness | the *only* honest anchor for **cache-hit counterfactuals** (zero provider footprint). **Verify + mint shipped: `scripts/kry_tee_verify.py` (AWS Nitro, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06.** It attests that the *measurement* ran in attested hardware, not that a provider's inference did. |
-| **T2** | `tlsn_attested` | a TLS-notary signature over a real provider TLS session | cryptographically PROVES a provider call *happened* (displacement's cheap leg) — strictly stronger than T1 (operator can't fabricate the bytes). **Mint shipped: `scripts/kry_tlsn_verify.py` (2026-06-04); mechanism proven end-to-end vs production openrouter.ai.** Does NOT anchor cache-hit counterfactuals — that stays `tee_attested`. |
+| **T2** | `tee_attested` | hardware / TEE measurement witness | hardware-attested measurement of cache events. **Verify + mint shipped: `scripts/kry_tee_verify.py` (AWS Nitro, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06.** It attests that the *measurement* ran in attested hardware, not that a provider's inference did or that a provider charge was avoided. |
+| **T2** | `tlsn_attested` | a TLS-notary signature over a provider TLS session | checks the session evidence under the notary's trust assumptions. **Mint shipped: `scripts/kry_tlsn_verify.py` (2026-06-04); mechanism exercised end-to-end vs production openrouter.ai with a self-hosted notary, not a neutral third party.** Does NOT anchor cache-hit counterfactuals — that stays `tee_attested`. |
 
 - The tier is **bound into the receipt hash** (receipt `hash_version >= 2`), so an
- operator cannot upgrade a receipt's tier after the fact without breaking the
- chain. New provider-metered receipts also hash-bind their `metered_tokens`
+ in-place tier edit breaks the chain. Detecting an operator's complete re-mint
+ requires a prior independent anchor. New provider-metered receipts also hash-bind their `metered_tokens`
  (`hash_version = 3`), so reconciliation cannot swap token counts under an
  unchanged receipt hash. The current format (`hash_version = 7`) additionally
  binds each receipt's `receipt_id` (so a T2 tier-promotion's `supersedes` target
  cannot be relabeled onto a different, larger receipt to inflate the externally-
  anchored fraction) and its `event_type` (so a link cannot be relabeled between two
- same-`earn_rate` event types). Legacy `v1` receipts (pre-tier) default
- to `self_reported` — the honest assumption — and verify bit-for-bit unchanged.
+ same-`earn_rate` event types). Legacy `v1` receipts (pre-tier) may only claim
+ `self_reported`; a pre-v4 public link claiming a stronger tier is rejected.
 - The attestation exposes a **`veracity` block**: KRY by tier, and a
- **`veracity_floor`** = the fraction backed by something stronger than bare operator
- self-report — an external anchor (provider-metered / TEE / TLSNotary) *or* an operator-run
- randomized holdout (`holdout_validated`). `verify_attestation()` re-derives the floor from the
- per-link tiers and rejects a misstated one — the trust surface is itself
- tamper-evident, not just asserted.
+ **`veracity_floor`** = the fraction assigned to declared tiers above bare operator
+ self-report — provider-metered / TEE / TLSNotary *or* an operator-run randomized
+ holdout (`holdout_validated`). `verify_attestation()` re-derives the floor from the
+ per-link tiers and rejects a misstated one. It checks the labels' consistency;
+ their underlying source evidence requires separate verification.
 
-A balance with no displacement traffic reads `veracity_floor = 0.0` (100%
+A balance containing only `self_reported` receipts reads `veracity_floor = 0.0` (100%
 `self_reported`). That is the **honest label** for what KRY is by default:
 internal-operator measurement.
 
@@ -96,8 +99,8 @@ The primitive does not pick a path; it makes whichever path is chosen *legible*.
 
 2. **Provider-metered anchoring for displacement (T1).** — primitive **supported**.
  `mint(..., evidence_tier="provider_metered", metered_tokens=[p, c])` records a T1
- receipt that retains the real `(prompt, completion)` tokens from a genuine
- external provider call. `[p, c]` must be JSON integers, not strings, booleans, or floats.
+ receipt that retains supplied `(prompt, completion)` counts. The host system is
+ responsible for retaining the genuine external source. `[p, c]` must be JSON integers, not strings, booleans, or floats.
  New receipts hash-bind `[p, c]` and expose those counts in the public attestation
  as token counts, not content. Provider-metered public attestation links also
  expose the receipt `ts` as content-free billing-window metadata, and the verified
@@ -108,56 +111,58 @@ The primitive does not pick a path; it makes whichever path is chosen *legible*.
  lives in the **host** that routes calls — this package provides the primitive the
  host mints against. The operator's **own** substrate (local models, owned pools)
  stays `self_reported`: it is not a third party. *Honest ceiling, stated plainly:*
- this attests the displacement **event is real**; the saving **magnitude** still
- rests on the avoided model's *public list price*, which is publicly checkable but
- not provider-attested. Cache hits stay T0 by their nature. Trust moves from
- "the operator" to "the provider", not to zero.
+ a tier label alone does not attest that the displacement **event is real**.
+ Its KRY amount follows the published benchmark; actual provider charges and the
+ avoided alternative require separate evidence. Cache-hit callbacks remain T0.
  **Reconciliation (F1):** `scripts/kry_reconcile.py` is an operator/auditor tool
- that checks T1 receipts against the **provider's own usage export** — accessible
- only with the account that made the calls, which IS the external root of trust.
- Two modes, because providers export at different granularity:
+ that checks T1 counts against **supplied usage JSON**. The operator/auditor must
+ independently establish the source, account, coverage and normalization. The
+ tool does not fetch records or authenticate a supplied file. Two modes are available:
  - **`--mode per-request`** (default): greedy one-to-one match of each receipt to
- a provider usage record. A single real call can't back two claims. Use where
- the provider exposes each call — **OpenRouter** generation API, OpenAI/Anthropic
- per-call usage logs.
- - **`--mode aggregate`**: **Google AI Studio / Vertex (where every current T1 mint
- originates) exposes NO per-request export** — only aggregate, SKU-level billing
- totals (Cloud Billing report / BigQuery, hours-delayed). Per-request matching is
- structurally impossible there. Aggregate mode sums the `provider_metered` tokens
- over a `[--since,--until)` window and asserts the sum does **not exceed** the
- provider's billed total (`+--tolerance-pct`) — we can never have metered more
- provider work than was billed; an excess is phantom T1.
+ a supplied record by token counts, not request identity. Each supplied row is used
+ at most once; duplicate rows or repeated token pairs do not establish unique calls.
+ Use a separately retrievable per-request source, such as OpenRouter's generation API.
+ Standard OpenAI/Anthropic organization reports are time-bucket aggregates, not
+ per-call exports; inference access alone does not establish reporting access.
+ - **`--mode aggregate`**: use when the available export provides window totals.
+ It sums the `provider_metered` tokens over a required `[--since,--until)` window
+ and checks that the sum does **not exceed** the supplied total plus
+ `--tolerance-pct`. The decimal tolerance is applied exactly to integer totals.
+ This bounds the supplied token-count claim; it does not establish request identity,
+ billing completeness or an actual charge.
 
- Tested now with synthetic exports (`tests/test_reconcile.py`, 12 cases). To run
- against the **real Google aggregate** (the actual trust upgrade — moves T1 from
- operator-*declared* to provider-*reconciled*):
+ Constructed cases cover these modes in `tests/test_reconcile.py`,
+ `tests/test_reconcile_anthropic_cache.py` and `tests/test_reconcile_boundaries.py`.
+ To assess an aggregate export:
 
  1. Note the T1 window: `python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl`
  (no `--provider-export`) prints a PREVIEW — receipt count, summed minted
  tokens, and the `ts` range (unix epoch). That range is the period the billing
  export must cover.
- 2. Pull the aggregate from the linked Google account, scoped to the Gemini
- models displacement uses (e.g. `gemini-3.5-flash`) over that window. Either:
- - **Cloud Billing → Reports**, filter SKU to the Generative Language /
- Vertex token SKUs, export CSV; or
- - **BigQuery billing export** (if enabled): `SELECT sku.description,
- SUM(usage.amount) ... WHERE ... GROUP BY 1` for the input/output token SKUs.
+ 2. Obtain the provider-generated usage export for that account, model scope and
+ window. Establish reporting access and the available accounting fields before
+ spending money on a validation run. Retain the original privately and document
+ any conversion into the reconciler's token categories.
  3. Shape it as JSON for the tool — a single aggregate or a list of rows, each
  `{"prompt_tokens": <input>, "completion_tokens": <output>}` (or `{"usage":
  {...}}`; envelopes `{"data":[...]}` are unwrapped). Counts must be
- non-negative JSON integers, not strings, booleans, or floats. Token-vs-character SKUs:
- convert to tokens before making an external claim. A looser `--tolerance-pct`
+ non-negative JSON integers, not strings, booleans, or floats. Do not treat
+ character counts, dollar totals or unknown categories as token counts. A looser `--tolerance-pct`
  is only an operator diagnostic; an external verified-savings candidate must
  stay within the `<=2%` threshold gate.
  4. Run: `python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --mode aggregate
- --provider-export google_billing.json --since <S> --until <U>`. `RECONCILED`
- (exit 0) = T1 mints are within real billed usage; `DISCREPANCY` (exit 1) =
- minted more than billed → investigate or downgrade to `self_reported`.
+ --provider-export usage.json --since <S> --until <U>`. `RECONCILED`
+ (exit 0) means the positive T1 token total is within the supplied total plus
+ tolerance. `DISCREPANCY` (exit 1) means it exceeds that allowance.
+ `NO_T1_RECEIPTS` (exit 1) means no metered tokens remain to assess, including an
+ empty or zero-token window. None of these outcomes proves credit application,
+ invoice settlement or cash savings.
 
 3. **TEE / hardware attestation for cache hits (T2).**
- The only path that makes cache-hit savings externally credible. A measurement
- witness inside an attested enclave signs "this cache hit occurred." *Cost:* high —
- real hardware/enclave integration. *Do not start without a costed falsifier.*
+ A measurement witness inside an attested enclave can sign a cache-event record.
+ That attests the measurement environment; it does not prove the counterfactual
+ provider call, an avoided charge or cash savings. *Cost:* high — real hardware/enclave
+ integration. *Do not start without a costed falsifier.*
 
 **Recommendation:** ship **#1 honestly now** (the label is live), and treat **#2**
 as the next incremental precision step when displacement volume justifies it. **#3**
@@ -169,18 +174,20 @@ falsifier before any code.
 ## Magnitude is publicly-checkable arithmetic (F2)
 
 Veracity is "did the event happen"; **magnitude** is "is the KRY amount right". These
-are separate, and magnitude is fully fixable in software. Each receipt's amount is
+are separate: the verifier checks magnitude against the published benchmark. Each receipt's amount is
 `tokens_saved × EARN_RATES[event_type] × value_multiplier(avoided_model)`. The price
 basis — `src/kry/kry_token._MODEL_OUTPUT_USD_PER_M`, dated `PRICE_BASIS_AS_OF` with
 per-model `quality` (`list` vs honest `estimate`) and `source` via
 `price_provenance()` — is public and versioned. The attestation exposes each link's
 `tokens_saved` + `earn_rate` (counts and a rate — no content, no model name), so
-`scripts/kry_verify.py` **recomputes** every amount and rejects any receipt whose
-implied multiplier is not a published value or whose rate is non-standard. This
+`scripts/kry_verify.py` **recomputes** amounts where those inputs are present and
+rejects an implied multiplier outside the published set or a non-standard rate.
+Accepted legacy links may omit the inputs; their amounts remain unchecked, and the
+current CLI reports checked and unchecked counts. This
 catches inflation **even when conservation is kept consistent** — a class of forgery
-the chain alone misses. Magnitude is reproducible from public data; only the
-*counterfactual* (did the avoided call's price apply) remains a public-price
-citation, not an operator assertion.
+the chain alone misses. Reproducible benchmark arithmetic does not establish which
+model was avoided, whether the alternative would have been called, or the actual
+provider charge.
 
 ---
 
@@ -188,23 +195,23 @@ citation, not an operator assertion.
 
 Veracity is about whether a *mint* event is real. A separate trust question lives
 on the *settlement* side: can one attested balance be spent twice? The federated
-registry (`src/kry/kry_settlement.py`) closes this **for a single node / single
-process** — `verify_and_accept()` does an atomic verify+record under
-`_REGISTRY_LOCK`, debiting against each party's cumulative settled amount.
+registry (`src/kry/kry_settlement.py`) protects a **single host with a local
+filesystem**: a thread lock and cross-process file lock serialize updates, and
+commit re-checks each party's ceiling against the retained registry.
 
 State the cross-node limit plainly, because it is easy to over-credit:
 
 - The guard — and the stranger re-check in `scripts/kry_verify.py`
  (`verify_settlement`) — is **post-facto and snapshot-based**. It is sound only
  against the **complete, merged** federation registry it can see.
-- **Real-time atomic prevention holds per-process only.** Two nodes settling the
- same attested balance concurrently, each against its own unmerged registry file,
- are not caught until those registries merge. A single-node deployment is fully
- covered; this is a *future* multi-node hole, named now so it isn't discovered
- later.
-- If federation ever goes multi-node, the ranked fix by trust÷effort is:
- **lease/nonce/TTL** (best trust÷effort) > signed-sync replicated log >
- primary-registry-node > full consensus (overkill).
+- **Cross-process prevention requires working local file locks.** It does not
+ provide default real-time coordination between nodes with separate registries;
+ conflicting transfers may be detected only after the registries are merged.
+- An optional shared lease/nonce/TTL authority is implemented and default-off:
+ `KRY_SETTLE_LEASE_DIR` must point to storage reached by every participating node.
+ Its exclusive-create lock is best-effort on some network filesystems; periodic
+ registry merge remains a backstop. Neither this path nor the local file locks
+ justify an unconditional multi-node guarantee.
 
 ### HOLE F (registry tail truncation / rollback)
 
@@ -224,17 +231,18 @@ truncation/corruption; for adversarial multi-party use, **publish the tip** (it 
 content-free, like the attestation `chain_head`) so the rollback is externally
 detectable.
 
-This is orthogonal to the veracity ladder: a higher `veracity_floor` makes the
-*mints* externally credible; the HOLE D corollary bounds what the *settlement*
-double-spend check can promise across nodes. Both must be true for a stranger to
-rely on a transferred balance.
+This is orthogonal to the veracity ladder: `veracity_floor` describes the *mints'*
+declared evidence tiers; the HOLE D corollary bounds what the *settlement*
+double-spend check can promise across nodes. Neither establishes source truth or
+actual financial settlement.
 
 ## Honesty notes
 
 - This is a **framing**, not a cryptographic guarantee of veracity. A determined
  operator can still self-report fabricated T0 events; the point is that the
  attestation now *says so* (`veracity_floor = 0.0`) instead of hiding it.
-- `provider_metered` (T1) reduces trust from "the operator" to "the provider" — it
- does not eliminate trust. State that plainly to any counterparty.
+- `provider_metered` (T1) records a provider-source claim. Trust can move toward
+ the provider only after independently checking the underlying records; the tier
+ label and a successful comparison alone do not authenticate them.
 - No tier change alters any KRY **amount**. Edge-weighting, decay, and conservation
  are untouched; this layer only *classifies* and *exposes*.
