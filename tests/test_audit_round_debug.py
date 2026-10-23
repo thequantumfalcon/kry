@@ -309,7 +309,7 @@ def test_gen_id_exact_match_not_substring():
     """#27: a short gen id must not resolve a longer session's receipt."""
     import kry.kry_mint as km
     km.mint("displacement", 100.0, detail="routed /openrouter:gen-1234abcd", evidence="g1",
-            avoided_model="or/free/cheap")
+            avoided_model="opus")
     assert km._find_t1_receipt_for_gen("gen-1") is None
     assert km._find_t1_receipt_for_gen("gen-1234abcd") is not None
 

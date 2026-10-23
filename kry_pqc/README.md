@@ -75,6 +75,13 @@ prefix identifies only 64 bits and is not a full post-quantum identity binding.
 Shorter prefixes fail. Key generation refuses either existing key file and keeps
 both halves of an existing keypair unchanged.
 
+Legacy `kry-pqc/v1` signatures over genuine attestation bytes remain supported,
+with a warning; `--require-v2` rejects them. V1 cannot relabel messages beginning
+with KRY's reserved v2 single-signer or threshold signing domains. Standalone
+signature checks authenticate bytes, not a valid KRY chain: use `--require-chain`
+with KRY installed when both checks are required. Verifier documents are bounded
+to 16 MiB, and malformed or excessively nested JSON returns a controlled failure.
+
 ### 2. m-of-n multi-signature quorum (`threshold.py`)
 Require M distinct registered keys from a council of N to sign. **M/N is a quorum
 setting, not a probability or measure of operator trust.** A threshold of one

@@ -135,7 +135,10 @@ def _json_dumps(value, **kwargs) -> str:
 def _finite_number(value, field: str, *, nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a finite JSON number")
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
     if not math.isfinite(value):
         raise ValueError(f"{field} must be finite")
     if nonnegative and value < 0:
@@ -239,6 +242,7 @@ class KRYLedger:
         # is the same fix that stopped the original FuelLedger drain; the KRY
         # ledger had repeated the naive last-writer-wins bug.
         self._baseline: dict[str, float] = {k: float(getattr(self, k)) for k in _MERGE_FIELDS}
+        self._recovery_required = False
 
     def flow_balance(self, window_s: float = 3600.0, *, now: float | None = None) -> dict:
         """Toll-bridge solvency: is KRY flowing IN (savings) faster than OUT
@@ -326,8 +330,8 @@ class KRYLedger:
 
     @property
     def efficiency_ratio(self) -> float:
-        total = self.total_earned + self.total_spent
-        return self.total_earned / total if total > 0 else 0.0
+        return (1.0 / (1.0 + self.total_spent / self.total_earned)
+                if self.total_earned > 0 else 0.0)
 
     @property
     def usd_equivalent_saved(self) -> float:
@@ -335,136 +339,171 @@ class KRYLedger:
 
     @classmethod
     def load_or_create(cls) -> "KRYLedger":
+        ledger = cls()
         if not _LEDGER_PATH.exists():
-            return cls()   # normal first run — no ledger yet
+            from kry.kry_mint import _MINT_LOG_PATH
+            ledger._recovery_required = (_LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt").exists()
+                                         or _MINT_LOG_PATH.exists())
+            return ledger
+        # A quarantine decision and rename must refer to the same locked state.
+        # Callers acquire this loader before taking their own file lock.
+        with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
+            try:
+                raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
+                ledger._adopt(raw)
+            except Exception:
+                ledger._quarantine()
+            return ledger
+
+    def _quarantine(self) -> None:
+        self._recovery_required = True
+        if _LEDGER_PATH.exists():
+            corrupt = _LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt")
+            if corrupt.exists():
+                corrupt = corrupt.with_name(corrupt.name + "." + uuid.uuid4().hex)
+            try:
+                os.replace(_LEDGER_PATH, corrupt)
+            except OSError:
+                logger.error("KRY ledger could not be quarantined; writes remain blocked")
+                return
+        logger.error("KRY ledger quarantined; debit history must be recovered before further writes")
+
+    def _adopt(self, raw: dict) -> None:
+        # Validate into locals before replacing any cached state.
+        values = {k: _finite_number(raw[k], k, nonnegative=(k != "balance"))
+                  for k in _MERGE_FIELDS}
+        events = [_event_from_raw(e) for e in raw.get("events", [])][-500:]
+        cycle = int(raw.get("cycle_count", 0))
+        for k, value in values.items():
+            setattr(self, k, value)
+        self.events, self.cycle_count = events, cycle
+        self._baseline = values.copy()
+        self._recovery_required = False
+
+    def _read_locked(self) -> dict:
+        if not _LEDGER_PATH.exists():
+            from kry.kry_mint import _MINT_LOG_PATH
+            missing_history = any(self._baseline.values()) or _MINT_LOG_PATH.exists()
+            if (self._recovery_required or missing_history or
+                    _LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt").exists()):
+                raise ValueError("debit history unavailable; restore the ledger before further writes")
+            return {}
         try:
             raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
-            events = [_event_from_raw(e) for e in raw.get("events", [])]
-            return cls(
-                balance=_finite_number(raw.get("balance", 0.0), "balance"),
-                total_earned=_finite_number(raw.get("total_earned", 0.0),
-                                            "total_earned", nonnegative=True),
-                total_spent=_finite_number(raw.get("total_spent", 0.0),
-                                           "total_spent", nonnegative=True),
-                events=events[-500:],
-                cycle_count=raw.get("cycle_count", 0),
-            )
+            for k in _MERGE_FIELDS:
+                _finite_number(raw[k], k, nonnegative=(k != "balance"))
+            for event in raw.get("events", []):
+                _event_from_raw(event)
+            int(raw.get("cycle_count", 0))
+            return raw
         except Exception as exc:
-            # A PRESENT-but-unparseable/invalid ledger is corruption. Do NOT silently return a blank
-            # ledger — that hides the corruption and reports a false 0 balance until someone reconciles.
-            # Quarantine the bad file and start fresh LOUDLY; reconcile_ledger_from_chain() rebuilds the
-            # real balance from the tamper-evident mint chain.
-            try:
-                corrupt = _LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt")
-                os.replace(_LEDGER_PATH, corrupt)
-                where = str(corrupt)
-            except OSError:
-                where = "(could not move it aside)"
-            logger.error(
-                "KRY ledger at %s is corrupt (%s) — quarantined to %s and starting from a blank "
-                "ledger. Run kry.kry_mint.reconcile_ledger_from_chain() to rebuild the balance from "
-                "the mint chain.", _LEDGER_PATH, exc, where)
-            return cls()
+            self._quarantine()
+            raise ValueError("debit history unavailable; restore the ledger before further writes") from exc
+
+    def _refresh_locked(self) -> None:
+        on_disk = self._read_locked()
+        if any(getattr(self, k) != self._baseline[k] for k in _MERGE_FIELDS):
+            self._save_locked(on_disk)
+        elif on_disk:
+            self._adopt(on_disk)
 
     def save(self) -> None:
-        """Delta-merge save (R6): apply only this process's change since its last
-        save onto the current on-disk value, so concurrent writers accumulate
-        instead of clobbering. Under _LEDGER_LOCK to serialize read-modify-write."""
+        """Merge pending deltas into durable state under one process lock.
+
+        Corruption or missing prior debit history requires explicit recovery.
+        A failed pre-replace write preserves pending deltas. A lost replace
+        acknowledgement is checked before releasing the lock, never inferred
+        from the bounded event history during a later retry.
+        """
         _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # _LEDGER_LOCK serializes threads; _cross_process_lock serializes PROCESSES so a
-        # shared ledger's read-modify-write doesn't lose updates (a real concurrency bug
-        # the lab's Test 6 caught — the old comment claimed process-safety it didn't have).
         with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
-            on_disk = {}
+            self._save_locked()
+
+    def _save_locked(self, on_disk: dict | None = None) -> None:
+        if self._recovery_required:
+            raise ValueError("debit history unavailable; restore the ledger before further writes")
+        if on_disk is None:
+            on_disk = self._read_locked()
+        merged = {}
+        for k in _MERGE_FIELDS:
+            disk_v = _finite_number(on_disk.get(k, 0.0), k)
+            delta = _finite_number(getattr(self, k), k) - self._baseline.get(k, 0.0)
+            merged[k] = _finite_number(disk_v + delta, k)
+        # Preserve the direct-save legacy clamp. Public spend() selects its
+        # debit from fresh state under this lock rather than relying on a clamp.
+        if merged["balance"] < 0:
+            merged["balance"] = 0.0
+            merged["total_spent"] = merged["total_earned"]
+        # Events accumulate across writers too. The scalars already do (delta-merge), but the
+        # events list was written last-writer-wins, silently dropping a concurrent process's audit
+        # records. Keep ALL of this process's in-memory events, and ADD only on-disk events that
+        # carry a tx_id we don't already hold (another writer's new events). Legacy/empty-tx_id
+        # disk events are skipped — they were already loaded into self.events at startup — so
+        # distinct legacy records that happen to share a (ts,kind,source,amount,detail) payload are
+        # NEVER collapsed by a tuple key, and our own events are never duplicated on a round-trip.
+        # Build the merged state into LOCALS first; self/_baseline are adopted only AFTER a durable
+        # write succeeds (see below), so a write failure loses nothing.
+        _mine = {e.tx_id for e in self.events if e.tx_id}
+        _combined = list(self.events)
+        for _raw in on_disk.get("events", []):
             try:
-                if _LEDGER_PATH.exists():
-                    on_disk = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
-                    for k in _MERGE_FIELDS:
-                        _finite_number(on_disk.get(k, 0.0), k)
+                _de = _event_from_raw(_raw)
             except Exception:
-                on_disk = {}
-            merged = {}
-            for k in _MERGE_FIELDS:
-                disk_v = _finite_number(on_disk.get(k, 0.0), k)
-                delta = _finite_number(getattr(self, k), k) - self._baseline.get(k, 0.0)
-                merged[k] = _finite_number(disk_v + delta, k)
-            # Authoritative "never go negative" enforcement under the cross-process lock.
-            # spend()'s cap (actual = min(cost, in-memory balance)) is taken against a
-            # possibly-stale per-process snapshot, so two processes can each pass it and
-            # the independent delta-merge above would otherwise drive the on-disk balance
-            # negative (a real cross-process overspend). A balance can never be spent
-            # below 0, so the most that can have been spent is everything earned: pin
-            # balance at 0 and set total_spent == total_earned, keeping the falsifier
-            # invariant earned - spent == balance exact instead of going negative.
-            if merged["balance"] < 0:
-                merged["balance"] = 0.0
-                merged["total_spent"] = merged["total_earned"]
-            # Events accumulate across writers too. The scalars already do (delta-merge), but the
-            # events list was written last-writer-wins, silently dropping a concurrent process's audit
-            # records. Keep ALL of this process's in-memory events, and ADD only on-disk events that
-            # carry a tx_id we don't already hold (another writer's new events). Legacy/empty-tx_id
-            # disk events are skipped — they were already loaded into self.events at startup — so
-            # distinct legacy records that happen to share a (ts,kind,source,amount,detail) payload are
-            # NEVER collapsed by a tuple key, and our own events are never duplicated on a round-trip.
-            # Build the merged state into LOCALS first; self/_baseline are adopted only AFTER a durable
-            # write succeeds (see below), so a write failure loses nothing.
-            _mine = {e.tx_id for e in self.events if e.tx_id}
-            _combined = list(self.events)
-            for _raw in on_disk.get("events", []):
+                continue
+            if _de.tx_id and _de.tx_id not in _mine:
+                _combined.append(_de)
+        _combined.sort(key=lambda x: x.ts)
+        merged_events = _combined[-500:]
+        # Divide before summing to avoid overflow in a display-only ratio.
+        _ratio = (1.0 / (1.0 + merged["total_spent"] / merged["total_earned"])
+                  if merged["total_earned"] > 0 else 0.0)
+        data = {
+            "balance": merged["balance"],
+            "total_earned": merged["total_earned"],
+            "total_spent": merged["total_spent"],
+            "cycle_count": self.cycle_count,
+            "usd_equivalent_saved": round(merged["total_earned"] * USD_PER_KRY, 6),
+            "efficiency_ratio": round(_ratio, 4),
+            "events": [asdict(e) for e in merged_events],
+        }
+        encoded = _json_dumps(data, indent=2)
+        fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(encoded)
+                f.flush()
+                os.fsync(f.fileno())   # durability: the ledger must survive power loss, not tear
+            os.replace(tmp, _LEDGER_PATH)
+        except Exception:
+            # While the lock still excludes other writers, distinguish a failed
+            # write from a completed replace whose acknowledgement was lost.
+            # Retrying the latter delta would credit/debit the same event twice.
+            if not os.path.exists(tmp):
                 try:
-                    _de = _event_from_raw(_raw)
-                except Exception:
-                    continue
-                if _de.tx_id and _de.tx_id not in _mine:
-                    _combined.append(_de)
-            _combined.sort(key=lambda x: x.ts)
-            merged_events = _combined[-500:]
-            _m_total = merged["total_earned"] + merged["total_spent"]
-            data = {
-                "balance": round(merged["balance"], 4),
-                "total_earned": round(merged["total_earned"], 4),
-                "total_spent": round(merged["total_spent"], 4),
-                "cycle_count": self.cycle_count,
-                "usd_equivalent_saved": round(merged["total_earned"] * USD_PER_KRY, 6),
-                "efficiency_ratio": round(merged["total_earned"] / _m_total if _m_total > 0 else 0.0, 4),
-                "events": [asdict(e) for e in merged_events],
-            }
-            fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
-            try:
-                with os.fdopen(fd, "w") as f:
-                    f.write(_json_dumps(data, indent=2))
-                    f.flush()
-                    os.fsync(f.fileno())   # durability: the ledger must survive power loss, not tear
-                os.replace(tmp, _LEDGER_PATH)
-            except Exception:
-                # Do NOT swallow, and do NOT adopt the merged state. earn()/spend() wrap save() to warn
-                # that persistence is unconfirmed — that warning only fires if we
-                # re-raise. Leaving self/_baseline UNADVANCED means the unpersisted delta is retried in
-                # FULL on the next save instead of being silently dropped (adopting before the write
-                # would zero the delta and lose it).
-                if os.path.exists(tmp):
-                    os.unlink(tmp)
-                raise
-            # Durable write succeeded — NOW adopt the merged values as the new in-memory truth.
-            for k in _MERGE_FIELDS:
-                setattr(self, k, merged[k])
-            self._baseline = {k: merged[k] for k in _MERGE_FIELDS}
-            self.events = merged_events
+                    committed = _LEDGER_PATH.read_text(encoding="utf-8") == encoded
+                except OSError:
+                    committed = False
+                if committed:
+                    self._adopt(data)
+                else:
+                    self._recovery_required = True
+            else:
+                os.unlink(tmp)
+            raise
+        self._adopt(data)
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
 _ledger_instance: Optional[KRYLedger] = None
-_instance_lock = threading.Lock()
 
 
 def get_ledger() -> KRYLedger:
     global _ledger_instance
-    if _ledger_instance is None:
-        with _instance_lock:
-            if _ledger_instance is None:
-                _ledger_instance = KRYLedger.load_or_create()
-    return _ledger_instance
+    with _LEDGER_LOCK:
+        if _ledger_instance is None:
+            _ledger_instance = KRYLedger.load_or_create()
+        return _ledger_instance
 
 
 # ── Edge-weighting: provider-value multiplier (edge-semantics) ────────
@@ -481,20 +520,20 @@ def get_ledger() -> KRYLedger:
 
 # Per-model $/M output (mirrors the host's model-pricing map; frontier = $25/M)
 _MODEL_OUTPUT_USD_PER_M: dict[str, float] = {
-    # Current provider model ids at list price. Matching is by substring in insertion order, so these
-    # exact ids come first and win over the older class entries below.
+    # Current provider model ids at list price. Issuance resolves exact ids or the explicit aliases
+    # below; historical class prices remain legal for verifying already issued receipts.
     "claude-fable-5":    50.0,   # Fable 5 and 5.1; the multiplier caps at 1.0 (the $25 frontier)
     "claude-sonnet-5":   10.0,
     "claude-sonnet-4-6": 15.0,
     "claude-sonnet-4-5": 15.0,
     "claude-haiku-4-5":   5.0,
     # Older class entries, unchanged so receipts minted at these prices still verify (SPEC_DEVELOPMENT.md
-    # ground rule 1). A model id without an exact entry above still matches them.
+    # ground rule 1). Only explicit supported aliases use these prices for new issuance.
     "opus":    25.0,   # gh/ or or/ Opus-class
     "sonnet":   7.5,   # Sonnet-class estimate
     "haiku":    1.25,  # Haiku-class
     "gpt-5":   10.0,   # GPT-5.x via Copilot (premium request)
-    "gpt-4o-mini": 0.60,  # OpenAI gpt-4o-mini output list price (before "gpt-4o" for substring match)
+    "gpt-4o-mini": 0.60,  # OpenAI gpt-4o-mini output list price
     "gpt-4o":  10.0,   # OpenAI gpt-4o output list price
     "deepseek-v4-pro": 1.10,
     "deepseek": 0.55,
@@ -502,6 +541,18 @@ _MODEL_OUTPUT_USD_PER_M: dict[str, float] = {
     "gemini":   0.0,   # AI Studio free quota
 }
 _FREE_PREFIXES = ("google", "groq", "nim", "local", "pool")
+_MODEL_NAMESPACES = frozenset({"gh", "ghm", "or", "openrouter", "anthropic", "openai", "deepseek", "qwen"})
+_MODEL_ALIASES = {
+    "claude-fable-5-1": "claude-fable-5",
+    "claude-opus": "opus", "claude-opus-4": "opus", "claude-opus-4-5": "opus",
+    "claude-opus-4-6": "opus", "claude-opus-4-7": "opus", "claude-opus-4-8": "opus",
+    "claude-opus-5": "opus",
+    "claude-sonnet": "sonnet", "claude-sonnet-4-8": "sonnet",
+    "claude-sonnet-4-5-20250929": "claude-sonnet-4-5",
+    "claude-haiku": "haiku", "claude-haiku-4-5-20251001": "claude-haiku-4-5",
+    "deepseek-v4-flash": "deepseek", "deepseek-r1": "deepseek", "qwen2-5:14b": "qwen",
+    "gemini-2-5-pro": "gemini", "gemini-3-5-flash": "gemini", "gemini-flash": "gemini",
+}
 
 # ── Price provenance (F2: dated public-price binding) ─────────────────────────
 # Source/quality metadata for each $/M figure above, so magnitude is PUBLICLY-
@@ -537,29 +588,32 @@ _PRICE_SOURCE: dict[str, dict] = {
 }
 
 
+def _priced_multiplier(model: str | None) -> float | None:
+    """Resolve supported identities, distinguishing an unpriced model from a known free route."""
+    if model is None:
+        return 1.0  # legacy unspecified-model contract
+    if not isinstance(model, str):
+        return None
+    parts = model.lower().replace(".", "-").split("/")
+    if any(part not in _MODEL_NAMESPACES and part not in _FREE_PREFIXES for part in parts[:-1]):
+        return None
+    if any(part in _FREE_PREFIXES for part in parts[:-1]):
+        return 0.0  # existing free-route accounting policy, not a provider billing assertion
+    key = _MODEL_ALIASES.get(parts[-1], parts[-1])
+    price = _MODEL_OUTPUT_USD_PER_M.get(key)
+    return min(1.0, price / FRONTIER_USD_PER_M_OUTPUT) if price is not None else None
+
+
 def value_multiplier(avoided_model: str | None) -> float:
     """Frontier-relative value of avoiding a call to `avoided_model`.
 
     Returns 0.0 for free tiers (no real spend avoided) and a fraction of 1.0
     for paid models scaled by their output price vs the $25/M frontier baseline.
-    Unknown model → 0.05 (conservative floor). None → 1.0 (legacy callers keep
+    Unknown model → 0.0 (unpriced; no credit). None → 1.0 (legacy callers keep
     flat behaviour).
     """
-    if avoided_model is None:
-        return 1.0
-    m = avoided_model.lower()
-    if any(m.startswith(p) or f"/{p}" in m for p in _FREE_PREFIXES):
-        return 0.0  # free tier — caching it saved nothing
-    for token, price in _MODEL_OUTPUT_USD_PER_M.items():
-        if token in m:
-            return min(1.0, price / FRONTIER_USD_PER_M_OUTPUT)
-    # R14 fix: unknown model → CONSERVATIVE FLOOR (haiku-class 0.05), not full
-    # frontier credit. We can't verify the avoided cost of an unrecognized model,
-    # so fail-CLOSED on value: an unknown is more likely a typo/gaming attempt
-    # than a genuine frontier model. Under-crediting a real NEW model is safer
-    # than over-crediting a fake one — add new models to _MODEL_OUTPUT_USD_PER_M
-    # explicitly (auditable) to grant them full credit.
-    return 0.05
+    multiplier = _priced_multiplier(avoided_model)
+    return multiplier if multiplier is not None else 0.0
 
 
 def net_value_multiplier(avoided_model: str | None,
@@ -569,10 +623,16 @@ def net_value_multiplier(avoided_model: str | None,
     (served_model free → multiplier 0 → no netting). A displacement to a cheaper
     PAID provider (e.g. OpenRouter) saves only the price DIFFERENCE — crediting
     the full avoided price would over-count by the server's own cost (Avoid A15).
-    Floored at 0: never mint negative value if the 'cheaper' server isn't."""
-    vm = value_multiplier(avoided_model)
-    if served_model:
-        vm = max(0.0, vm - value_multiplier(served_model))
+    Floored at 0: never mint negative value if the 'cheaper' server isn't.
+    An unpriced model on either side earns no net credit: unknown served cost is not zero cost."""
+    vm = _priced_multiplier(avoided_model)
+    if vm is None:
+        return 0.0
+    if served_model is not None:
+        served = _priced_multiplier(served_model)
+        if served is None:
+            return 0.0
+        vm = max(0.0, vm - served)
     return vm
 
 
@@ -584,7 +644,7 @@ def published_multipliers() -> dict[str, float]:
     muls = {m: min(1.0, p / FRONTIER_USD_PER_M_OUTPUT)
             for m, p in _MODEL_OUTPUT_USD_PER_M.items()}
     muls["__free__"] = 0.0           # free tier — caching saved nothing
-    muls["__unknown_floor__"] = 0.05  # R14 conservative floor for unknown models
+    muls["__unknown_floor__"] = 0.05  # historical unknown-model estimate; no new unpriced issuance
     muls["__legacy_none__"] = 1.0     # avoided_model=None legacy callers
     # Net-saving multipliers: a cheaper-PAID displacement (e.g. OpenRouter serving
     # instead of a frontier) saves only vm(avoided) - vm(served) — the non-negative
@@ -622,36 +682,39 @@ def earn(tokens: float, event_type: str, detail: str = "",
     hit that avoided Opus earns ~20x what a Haiku-avoiding hit earns, and a
     free-tier hit earns 0 (it saved nothing). None → flat 1.0 (legacy).
     """
-    # R5 input validation: NaN/inf bypass `tokens <= 0` (NaN compares False, inf
-    # passes) and irreversibly poison the balance. Reject non-finite/non-positive
-    # at the boundary — a single bad earn would otherwise corrupt the whole ledger.
-    if (isinstance(tokens, bool) or not isinstance(tokens, (int, float))
-            or not math.isfinite(tokens) or tokens <= 0):
+    try:
+        tokens = _finite_number(tokens, "tokens", nonnegative=True)
+        kry = _finite_number(tokens * EARN_RATES.get(event_type, 0.5) * KRY_PER_FUEL_TOKEN *
+                             net_value_multiplier(avoided_model, served_model), "earned KRY")
+    except ValueError:
         return 0.0
-    rate = EARN_RATES.get(event_type, 0.5)
-    vmult = net_value_multiplier(avoided_model, served_model)
-    kry = tokens * rate * KRY_PER_FUEL_TOKEN * vmult
     if kry <= 0:
-        # Free-tier hit earned 0 KRY — record nothing (honest: no spend avoided)
         return 0.0
+    _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _LEDGER_LOCK:
         ledger = get_ledger()
-        ledger.balance += kry
-        ledger.total_earned += kry
-        ledger.events.append(KRYEvent(
-            ts=time.time(), kind="earn", source=event_type,
-            amount=kry, detail=f"{detail} [avoided={avoided_model},x{vmult:.2f}]"
-                   if avoided_model else detail, tx_id=uuid.uuid4().hex))
-        # R22 durability fix: save EVERY earn. Periodic batching (% 20) silently
-        # lost up to 19 earns — real retained dollars — on any reload/restart.
-        # Delta-merge makes per-earn save concurrent-safe; batch only if perf is
-        # ever MEASURED as a problem (it wasn't — the batching was premature).
-        try:
-            ledger.save()
-        except Exception:
-            logger.warning("KRY earn: ledger persistence unconfirmed; credit may be in memory only; "
-                           "inspect retained receipt and balance before further writes")
-    logger.debug("KRY earn: +%.1f (%s, %s, x%.2f)", kry, event_type, detail, vmult)
+        with _cross_process_lock(_LEDGER_PATH):
+            try:
+                ledger._refresh_locked()
+            except Exception:
+                logger.warning("KRY earn: debit history unavailable; no new credit recorded")
+                return 0.0
+            try:
+                balance = _finite_number(ledger.balance + kry, "balance")
+                earned = _finite_number(ledger.total_earned + kry, "total_earned", nonnegative=True)
+            except ValueError:
+                return 0.0
+            ledger.balance, ledger.total_earned = balance, earned
+            vmult = net_value_multiplier(avoided_model, served_model)
+            ledger.events.append(KRYEvent(
+                ts=time.time(), kind="earn", source=event_type,
+                amount=kry, detail=f"{detail} [avoided={avoided_model},x{vmult:.2f}]"
+                       if avoided_model else detail, tx_id=uuid.uuid4().hex))
+            try:
+                ledger._save_locked()
+            except Exception:
+                logger.warning("KRY earn: ledger persistence unconfirmed; credit may be in memory only; "
+                               "inspect retained receipt and balance before further writes")
     return kry
 
 
@@ -681,39 +744,59 @@ def spend_cost(model: str, output_tokens: int = 1000) -> float:
                 return 0.0  # free tiers — no KRY spent
             if prefix == "gh":
                 return rate  # per-call flat rate (Copilot premium request)
-            return rate * (output_tokens / 1000)
-    return SPEND_RATES["or/anthropic/claude-opus-4.8"] * (output_tokens / 1000)
+            return _finite_number(rate * (output_tokens / 1000), "spend_cost", nonnegative=True)
+    return _finite_number(SPEND_RATES["or/anthropic/claude-opus-4.8"] * (output_tokens / 1000),
+                          "spend_cost", nonnegative=True)
 
 
 def can_afford(model: str, output_tokens: int = 1000) -> bool:
-    """Return True if current KRY balance covers this routing decision."""
+    """Read current durable spending capacity; this is not a reservation."""
     cost = spend_cost(model, output_tokens)
     if cost == 0:
         return True
-    ledger = get_ledger()
-    return ledger.balance >= cost
+    _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _LEDGER_LOCK:
+        ledger = get_ledger()
+        with _cross_process_lock(_LEDGER_PATH):
+            try:
+                ledger._refresh_locked()
+            except Exception:
+                return False
+            return ledger.balance >= cost
 
 
 def spend(model: str, output_tokens: int, detail: str = "") -> float:
-    """Record a KRY spending event. Returns KRY spent (0 if free tier)."""
+    """Debit current available KRY atomically. A write warning means unconfirmed persistence."""
     cost = spend_cost(model, output_tokens)
     if cost == 0:
         return 0.0
+    _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _LEDGER_LOCK:
         ledger = get_ledger()
-        actual = min(cost, ledger.balance)  # never go negative
-        ledger.balance -= actual
-        ledger.total_spent += actual
-        ledger.events.append(KRYEvent(
-            ts=time.time(), kind="spend", source=model,
-            amount=-actual, detail=detail or f"{output_tokens} output tokens",
-            tx_id=uuid.uuid4().hex))
-        try:
-            ledger.save()  # R22: save every spend (was % 10 — same loss window)
-        except Exception:
-            logger.warning("KRY spend: ledger persistence unconfirmed; debit may be in memory only; "
-                           "the mint chain cannot recover an unrecorded debit")
-    logger.debug("KRY spend: -%.1f (%s)", actual, model)
+        with _cross_process_lock(_LEDGER_PATH):
+            try:
+                ledger._refresh_locked()
+            except Exception:
+                logger.warning("KRY spend: debit history unavailable; no new debit recorded")
+                return 0.0
+            actual = min(cost, max(0.0, ledger.balance))
+            if actual == 0:
+                return 0.0
+            try:
+                spent = _finite_number(ledger.total_spent + actual, "total_spent", nonnegative=True)
+            except ValueError:
+                return 0.0
+            ledger.balance -= actual
+            ledger.total_spent = spent
+            ledger.events.append(KRYEvent(
+                ts=time.time(), kind="spend", source=model,
+                amount=-actual, detail=detail or f"{output_tokens} output tokens",
+                tx_id=uuid.uuid4().hex))
+            try:
+                ledger._save_locked()
+            except Exception:
+                logger.warning("KRY spend: ledger persistence unconfirmed; debit may be in memory only; "
+                               "the mint chain cannot recover an unrecorded debit")
     return actual
 
 

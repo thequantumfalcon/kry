@@ -31,7 +31,8 @@ subject is void.
 - The historical bundle's v2 receipt hashes bind neither `metered_tokens` nor request IDs.
  Offline comparison establishes consistency of the retained files, not provider
  authenticity or an authenticated savings amount. Current v7 hashes bind metered
- tokens but not the request ID in `detail`; the optional manifest request-ID digest
+ tokens but not the request ID in `detail` or optional `provider_request_id` metadata;
+ the optional manifest request-ID digest
  supports a file join and is not an authenticated ownership or provenance binding.
  Pinning the retained files detects subsequent edits, not false original data.
  See `docs/KRY_RESEARCH_GRADE_ANCHOR.md` for the reproducible check and its limits.

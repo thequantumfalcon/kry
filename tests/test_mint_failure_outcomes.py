@@ -41,6 +41,10 @@ def fail_at(monkeypatch, boundary):
     def replace(source, target):
         selected = km._mint_tip_path() if boundary == "checkpoint_replace" else kt._LEDGER_PATH
         if Path(target) == selected:
+            # The fault under test is the balance update AFTER receipt append.
+            # Initial empty-ledger persistence has its own regression coverage.
+            if boundary.startswith("ledger_replace") and not km._MINT_LOG_PATH.exists():
+                return original_replace(source, target)
             if boundary == "ledger_replace_after":
                 original_replace(source, target)
             raise OSError(FAILURE)

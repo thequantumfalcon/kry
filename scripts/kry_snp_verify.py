@@ -4,7 +4,8 @@
 Companion to scripts/kry_tee_verify.py (AWS Nitro, cloud-only). SEV-SNP is the
 self-hostable TEE: on an EPYC node we can run the KRY holdout/measurement inside an
 SNP guest and produce a hardware-signed ATTESTATION_REPORT, verified offline against a
-PINNED AMD root (ARK). See docs/KRY_SELF_HOSTED_TEE_RESEARCH_2026_06_06.md.
+recognized AMD root (ARK) and a separately enrolled guest/TCB policy.
+See docs/KRY_SNP_POLICY.md. Custom roots support signature inspection only.
 
 The honest claim of `tee_attested` is IDENTICAL to the Nitro tier and must not be
 overclaimed (Avoid A1/A8):
@@ -59,13 +60,14 @@ Usage:
     python3 scripts/kry_snp_verify.py report.bin \
         --vcek vcek.der --ask ask.pem --ark ark.pem \
         --measurement-json measurement.json --dry-run
-    # mint a tee_attested receipt:
+    # mint only after separately enrolling the expected guest and minimum TCB policy:
     python3 scripts/kry_snp_verify.py report.bin --vcek vcek.der --ask ask.pem --ark ark.pem \
-        --measurement-json measurement.json
+        --measurement-json measurement.json --policy enrolled-policy.json
 """
 from __future__ import annotations
 
 import argparse
+import binascii
 import hashlib
 import json
 import math
@@ -89,6 +91,14 @@ _OFF_CHIP_ID = 0x1A0        # [u8; 64] — unique per AMD chip
 _OFF_SIGNATURE = 0x2A0      # 512-byte Signature: r(72 LE) || s(72 LE) || reserved(368)
 _SIG_COMPONENT = 72         # bytes reserved per r/s component (P-384 uses the first 48)
 _SIG_ALGO_ECDSA_P384_SHA384 = 1
+_MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+# DER fingerprints independently derived from AMD's HTTPS KDS cert_chain endpoints.
+# Sources and scope: docs/KRY_SNP_POLICY.md. Root rotation requires a reviewed update.
+AMD_ARK_SHA256 = {
+    "Milan": "69d063b45344d26a2e94e1f4210de49ef555308287d4c174445c95639a540bcd",
+    "Genoa": "4c6598d19c18719c5dfd4a7d335f674e5bfe1d8f800cea2cf270c10d103db2f1",
+}
+_TCB_COMPONENTS = {"bootloader": 0, "tee": 8, "snp": 48, "microcode": 56}
 
 
 class _ReportError(ValueError):
@@ -103,10 +113,21 @@ def _json_loads(raw: str):
     return json.loads(raw, parse_constant=_reject_json_constant)
 
 
+def _read_bounded(path, limit=_MAX_DOCUMENT_BYTES) -> bytes:
+    with Path(path).open("rb") as source:
+        data = source.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError(f"input exceeds the {limit}-byte document limit")
+    return data
+
+
 def _positive_finite_number(value) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0.0
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError:
+        return 0.0
     return value if math.isfinite(value) and value > 0 else 0.0
 
 
@@ -138,27 +159,118 @@ def _ecdsa_rs_from_signature(sig_field: bytes) -> tuple[int, int]:
 
 
 def _parse_measurement(meas_json_bytes: bytes) -> dict | None:
+    if len(meas_json_bytes) > _MAX_DOCUMENT_BYTES:
+        return None
     try:
         m = _json_loads(meas_json_bytes.decode("utf-8"))
         return m if isinstance(m, dict) else None
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         return None
 
 
 def _load_cert_der(path: str) -> bytes:
     """Load an X.509 cert as DER from a PEM or DER file."""
-    raw = Path(path).read_bytes()
+    raw = _read_bounded(path, 64 * 1024)
     if b"-----BEGIN CERTIFICATE-----" in raw:
         import base64
         b64 = b"".join(line for line in raw.splitlines() if b"-----" not in line)
-        return base64.b64decode(b64)
+        return base64.b64decode(b64, validate=True)
     return raw
 
 
 # ── Cryptographic verification boundary (audited `cryptography`; fail-closed) ─────
 
+def _vcek_extension(cert, suffix: str) -> bytes:
+    from cryptography.x509 import ObjectIdentifier
+    return cert.extensions.get_extension_for_oid(
+        ObjectIdentifier(f"1.3.6.1.4.1.3704.1.{suffix}")).value.value
+
+
+def _der_byte_integer(raw: bytes) -> int:
+    """Read a canonical DER INTEGER containing an unsigned security-version byte."""
+    if len(raw) == 3 and raw[:2] == b"\x02\x01" and raw[2] < 128:
+        return raw[2]
+    if len(raw) == 4 and raw[:3] == b"\x02\x02\x00" and raw[3] >= 128:
+        return raw[3]
+    raise ValueError("VCEK security version is not a canonical unsigned byte INTEGER")
+
+
+def _mint_policy_errors(report: bytes, fields: dict, vcek, ark_der: bytes, policy) -> list[str]:
+    """Check independently selected policy and AMD identity, separately from signatures.
+
+    Only family-19h Milan/Genoa version-2 reports are supported for minting. Unknown
+    versions/families remain inspection-only until their layouts are reviewed.
+    """
+    from cryptography.x509 import ExtensionNotFound
+    if not isinstance(policy, dict) or policy.get("schema") != "kry_snp_policy/v1":
+        return ["a separately enrolled kry_snp_policy/v1 policy is required for minting"]
+    product = policy.get("product")
+    if not isinstance(product, str) or product not in AMD_ARK_SHA256:
+        return ["mint policy product must be a supported AMD family: Milan or Genoa"]
+    errors = []
+    if hashlib.sha256(ark_der).hexdigest() != AMD_ARK_SHA256[product]:
+        errors.append("the supplied root is not the recognized AMD root for the policy product")
+    if type(policy.get("report_version")) is not int or policy["report_version"] != 2 or fields["version"] != 2:
+        return errors + ["mint policy supports only report version 2"]
+    expected = policy.get("measurement")
+    if not isinstance(expected, str) or re.fullmatch(r"[0-9a-fA-F]{96}", expected) is None:
+        errors.append("mint policy requires an exact 48-byte launch measurement")
+    elif fields["measurement"].hex() != expected.lower():
+        errors.append("launch measurement does not match the enrolled policy")
+    minimum = policy.get("min_tcb")
+    if (not isinstance(minimum, dict) or set(minimum) != set(_TCB_COMPONENTS)
+            or any(type(value) is not int or not 0 <= value <= 255 for value in minimum.values())
+            or not any(minimum.values())):
+        return errors + ["min_tcb must explicitly name all four byte-valued components and cannot be all zero"]
+    guest_policy = struct.unpack_from("<Q", report, 8)[0]
+    if guest_policy & (1 << 19):
+        errors.append("DEBUG is enabled; debug-capable guests cannot mint tee_attested value")
+    if not guest_policy & (1 << 17):
+        errors.append("version-2 guest policy reserved bit 17 must be one")
+    if struct.unpack_from("<I", report, 0x30)[0] != 0:
+        errors.append("mint policy requires a VMPL0 report")
+    if struct.unpack_from("<I", report, 0x48)[0] & ~1:
+        errors.append("version-2 VCEK report flags contain unsupported or reserved bits")
+    if any(report[0x4C:0x50] + report[0x188:0x1A0] + report[0x1EB:0x1EC]
+           + report[0x1EF:0x1F0] + report[0x1F8:0x2A0]):
+        errors.append("version-2 report reserved fields must be zero")
+    tcbs = {}
+    for name, offset in (("current", 0x38), ("reported", 0x180),
+                         ("committed", 0x1E0), ("launch", 0x1F0)):
+        encoded = struct.unpack_from("<Q", report, offset)[0]
+        if encoded & 0x0000FFFFFFFF0000:
+            errors.append(f"{name} TCB reserved bits must be zero")
+        tcbs[name] = {key: (encoded >> shift) & 255 for key, shift in _TCB_COMPONENTS.items()}
+        if any(tcbs[name][key] < minimum[key] for key in minimum):
+            errors.append(f"{name} TCB is below the enrolled component minimum")
+    if any(tcbs["reported"][key] > tcbs["current"][key] for key in minimum):
+        errors.append("reported TCB exceeds current TCB")
+    try:
+        if _der_byte_integer(_vcek_extension(vcek, "1")) != 0:
+            errors.append("VCEK structure version is not family-19h version 0")
+        product_der = _vcek_extension(vcek, "2")
+        if (len(product_der) < 3 or product_der[0] != 0x16 or product_der[1] != len(product_der) - 2
+                or product_der[1] >= 128):
+            raise ValueError("VCEK productName is not a short DER IA5String")
+        product_name = product_der[2:].decode("ascii")
+        if re.fullmatch(re.escape(product) + r"-[A-Z][0-9]+", product_name) is None:
+            errors.append("VCEK product family does not match the enrolled policy")
+        hwid = _vcek_extension(vcek, "4")
+        if len(hwid) == 66 and hwid[:2] == b"\x04\x40":
+            hwid = hwid[2:]  # Legacy KDS certificates also contain an unwrapped 64-byte hwID.
+        if len(hwid) != 64 or hwid != fields["chip_id"]:
+            errors.append("VCEK hardware ID does not match the report chip ID")
+        for key, suffix in (("bootloader", "3.1"), ("tee", "3.2"), ("snp", "3.3"), ("microcode", "3.8")):
+            if _der_byte_integer(_vcek_extension(vcek, suffix)) != tcbs["reported"][key]:
+                errors.append(f"VCEK {key} version does not match reported TCB")
+    except (ValueError, LookupError, AttributeError, ExtensionNotFound) as exc:
+        errors.append(f"VCEK policy extensions are missing or invalid: {exc}")
+    return errors
+
+
 def verify_report(report: bytes, *, vcek_der: bytes, ask_der: bytes, ark_der: bytes,
-                  measurement_json: bytes, expected_measurement: str | None = None) -> dict:
+                  measurement_json: bytes, expected_measurement: str | None = None,
+                  policy: dict | None = None) -> dict:
     """Verify a SEV-SNP ATTESTATION_REPORT. Fail-closed, errors accumulated.
 
     Checks (all must pass for verified=True):
@@ -172,10 +284,12 @@ def verify_report(report: bytes, *, vcek_der: bytes, ask_der: bytes, ark_der: by
 
     The asymmetric crypto uses the audited `cryptography` lib (handles AMD's RSA-PSS
     ARK/ASK chain); ABSENT it we return verified=False with a clear error (never a silent
-    skip). Returns a dict consumed by run().
+    skip). verified=True means signature consistency under the supplied root.
+    mint_eligible additionally requires a recognized AMD root and a matching enrolled
+    guest/TCB policy; run() refuses minting without that separate result.
     """
     errs: list[str] = []
-    result: dict = {"verified": False, "errors": errs,
+    result: dict = {"verified": False, "errors": errs, "mint_eligible": False,
                     "report_sha256": hashlib.sha256(report).hexdigest()}
 
     try:
@@ -198,13 +312,22 @@ def verify_report(report: bytes, *, vcek_der: bytes, ask_der: bytes, ark_der: by
     if fields["sig_algo"] != _SIG_ALGO_ECDSA_P384_SHA384:
         errs.append(f"unexpected sig_algo {fields['sig_algo']} "
                     f"(expected {_SIG_ALGO_ECDSA_P384_SHA384} = ECDSA P-384/SHA-384)")
+    result["statement_sha256"] = hashlib.sha256(report[:_SIGNED_LEN]).hexdigest()
+    sig = fields["signature"]
+    if any(sig[48:72] + sig[120:144] + sig[144:]):
+        errs.append("nonzero signature padding is not a canonical SNP signature")
+        return result
 
     # 2. report signature under the VCEK leaf (ECDSA-P384/SHA-384 over report[0:0x2A0])
     try:
         vcek = x509.load_der_x509_certificate(vcek_der)
+        key = vcek.public_key()
+        if not isinstance(key, ec.EllipticCurvePublicKey) or not isinstance(key.curve, ec.SECP384R1):
+            errs.append("the VCEK must contain an ECDSA P-384 public key")
+            return result
         r, s = _ecdsa_rs_from_signature(fields["signature"])
         der_sig = asym_utils.encode_dss_signature(r, s)
-        vcek.public_key().verify(der_sig, report[:_SIGNED_LEN], ec.ECDSA(hashes.SHA384()))
+        key.verify(der_sig, report[:_SIGNED_LEN], ec.ECDSA(hashes.SHA384()))
     except InvalidSignature:
         errs.append("report signature does not verify under the VCEK certificate — "
                     "the report was tampered or not signed by this chip")
@@ -260,16 +383,45 @@ def verify_report(report: bytes, *, vcek_der: bytes, ask_der: bytes, ark_der: by
     result["chip_id"] = fields["chip_id"].hex()
     result["report_data"] = fields["report_data"].hex()
     result["parsed_measurement"] = _parse_measurement(measurement_json)
+    if result["parsed_measurement"] is None:
+        errs.append("measurement JSON is invalid, oversized, deeply nested, or not an object")
     result["verified"] = not errs
+    result["policy_errors"] = _mint_policy_errors(report, fields, vcek, ark_der, policy)
+    result["mint_eligible"] = result["verified"] and not result["policy_errors"]
     return result
 
 
 # ── Mint glue (pure stdlib; mirrors kry_tee_verify.run) ──────────────────────────
 
 def _evidence_binding(att: dict) -> str:
-    """Bind the receipt to THIS report: chip + launch measurement + a hash of the report.
-    Replaying the same report yields the same evidence → the mint decay collapses it."""
-    return f"snp:{att.get('chip_id')}:{att.get('measurement')}:{att.get('report_sha256')}"
+    """Bind replay identity to the signed statement, independent of signature encoding."""
+    return f"snp-statement/v1:{att['statement_sha256']}"
+
+
+def _has_legacy_snp_history(path: Path) -> bool:
+    """Old SNP rows lack signed-statement identities; never silently reset their decay.
+
+    Other TEE receipts do not trigger this gate. Retain old rows and evidence for an
+    explicit migration review; do not clear the ledger or invent missing bindings.
+    """
+    if not path.exists():
+        return False
+    with path.open(encoding="utf-8") as source:
+        for line in source:
+            if not line.strip():
+                continue
+            row = _json_loads(line)
+            if not isinstance(row, dict):
+                raise ValueError("mint history contains a non-object receipt")
+            detail = row.get("detail") or ""
+            if isinstance(detail, str) and detail.startswith("tee_attested(snp)"):
+                match = re.search(r" /snp-statement:([0-9a-f]{64})(?:\s|$)", detail)
+                if match is None:
+                    return True
+                expected = hashlib.sha256(f"snp-statement/v1:{match.group(1)}".encode()).hexdigest()
+                if row.get("evidence_hash") != expected:
+                    return True
+    return False
 
 
 def run(att: dict, *, event_type: str, avoided_model: str | None,
@@ -328,10 +480,25 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         result["note"] = "dry-run: verified + parsed, no receipt minted"
         return result
 
+    if att.get("mint_eligible") is not True or not att.get("statement_sha256"):
+        result["verdict"] = "POLICY_REQUIRED"
+        result["note"] = "signature inspection alone does not authorize AMD-backed minting"
+        result["errors"] = att.get("policy_errors") or ["a successful SNP hardware policy check is required"]
+        return result
+
     from kry import kry_mint
+    try:
+        legacy = _has_legacy_snp_history(kry_mint._MINT_LOG_PATH)
+    except (OSError, ValueError, RecursionError):
+        legacy = True
+    if legacy:
+        result["verdict"] = "MIGRATION_REQUIRED"
+        result["note"] = "retained SNP history needs review before changing replay identities; no receipt minted"
+        return result
     before = kry_mint.veracity_breakdown()
     detail = (f"tee_attested(snp) chip={(att.get('chip_id') or '')[:12]} "
-              f"measurement={(att.get('measurement') or '')[:12]} /measurement:{mid}")
+              f"measurement={(att.get('measurement') or '')[:12]} /measurement:{mid} "
+              f"/snp-statement:{att['statement_sha256']}")
     evidence = _evidence_binding(att)
 
     # Prefer UPGRADING a prior self_reported/holdout measurement receipt (no double-credit);
@@ -369,7 +536,8 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         evidence_tier=kry_mint.TIER_TEE_ATTESTED,
         # MINT-1: refuse a second FRESH tee credit for the same measurement under the mint lock — the
         # fresh-tee path had no dedup at all (the audit flagged only tlsn; this is the same race class).
-        dedup_check=lambda: kry_mint._find_fresh_tee_receipt_for_measurement(mid) is not None,
+        dedup_check=lambda: (_has_legacy_snp_history(kry_mint._MINT_LOG_PATH)
+                             or kry_mint._find_fresh_tee_receipt_for_measurement(mid) is not None),
     )
     if receipt is None:
         result["verdict"] = "NOT_MINTED"
@@ -403,16 +571,18 @@ def main(argv: list[str] | None = None) -> int:
                         "terminate at exactly this root. Obtain from the AMD KDS cert chain or "
                         "the virtee/sev builtin (src/certs/snp/builtin/<gen>/ark.pem)")
     p.add_argument("--ark-sha256", default=None,
-                   help="OPTIONAL: confirm sha256(DER) of --ark equals this. No default is baked "
-                        "in (an AMD root fingerprint transcribed from memory is unverifiable) — "
-                        "supply AMD's published value to harden the pin. The chain-termination "
-                        "check anchors trust either way.")
+                   help="OPTIONAL additional sha256(DER) file pin. It cannot replace the built-in "
+                        "AMD product-root checks required for minting; custom roots allow "
+                        "signature inspection only.")
     p.add_argument("--measurement-json", required=True,
                    help="the measurement JSON file whose SHA-512 the guest placed in report_data "
                         "({measurement_id, tokens_saved, avoided_model, served_model?})")
     p.add_argument("--measurement", default=None,
                    help="PIN the launch measurement (hex) — minting is refused unless the report's "
                         "measurement matches (identifies WHICH guest image produced it)")
+    p.add_argument("--policy", default=None,
+                   help="separately enrolled kry_snp_policy/v1 JSON: supported AMD product, "
+                        "report version, expected image and component TCB minima; required to mint")
     p.add_argument("--event-type", default="short_circuit",
                    help="efficiency event this attested measurement backs (default: short_circuit)")
     p.add_argument("--measurement-id", default=None,
@@ -427,7 +597,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dry-run", action="store_true", help="verify + parse + report only — mint nothing")
     args = p.parse_args(argv)
 
-    ark_der = _load_cert_der(args.ark)
+    try:
+        ark_der = _load_cert_der(args.ark)
+        vcek_der = _load_cert_der(args.vcek)
+        ask_der = _load_cert_der(args.ask)
+        report = _read_bounded(args.report, _REPORT_LEN)
+        meas_json = _read_bounded(args.measurement_json)
+        policy = _parse_measurement(_read_bounded(args.policy)) if args.policy else None
+        if args.policy and policy is None:
+            raise ValueError("mint policy is not a bounded JSON object")
+    except (OSError, ValueError, binascii.Error, RecursionError) as exc:
+        print(f"KRY SNP input — REJECTED: {exc}")
+        return 1
     ark_sha = hashlib.sha256(ark_der).hexdigest()
     if args.ark_sha256 and ark_sha.lower() != args.ark_sha256.strip().lower():
         print("KRY T2 SNP mint — REJECTED (fail-closed):")
@@ -435,14 +616,12 @@ def main(argv: list[str] | None = None) -> int:
               f"(not the expected AMD root)")
         return 1
     if not args.ark_sha256:
-        print(f"  note: no --ark-sha256 supplied; trusting --ark as the pinned anchor "
-              f"(sha256(DER)={ark_sha})")
+        print(f"  note: supplied root used for signature inspection (sha256(DER)={ark_sha}); "
+              "AMD-backed mint eligibility is checked separately")
 
-    report = Path(args.report).read_bytes()
-    meas_json = Path(args.measurement_json).read_bytes()
-    att = verify_report(report, vcek_der=_load_cert_der(args.vcek), ask_der=_load_cert_der(args.ask),
+    att = verify_report(report, vcek_der=vcek_der, ask_der=ask_der,
                         ark_der=ark_der, measurement_json=meas_json,
-                        expected_measurement=args.measurement)
+                        expected_measurement=args.measurement, policy=policy)
     result = run(att, event_type=args.event_type, avoided_model=args.avoided_model,
                  served_model=args.served_model, tokens_saved=args.tokens_saved,
                  measurement_id=args.measurement_id, dry_run=args.dry_run)
@@ -452,6 +631,15 @@ def main(argv: list[str] | None = None) -> int:
         for e in result["errors"]:
             print(f"  - {e}")
         return 1
+    if result["verdict"] in ("POLICY_REQUIRED", "MIGRATION_REQUIRED"):
+        print(f"KRY SNP mint — {result['verdict']}: {result['note']}")
+        for error in result.get("errors", []):
+            print(f"  - {error}")
+        return 1
+    if args.dry_run and not att.get("mint_eligible"):
+        print("SIGNATURE INSPECTION ONLY — hardware policy not satisfied; not eligible to mint")
+        for error in att.get("policy_errors", []):
+            print(f"  - {error}")
 
     print("KRY T2 TEE (SEV-SNP) verification")
     print(f"  chip id:          {(result.get('chip_id') or '')[:24]}…")

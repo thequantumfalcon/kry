@@ -128,7 +128,10 @@ def _finite_number(value, field: str, *, positive: bool = False,
                    nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a finite JSON number")
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
     if not math.isfinite(value):
         raise ValueError(f"{field} must be finite")
     if positive and value <= 0:
@@ -150,6 +153,16 @@ def _metered_pair(value) -> list[int]:
 
 
 # ── MintReceipt dataclass ─────────────────────────────────────────────────────
+
+def _valid_provider_request_id(value: object) -> bool:
+    if not isinstance(value, str) or not value or value.strip() != value:
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
 
 @dataclass
 class MintReceipt:
@@ -183,6 +196,7 @@ class MintReceipt:
                                         # attestation UPGRADES in place (a zero-value promotion carries this;
                                         # the breakdown re-tiers the superseded receipt's value, never re-mints
                                         # it). Not part of the content hash — provenance, not value.
+    provider_request_id: str | None = None  # private join metadata; NOT bound by hash_version 7
 
     @classmethod
     def create(
@@ -198,7 +212,10 @@ class MintReceipt:
         metered_tokens: list | None = None,
         served_model: str | None = None,
         supersedes: str | None = None,
+        provider_request_id: str | None = None,
     ) -> "MintReceipt":
+        if provider_request_id is not None and not _valid_provider_request_id(provider_request_id):
+            raise ValueError("provider_request_id must be a nonempty UTF-8 string without edge whitespace")
         tokens_saved = _finite_number(tokens_saved, "tokens_saved", nonnegative=True)
         rate = _finite_number(_EARN_RATES.get(event_type, 0.5), "earn_rate",
                               nonnegative=True)
@@ -258,7 +275,15 @@ class MintReceipt:
             hash_version=7,
             metered_tokens=metered_tokens,
             supersedes=supersedes,
+            provider_request_id=provider_request_id,
         )
+
+
+def _receipt_record(receipt: MintReceipt) -> dict:
+    record = asdict(receipt)
+    if record["provider_request_id"] is None:
+        del record["provider_request_id"]
+    return record
 
 
 # ── Mint log state ─────────────────────────────────────────────────────────────
@@ -460,6 +485,7 @@ def mint(
     dedup_check: Callable[[], bool] | None = None,
     *,
     idempotent_evidence: bool = False,
+    provider_request_id: str | None = None,
 ) -> Optional[MintReceipt]:
     """Mint KRY from an efficiency event. Returns MintReceipt or None on failure.
 
@@ -475,6 +501,10 @@ def mint(
     cheap leg can opt into provider_metered when a real provider usage payload is
     retained. See docs/KRY_VERACITY_BINDING.md.
 
+    provider_request_id: optional exact ID from the retained provider record, in
+    the same namespace as the export. Private join metadata only: it is not
+    authenticated or bound by hash_version 7. Never substitute a gateway call ID.
+
     Supply control: repeated mints of the same evidence_hash in-window decay
     geometrically (bounds phantom-minting from cache replay to a finite cap).
 
@@ -488,6 +518,8 @@ def mint(
     A returned receipt does not confirm the balance update. Persistence failures
     emit diagnostics without input or exception text; None does not prove no write occurred.
     """
+    if provider_request_id is not None and not _valid_provider_request_id(provider_request_id):
+        return None
     if type(idempotent_evidence) is not bool:
         return None
     try:
@@ -534,6 +566,39 @@ def mint(
                                     return None   # never append onto an incomplete record
                                 if line.strip() and _json_loads(line).get("evidence_hash") == evidence_hash:
                                     return None
+                # Bound cumulative arithmetic before reserving decay or appending.
+                # Finite individual rows are insufficient when their sum overflows.
+                from kry import kry_token as _kt
+                try:
+                    rate = _EARN_RATES.get(event_type, 0.5)
+                    credit = _finite_number(tokens_saved * rate *
+                                            _kt.net_value_multiplier(avoided_model, served_model),
+                                            "kry_minted", nonnegative=True)
+                    total_kry, total_tokens = 0.0, 0.0
+                    if _MINT_LOG_PATH.exists():
+                        with open(_MINT_LOG_PATH, encoding="utf-8") as prior:
+                            for line in prior:
+                                if line.strip():
+                                    row = _json_loads(line)
+                                    total_kry = _finite_number(total_kry + row["kry_minted"],
+                                                               "total_kry", nonnegative=True)
+                                    total_tokens = _finite_number(total_tokens + row["tokens_saved"],
+                                                                  "total_tokens", nonnegative=True)
+                    _finite_number(total_kry + credit, "total_kry", nonnegative=True)
+                    _finite_number(total_tokens + tokens_saved, "total_tokens", nonnegative=True)
+                    # Establish a fresh ledger before the first receipt exists. Later
+                    # absence is missing debit history, never permission to reset it.
+                    with _kt._LEDGER_LOCK:
+                        ledger = _kt.get_ledger()
+                        _kt._LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+                        with cross_process_lock(_kt._LEDGER_PATH):
+                            ledger._refresh_locked()
+                            _finite_number(ledger.balance + credit, "balance")
+                            _finite_number(ledger.total_earned + credit, "total_earned")
+                            if not _kt._LEDGER_PATH.exists():
+                                ledger._save_locked()   # durable debit history precedes the first receipt
+                except ValueError:
+                    return None
                 # Both paths reserve under the mint lock before append. Strict
                 # first events receive full credit; their reservation prevents a
                 # later generic replay from receiving another full first credit.
@@ -560,6 +625,7 @@ def mint(
                     evidence_tier=evidence_tier,
                     metered_tokens=metered_tokens,
                     served_model=served_model,
+                    provider_request_id=provider_request_id,
                 )
                 # Issuance cap (opt-in, default OFF): refuse if this mint would push KRY minted in the
                 # rolling window past KRY_MINT_WINDOW_CAP — bounds honest-but-fabricated at-scale minting.
@@ -570,7 +636,7 @@ def mint(
                 # Append to mint log (append-only, like an event store)
                 stage = "receipt_append"
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
-                    f.write(_json_dumps(asdict(receipt)) + "\n")
+                    f.write(_json_dumps(_receipt_record(receipt)) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
                 stage = "receipt_persisted"
@@ -587,19 +653,19 @@ def mint(
                     logger.error("mint receipt %s durably written but tip checkpoint did not advance "
                                  "or was not acknowledged; inspect retained state before further writes",
                                  receipt.receipt_id)
+                # Keep the mint lock until its balance update finishes. Reconciliation
+                # takes the same lock order and cannot count this receipt then re-earn it.
+                try:
+                    from kry.kry_token import earn as _earn
+                    _earn(effective_tokens, event_type, detail, avoided_model=avoided_model,
+                          served_model=served_model)
+                except Exception:
+                    logger.error("mint receipt %s retained but balance update was not acknowledged; "
+                                 "inspect retained receipt and balance before further writes",
+                                 receipt.receipt_id)
             # Refresh the in-memory cache to the just-written tip.
             _RECEIPT_COUNTER = count + 1
             _CHAIN_TIP = receipt.chain_hash
-
-        # Also update the KRY balance ledger (edge-weighted by avoided model)
-        try:
-            from kry.kry_token import earn as _earn
-            _earn(effective_tokens, event_type, detail, avoided_model=avoided_model,
-                  served_model=served_model)
-        except Exception:
-            logger.error("mint receipt %s retained but balance update was not acknowledged; "
-                         "inspect retained receipt and balance before further writes",
-                         receipt.receipt_id)
 
         return receipt
     except Exception:
@@ -617,14 +683,16 @@ def _find_t1_receipt_for_gen(gen_id: str) -> Optional[dict]:
     tlsn_attested rows (don't promote a promotion) and zero-value rows. Last match
     wins (most recent). Returns the raw receipt dict, or None when the host logged no
     displacement for this id (then T2 mints fresh value — no double to avoid)."""
-    if not gen_id or not _MINT_LOG_PATH.exists():
+    if not isinstance(gen_id, str) or re.fullmatch(r"[^/\s]+", gen_id) is None:
+        raise ValueError("generation_id must be a nonempty string without '/' or whitespace")
+    if not _MINT_LOG_PATH.exists():
         return None
     found: Optional[dict] = None
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or gen_id not in line:   # cheap pre-filter only
+                if not line:
                     continue
                 rec = _json_loads(line)
                 if gen_id not in _OR_REF.findall(str(rec.get("detail") or "")):  # HOLE #27: exact
@@ -657,14 +725,16 @@ def _find_fresh_t2_receipt_for_gen(gen_id: str) -> Optional[dict]:
     stop both from minting full value. This finds an existing fresh T2 credit so the verifier can
     refuse the second. Skips zero-value tier_promotion rows (promotions, not fresh credits). Exact
     gen-id match. Returns the raw receipt dict, or None when none exists."""
-    if not gen_id or not _MINT_LOG_PATH.exists():
+    if not isinstance(gen_id, str) or re.fullmatch(r"[^/\s]+", gen_id) is None:
+        raise ValueError("generation_id must be a nonempty string without '/' or whitespace")
+    if not _MINT_LOG_PATH.exists():
         return None
     found: Optional[dict] = None
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or gen_id not in line:
+                if not line:
                     continue
                 rec = _json_loads(line)
                 if gen_id not in _OR_REF.findall(str(rec.get("detail") or "")):
@@ -691,7 +761,9 @@ def _find_fresh_tee_receipt_for_measurement(measurement_id: str) -> Optional[dic
     refuse a second credit. _find_measurement_receipt_for_tee only matches UPGRADABLE (self_reported/
     holdout) receipts, so it does NOT catch a prior fresh tee credit; this does. Skips zero-value
     tier_promotion rows. Exact measurement-id match. Returns the raw receipt dict, or None."""
-    if not measurement_id or not _MINT_LOG_PATH.exists():
+    if not isinstance(measurement_id, str) or re.fullmatch(r"[^/\s]+", measurement_id) is None:
+        raise ValueError("measurement_id must be a nonempty string without '/' or whitespace")
+    if not _MINT_LOG_PATH.exists():
         return None
     found: Optional[dict] = None
     try:
@@ -775,7 +847,7 @@ def promote_to_tlsn(
                     supersedes=t1_id,        # F2: bound into the chain hash at creation (was set after)
                 )
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
-                    f.write(_json_dumps(asdict(receipt)) + "\n")
+                    f.write(_json_dumps(_receipt_record(receipt)) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
                 _write_mint_tip(count + 1, receipt.chain_hash)   # truncation/rollback checkpoint
@@ -824,7 +896,9 @@ def _find_measurement_receipt_for_tee(measurement_id: str) -> Optional[dict]:
     the tiers tee upgrades. Skips already-tee rows (don't promote a promotion) and
     zero-value rows; last (most recent) match wins. Returns the raw receipt dict, or
     None when no prior measurement receipt exists (then tee mints fresh value)."""
-    if not measurement_id or not _MINT_LOG_PATH.exists():
+    if not isinstance(measurement_id, str) or re.fullmatch(r"[^/\s]+", measurement_id) is None:
+        raise ValueError("measurement_id must be a nonempty string without '/' or whitespace")
+    if not _MINT_LOG_PATH.exists():
         return None
     _UPGRADABLE = {TIER_SELF_REPORTED, TIER_HOLDOUT_VALIDATED}
     found: Optional[dict] = None
@@ -914,7 +988,7 @@ def promote_to_tee(
                     supersedes=prior_id,     # F2: bound into the chain hash at creation (was set after)
                 )
                 with open(_MINT_LOG_PATH, "a", encoding="utf-8") as f:
-                    f.write(_json_dumps(asdict(receipt)) + "\n")
+                    f.write(_json_dumps(_receipt_record(receipt)) + "\n")
                     f.flush()
                     os.fsync(f.fileno())
                 _write_mint_tip(count + 1, receipt.chain_hash)   # truncation/rollback checkpoint
@@ -1496,59 +1570,46 @@ def veracity_breakdown() -> dict:
 
 
 def reconcile_ledger_from_chain() -> dict:
-    """Rebuild the mutable KRY balance ledger from the append-only mint chain.
+    """Reconcile chain earnings against retained debit history under one lock.
 
-    The /kry surface exposed that the mutable ledger (data/kry_ledger.json) can be
-    polluted by dev/test earns that delta-merge in, while the hash-chained mint log
-    is tamper-evident TRUTH. This makes the balance self-correcting: balance =
-    sum of verified mint receipts. Run on startup or on demand to guarantee the
-    reported balance reflects only real, chain-anchored earning. Refuses to
-    reconcile a tampered chain (fails closed).
+    The mint chain records no spends. Missing or corrupt debit history requires
+    explicit recovery; it cannot authorize a fresh spendable balance. The chain
+    proves receipt integrity, not the reality of the claimed savings.
     """
-    valid, errs = verify_chain()
-    if not valid:
-        return {"reconciled": False, "reason": "mint chain tampered", "errors": errs[:2]}
-    total = 0.0
-    n = 0
-    if _MINT_LOG_PATH.exists():
-        with open(_MINT_LOG_PATH, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    rec = _json_loads(line)
-                    total += _finite_number(rec.get("kry_minted", 0.0), "kry_minted",
-                                            nonnegative=True)
-                    n += 1
-    try:
-        from kry import kry_token as _kt
-        led = _kt.get_ledger()
-        # The mint chain records only EARNS (every kry_minted >= 0); spend() never
-        # writes to it. So the spendable balance is lifetime-minted MINUS what was
-        # already spent — not the raw mint total. Setting balance = total would
-        # resurrect every spent KRY and break earn - spent == balance. total_spent is
-        # loaded from disk by get_ledger() and is left untouched.
-        led.total_earned = total
-        led.balance = total - led.total_spent
-        # S4: make save() (delta-merge: disk + (current - baseline)) land on the ABSOLUTE chain total,
-        # regardless of the in-memory baseline or the disk state. Read the CURRENT on-disk values and use
-        # them as the baseline, so the delta == (chain_total - on_disk) and the write == chain_total —
-        # restoring a deleted or polluted ledger. (Was: _baseline reset to the just-assigned fields -> zero
-        # delta -> save persisted NOTHING while returning reconciled=True.) save() resets _baseline after.
-        on_disk = {}
+    from kry import kry_token as _kt
+    from kry._locks import cross_process_lock
+
+    _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _MINT_LOCK, cross_process_lock(_MINT_LOG_PATH):
+        valid, errs = verify_chain()
+        if not valid:
+            return {"reconciled": False, "reason": "mint chain tampered", "errors": errs[:2]}
+        total, n = 0.0, 0
         try:
-            if _kt._LEDGER_PATH.exists():
-                on_disk = _json_loads(_kt._LEDGER_PATH.read_text(encoding="utf-8"))
-        except Exception:
-            on_disk = {}
-        led._baseline = {k: float(on_disk.get(k, 0.0)) for k in _kt._MERGE_FIELDS}
-        led.save()
-    except Exception as exc:
-        return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
-    # Report the balance that was actually PERSISTED, not the raw chain total: save() re-adopts the
-    # merged/clamped values into the in-memory ledger, so if total_spent exceeded the chain total the
-    # "never go negative" clamp pinned balance to 0 — and the return value must not claim otherwise.
-    return {"reconciled": True, "receipts": n, "balance_kry": round(led.balance, 4),
-            "note": "balance rebuilt from tamper-evident mint chain (truth)"}
+            if _MINT_LOG_PATH.exists():
+                with open(_MINT_LOG_PATH, encoding="utf-8") as source:
+                    for line in source:
+                        if line.strip():
+                            rec = _json_loads(line)
+                            total = _finite_number(total + rec["kry_minted"], "total_kry",
+                                                   nonnegative=True)
+                            n += 1
+            with _kt._LEDGER_LOCK:
+                ledger = _kt.get_ledger()
+                _kt._LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+                with cross_process_lock(_kt._LEDGER_PATH):
+                    if n and not _kt._LEDGER_PATH.exists():
+                        return {"reconciled": False, "reason": "debit history unavailable; restore the ledger"}
+                    ledger._refresh_locked()
+                    if ledger.total_spent > total:
+                        return {"reconciled": False, "reason": "recorded debits exceed chain earnings"}
+                    ledger.total_earned = total
+                    ledger.balance = total - ledger.total_spent
+                    ledger._save_locked()
+        except Exception as exc:
+            return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
+    return {"reconciled": True, "receipts": n, "balance_kry": round(ledger.balance, 4),
+            "note": "chain earnings reconciled against retained ledger debits"}
 
 
 def chain_summary() -> dict:

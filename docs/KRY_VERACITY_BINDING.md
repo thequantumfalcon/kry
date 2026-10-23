@@ -114,6 +114,14 @@ The primitive does not pick a path; it makes whichever path is chosen *legible*.
  a tier label alone does not attest that the displacement **event is real**.
  Its KRY amount follows the published benchmark; actual provider charges and the
  avoided alternative require separate evidence. Cache-hit callbacks remain T0.
+ A host can pass `provider_request_id="..."` to `mint()` to retain the exact
+ identifier from its provider record. It must use the same identifier namespace
+ as the export; a gateway call ID or normalized response ID is not automatically
+ a provider request ID. This optional field is private join metadata, **not bound
+ by v7 hashes or authenticated**. It does not upgrade an evidence tier. Public
+ T1 manifests project only its digest; hashes do not anonymize guessable IDs.
+ Missing IDs remain missing: neither the callback nor reconciliation invents one.
+
  **Reconciliation (F1):** `scripts/kry_reconcile.py` is an operator/auditor tool
  that checks T1 counts against **supplied usage JSON**. The operator/auditor must
  independently establish the source, account, coverage and normalization. The
@@ -130,6 +138,11 @@ The primitive does not pick a path; it makes whichever path is chosen *legible*.
  `--tolerance-pct`. The decimal tolerance is applied exactly to integer totals.
  This bounds the supplied token-count claim; it does not establish request identity,
  billing completeness or an actual charge.
+
+ Per-request failures now distinguish missing/invalid IDs, duplicate IDs, absent
+ matches and token mismatches. An additional count-only diagnostic can show that
+ token totals agree despite missing identity; it never changes the primary verdict
+ or earns the research grade. A missing ID does not prove provider usage was absent.
 
  Constructed cases cover these modes in `tests/test_reconcile.py`,
  `tests/test_reconcile_anthropic_cache.py` and `tests/test_reconcile_boundaries.py`.
@@ -188,6 +201,15 @@ catches inflation **even when conservation is kept consistent** — a class of f
 the chain alone misses. Reproducible benchmark arithmetic does not establish which
 model was avoided, whether the alternative would have been called, or the actual
 provider charge.
+
+New issuance resolves supported model IDs and explicit aliases rather than arbitrary
+substrings. Dotted supported Claude versions share their hyphenated alias's price.
+An unpriced avoided model earns zero credit; an unpriced served model also yields zero
+net credit, because an unknown cost cannot be assumed free. In particular, a model
+appearing in the separate prompt-cache table does not automatically have an issuance
+price. The legacy unspecified-model (`None`) behavior remains unchanged. Historical
+published multipliers, including the old unknown-model estimate, remain legal for
+verifying old receipts; their acceptance does not authorize new unpriced issuance.
 
 ---
 

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Ledger reconciliation could restore another process's spends, and concurrent
+  spend calls could debit the same capacity twice. Spending and reconciliation now
+  read current state and write under the same lock. Mint/reconcile lock ordering
+  prevents a receipt from being counted twice during its balance update.
+- Missing or corrupt ledgers could be rebuilt as lifetime earnings without debit
+  history. Recovery now refuses that reconstruction; corrupt bytes are retained,
+  and a new ledger is persisted before its first receipt. Cached empty state cannot
+  authorize a reset after history is lost.
+- Finite inputs could overflow cumulative balances, huge integers could crash
+  numeric entry points, and four-decimal persistence lost small credits. Running
+  totals are checked before mutation, scalar precision is retained, and a lost
+  write acknowledgement cannot silently apply the same delta twice on retry.
+- Corrupt holdout history could be replaced by a fresh, more favorable sample.
+  Readers and writers now refuse invalid retained history; counts are validated,
+  lower bounds round down, and writes flush and synchronize before replacement.
+  Invalid pending TTL configuration now raises a controlled operation error.
+- Substring pricing could assign an unrelated model's benchmark to an unknown
+  name. New issuance uses explicit names and aliases; unpriced avoided or served
+  models earn no net credit. Historical multipliers and verdicts remain valid.
+- TLSN generation IDs containing delimiters could evade prior-receipt checks;
+  escaped IDs could disappear in raw JSON lookups. The importer and lookup helpers
+  now enforce marker-compatible IDs and compare decoded fields. TEE lookup helpers
+  also reject malformed IDs rather than treating them as a missing receipt.
+- Reconciliation described missing receipt IDs as missing provider usage. It now
+  reports the actual matching failure and a separate count-consistency diagnostic
+  without relaxing identity grading. Hosts can retain an explicit provider ID as
+  private, unbound join metadata; public manifests retain only the existing digest.
+- SNP signature inspection under a supplied root could authorize hardware-backed
+  minting without AMD identity or guest policy. Mint eligibility now requires a
+  recognized Milan/Genoa AMD root and an explicit version-2 image/TCB policy, with
+  DEBUG, curve and VCEK bindings checked. Custom roots remain inspection-only.
+- SNP replay evidence included unsigned signature padding. Padding is now rejected
+  and replay identity binds the signed statement. Retained legacy SNP history
+  requires migration review before further SNP minting; it is not silently reset.
+- Malformed or oversized optional SNP/PQC inputs could cause uncontrolled errors.
+  Parsers now bound input and reject deep JSON and bad PEM. PQC v1 verification
+  refuses reserved v2 protocol messages relabeled as v1 while preserving ordinary
+  legacy signatures. The native crypto gate requires the new regressions with no skips.
+
 ## [0.1.12] - 2026-10-22
 
 ### Fixed

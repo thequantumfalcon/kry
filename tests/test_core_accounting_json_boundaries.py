@@ -105,11 +105,21 @@ def test_kry_ledger_does_not_preserve_nonstandard_numbers_on_save():
     ledger = kt.KRYLedger.load_or_create()
     ledger.balance = 10.0
     ledger.total_earned = 10.0
-    ledger.save()
+    with pytest.raises(ValueError, match="debit history"):
+        ledger.save()
+    assert not kt._LEDGER_PATH.exists()
+    corrupt = kt._LEDGER_PATH.with_suffix(kt._LEDGER_PATH.suffix + ".corrupt")
+    assert "NaN" in corrupt.read_text(encoding="utf-8")
 
+    # Recovery requires retained, independently checked debit totals. This fixture
+    # restores its explicitly known empty state; an earn-only chain cannot do so.
+    kt._LEDGER_PATH.write_text(json.dumps({"balance": 0.0, "total_earned": 0.0,
+                                         "total_spent": 0.0, "events": []}))
+    ledger = kt.KRYLedger.load_or_create()
+    ledger.balance = ledger.total_earned = 10.0
+    ledger.save()
     raw = kt._LEDGER_PATH.read_text(encoding="utf-8")
     data = json.loads(raw)
-
     assert "NaN" not in raw
     assert data["balance"] == 10.0
     assert data["total_earned"] == 10.0

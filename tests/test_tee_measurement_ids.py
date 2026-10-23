@@ -24,7 +24,8 @@ def adapter(request):
 def _att(kind, measurement_id, presentation):
     result = {"verified": True, "module_id": "test-module", "pcr0": "ab" * 48,
               "chip_id": "cd" * 64, "measurement": "ef" * 48,
-              "doc_sha256": str(presentation), "report_sha256": str(presentation)}
+              "doc_sha256": str(presentation), "report_sha256": str(presentation),
+              "mint_eligible": True, "statement_sha256": f"{presentation:064x}"}
     result["measurement" if kind == "tee" else "parsed_measurement"] = {
         "measurement_id": measurement_id, "tokens_saved": 5000,
         "avoided_model": "gh/claude-opus-4.8"}

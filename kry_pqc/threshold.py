@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 from kry_pqc.signer import DEFAULT_ALG, _b64, _unb64, fingerprint, sign_bytes
-from kry_pqc.verify import ALLOWED_ALGS   # PQC-1: one allowed-ML-DSA set, shared with the single-signer M1
+from kry_pqc.verify import ALLOWED_ALGS, _read_bounded, _read_json
 
 try:
     import oqs
@@ -77,14 +77,14 @@ def contribute(attestation_path: Path, secret_key: bytes, public_key: bytes,
     ONLY as a threshold contribution for THIS council — not as a single-signer signature, and
     not replayable in another council that happens to share this member.
     """
-    message = Path(attestation_path).read_bytes()
+    message = _read_bounded(attestation_path)
     sig = sign_bytes(threshold_signed_message(message, policy_digest(policy)), secret_key, alg)
     return {"fingerprint": fingerprint(public_key), "signature": _b64(sig)}
 
 
 def combine(attestation_path: Path, policy: dict, contributions: list[dict]) -> dict:
     """Bundle contributions (deduped, council-only) into a threshold artifact."""
-    message = Path(attestation_path).read_bytes()
+    message = _read_bounded(attestation_path)
     known = {e["fingerprint"] for e in policy["signers"]}
     # HOLE #21: keep EVERY council-registered contribution (no last-wins dedup by fingerprint). The
     # old `seen[fp] = c` let a later same-fingerprint contribution carrying a garbage signature
@@ -223,7 +223,7 @@ def verify_threshold(attestation_bytes: bytes, artifact: dict,
 
 
 def _keyfile(p: str) -> bytes:
-    return _unb64(Path(p).read_text().strip())
+    return _unb64(_read_bounded(p).decode("utf-8").strip())
 
 
 def _cmd_init_policy(args) -> int:
@@ -242,7 +242,7 @@ def _cmd_init_policy(args) -> int:
 
 
 def _cmd_contribute(args) -> int:
-    policy = json.loads(Path(args.policy).read_text())
+    policy = _read_json(args.policy)
     c = contribute(Path(args.attestation), _keyfile(args.secret_key),
                    _keyfile(args.public_key), policy, args.alg)
     Path(args.out).write_text(json.dumps(c, indent=2))
@@ -251,8 +251,8 @@ def _cmd_contribute(args) -> int:
 
 
 def _cmd_combine(args) -> int:
-    policy = json.loads(Path(args.policy).read_text())
-    contribs = [json.loads(Path(c).read_text()) for c in args.contribution]
+    policy = _read_json(args.policy)
+    contribs = [_read_json(c) for c in args.contribution]
     artifact = combine(Path(args.attestation), policy, contribs)
     Path(args.out).write_text(json.dumps(artifact, indent=2))
     print(f"combined {len(artifact['signatures'])} contributions "
@@ -262,9 +262,9 @@ def _cmd_combine(args) -> int:
 
 def _cmd_verify(args) -> int:
     try:
-        attestation_bytes = Path(args.attestation).read_bytes()
-        artifact = json.loads(Path(args.artifact).read_text())
-        policy = json.loads(Path(args.policy).read_text())
+        attestation_bytes = _read_bounded(args.attestation)
+        artifact = _read_json(args.artifact)
+        policy = _read_json(args.policy)
     except (OSError, ValueError) as e:
         print(f"RESULT: FAILED -- malformed threshold input: {e}")
         return 1
@@ -324,7 +324,11 @@ def main(argv=None) -> int:
     v.set_defaults(func=_cmd_verify)
 
     args = p.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (OSError, ValueError, RecursionError) as exc:
+        print(f"RESULT: FAILED -- malformed threshold input: {exc}")
+        return 1
 
 
 if __name__ == "__main__":

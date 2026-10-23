@@ -61,7 +61,7 @@ _THREAD_LOCK = threading.Lock()
 
 # A displacement not confirmed within this window is assumed unaccepted and
 # expires (no mint). Generous enough for an async downstream consumer to act.
-_DEFAULT_TTL = float(os.environ.get("KRY_DISPLACEMENT_PENDING_TTL", "900"))  # 15 min
+_DEFAULT_TTL = os.environ.get("KRY_DISPLACEMENT_PENDING_TTL", "900")  # seconds; validate on use
 
 @contextmanager
 def _locked():
@@ -142,14 +142,22 @@ def record_pending(mint_kwargs: dict, ttl: float | None = None) -> str:
     """Record a displacement candidate WITHOUT minting. Returns a pending_id the
     consumer later passes to confirm(). `mint_kwargs` are the exact keyword args
     forwarded to kry_mint.mint() on confirmation (event_type + tokens_saved
-    required)."""
+    required). `ttl` and KRY_DISPLACEMENT_PENDING_TTL use finite, non-negative
+    seconds (default 900); invalid configuration raises ValueError before writing,
+    without preventing import. Duration suffixes such as "15m" are not accepted."""
     if "event_type" not in mint_kwargs or "tokens_saved" not in mint_kwargs:
         raise ValueError("mint_kwargs needs at least event_type and tokens_saved")
     # HOLE #15: reject a non-finite/negative ttl at the boundary — a NaN ttl would make the pending
     # never expire (now > created_ts + NaN is always False) and stay mintable indefinitely.
-    t = float(ttl if ttl is not None else _DEFAULT_TTL)
+    raw_ttl = ttl if ttl is not None else _DEFAULT_TTL
+    try:
+        if isinstance(raw_ttl, bool):
+            raise ValueError("boolean TTL")
+        t = float(raw_ttl)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("ttl must be finite, non-negative seconds") from exc
     if not math.isfinite(t) or t < 0:
-        raise ValueError("ttl must be a finite, non-negative number")
+        raise ValueError("ttl must be finite, non-negative seconds")
     pid = _new_id(mint_kwargs)
     with _locked():
         data = _load()

@@ -1,7 +1,7 @@
 """The output price table values current provider models at list price, additively.
 
 Ground rule 1 (SPEC_DEVELOPMENT.md): existing vectors and verdicts never change meaning. So current
-models are added as exact provider ids ahead of the older substring entries, every multiplier legal in
+models are resolved by exact provider ids and explicit aliases; every multiplier legal in
 0.1.5 stays legal, and receipts minted at the older prices still verify.
 """
 from __future__ import annotations
@@ -47,9 +47,9 @@ def test_current_provider_models_use_their_list_price(model, expected):
     ("or/anthropic/claude-sonnet-4.8", 0.3),   # older substring entries keep their values
     ("gh/claude-haiku", 0.05),
     ("gemini-2.5-pro", 0.0),
-    ("some-unlisted-model", 0.05),              # unknown models keep the conservative floor
+    ("some-unlisted-model", 0.0),               # unpriced models earn no new credit
 ])
-def test_older_entries_and_the_unknown_floor_are_unchanged(model, expected):
+def test_older_entries_are_preserved_and_unpriced_models_earn_no_credit(model, expected):
     assert kt.value_multiplier(model) == pytest.approx(expected)
 
 
