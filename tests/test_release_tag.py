@@ -31,8 +31,14 @@ def test_release_tag_guard(guard_index, tag, accepted):
     assert len(GUARDS) == 2, "both release jobs must validate the tag"
     env = dict(os.environ, GITHUB_REF_NAME=tag)
     env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
+    bash = "bash"
+    if os.name == "nt":
+        # Git for Windows supplies Bash; the system's bash.exe may be an unused WSL launcher.
+        git_exec = Path(subprocess.check_output(["git", "--exec-path"], text=True).strip())
+        bash = str(git_exec.parents[2] / "bin" / "bash.exe")
     result = subprocess.run(
-        ["bash", "-c", textwrap.dedent(GUARDS[guard_index])],
+        [bash, "-c", textwrap.dedent(GUARDS[guard_index])],
         cwd=ROOT, env=env, text=True, capture_output=True, check=False,
     )
+    assert result.stdout.startswith(f"tag: {tag}\n"), result.stdout + result.stderr
     assert (result.returncode == 0) is accepted, result.stdout + result.stderr
