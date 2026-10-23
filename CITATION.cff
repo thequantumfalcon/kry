@@ -1,22 +1,21 @@
 cff-version: 1.2.0
 message: "If you use KRY, please cite it as below."
-title: "KRY — Proof-of-Efficiency Compute Credit"
+title: "KRY — Verifiable Receipts for Reported LLM Efficiency Events"
 abstract: >-
-  KRY is a zero-dependency, pure-Python-stdlib compute credit earned by avoiding LLM
-  inference cost (cache hits, compression, routing) and spent on routing permission. It pairs an
-  integrity hash-chain with a randomized counterfactual holdout and a stranger-verifiable
-  attestation, so a party that does not trust the operator can check a savings claim's integrity
-  and pricing offline, with the share that rests on the operator's word stated as an explicit
-  number (veracity_floor).
+  KRY is a zero-dependency, pure-Python-stdlib library for tamper-evident receipts
+  of reported LLM efficiency events. A stranger verifier checks hash-chain integrity
+  and supported benchmark arithmetic offline. The veracity_floor discloses the share
+  assigned to tiers above self-report; underlying evidence requires separate checks.
+  Receipt verification does not establish actual provider charges or cash savings.
 type: software
 authors:
   - family-names: Albrecht
     given-names: Thomas
-    email: thequantumfalcon@gmail.com
+    email: 241560317+thequantumfalcon@users.noreply.github.com
 repository-code: "https://github.com/thequantumfalcon/kry"
 url: "https://github.com/thequantumfalcon/kry"
-version: "0.1.10"
-date-released: "2026-10-18"
+version: "0.1.11"
+date-released: "2026-10-22"
 license: Apache-2.0
 keywords:
   - llm

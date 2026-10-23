@@ -42,6 +42,9 @@ jobs:
           echo "tag: ${GITHUB_REF_NAME}"
           [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
             || { echo "Tag must be vMAJOR.MINOR.PATCH"; exit 1; }
+          version="$(python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          [[ "${GITHUB_REF_NAME}" == "v${version}" ]] \
+            || { echo "Tag must match package version v${version}"; exit 1; }
 
       - name: Verify the tag signature (audit F2 — fail closed on an unsigned/unknown-key tag)
         run: |
@@ -92,6 +95,9 @@ jobs:
           echo "tag: ${GITHUB_REF_NAME}"
           [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
             || { echo "Tag must be vMAJOR.MINOR.PATCH"; exit 1; }
+          version="$(python -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+          [[ "${GITHUB_REF_NAME}" == "v${version}" ]] \
+            || { echo "Tag must match package version v${version}"; exit 1; }
 
       # Re-checked here and not only on `gate`: this job re-clones at ${{ github.ref }}, so a tag
       # force-moved between the two jobs would otherwise be built, attested and released without

@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-10-22
+
 ### Fixed
 
+- Release tags were checked for format but not equality with the package version.
+  Both release jobs now reject a mismatch before any artifacts are published.
 - Honest attestation producers could derive dollar values and veracity floors
   from unrounded totals, producing output rejected by the verifiers. Producers
   and vectors now derive those fields from the published rounded operands.
@@ -163,8 +167,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or interruption. Partial writes and interrupted balance updates still require operator
   reconciliation; receipt deduplication does not make all persistence operations atomic.
 - The reconciliation script no longer assumes OpenAI/Anthropic organization reports expose
-  per-call exports. Its documentation states the aggregate-report boundary and that its
-  per-request mode matches token counts, not request identity or billing provenance.
+  per-call exports. Its documentation states the aggregate-report boundary. Per-request
+  mode checks supplied IDs and token counts without authenticating billing provenance;
+  IDless token comparisons remain diagnostic and cannot advance research grading.
 
 ## [0.1.10] - 2026-10-18
 
@@ -1171,7 +1176,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.10...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.11...HEAD
+[0.1.11]: https://github.com/thequantumfalcon/kry/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/thequantumfalcon/kry/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/thequantumfalcon/kry/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/thequantumfalcon/kry/compare/v0.1.7...v0.1.8
