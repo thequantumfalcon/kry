@@ -222,8 +222,9 @@ and step 4 uses them.
 [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
 The steps below use a checkout.
 
-Version 0.1.11 includes the core receipt and LiteLLM callback fixes. See the
-[changelog](https://github.com/thequantumfalcon/kry/blob/v0.1.11/CHANGELOG.md)
+Version 0.1.12 adds TEE measurement-ID validation and escaped-ID lookup fixes to
+the core receipt and LiteLLM callback fixes. See the
+[changelog](https://github.com/thequantumfalcon/kry/blob/v0.1.12/CHANGELOG.md)
 for the full changes and stricter reconciliation requirements. The PyPI package
 provides the core library, `kry-try` and `kry-verify`. Additional scripts for evidence
 assessment, row commitments, Anthropic usage/projection and reconciliation require
