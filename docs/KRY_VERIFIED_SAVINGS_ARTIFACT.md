@@ -59,6 +59,14 @@ retaining its old hash or review declarations.
 
 ## T1 Manifest Privacy Boundary
 
+Per-request grading requires exact request-ID matching and `RECONCILED`, not
+just a match fraction above the generic 0.80 threshold. A manifest row may carry
+`provider_request_id_sha256`, a SHA-256 projection used to join the provider record
+without publishing the raw ID or `detail`. This field is not bound by the current
+receipt hash; matching supplied references does not authenticate their provenance.
+It is a linkage identifier, not an anonymization guarantee. IDless comparisons
+remain diagnostics and cannot qualify the artifact's research or production grade.
+
 The private mint log remains local. When `--bundle-dir` is used with `--mint-log`,
 the builder derives `packet/t1_manifest.json` and does **not** copy
 `kry_mint_log.jsonl` into the packet. `python3 scripts/kry_doctor.py --artifact

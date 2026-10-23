@@ -10,12 +10,13 @@ grade advance, and by what agreement number.
 
 It reimplements NOTHING — it imports the existing, separately-tested pieces:
   - kry_or_fetch    (pull OpenRouter per-request records — the external witness)
-  - kry_reconcile   (greedy 1:1 / aggregate match → reconciled_fraction)
+  - kry_reconcile   (request-ID / aggregate match → reconciled_fraction)
   - kry.kry_capabilities.readiness_label (the mechanical grader; the 0.80 bar lives there)
 
-The reconciled_fraction IS the independent_agreement signal: in per-request mode the
-fraction of T1 receipts a distinct provider record backs; in aggregate mode the share
-of our minted tokens the provider's billed total covers. replay_pass_rate defaults to
+The raw reconciled_fraction remains a diagnostic. Advancing this driver requires
+RECONCILED and, in per-request mode, exact one-to-one request-ID matching. Token-only
+legacy matching and partial coverage cannot advance the grade even above the
+generic 0.80 scoring threshold. This checks supplied records, not their provenance. replay_pass_rate defaults to
 1.0 (the synthetic suite is green — prove it with `bash lab/reproduce.sh 10`); pass
 --replay-pass-rate to override. audit_clean is computed by the grader itself.
 
@@ -93,13 +94,19 @@ def assess(mint_log: str, *, provider_export: object | None,
         recon = kry_reconcile.reconcile(t1, records, tolerance=tolerance)
         agreement = recon["reconciled_fraction"]
 
+    eligible = (recon["verdict"] == "RECONCILED"
+                and (mode == "aggregate" or recon.get("matching_basis") == "request_id"))
     grade = kry_capabilities.readiness_label(
         replay_pass_rate=replay_pass_rate,
-        independent_agreement=agreement,           # None when no oracle yet
+        independent_agreement=agreement if eligible else None,
         real_corpus_validated=False,               # Step 2, not this driver
         audit_clean=None,                           # let the grader self-check
     )
     reached = grade.label in ("research_grade", "production_ready")
+    reasons = list(grade.reasons)
+    if agreement is not None and not eligible:
+        reasons.append(f"reconciliation prerequisite failed: {recon['verdict']}; "
+                       "per-request grading requires exact request-ID matching")
     return {
         "t1_receipts": len(t1),
         "mode": mode,
@@ -108,7 +115,7 @@ def assess(mint_log: str, *, provider_export: object | None,
         "bar": kry_capabilities.INDEPENDENT_AGREEMENT_BAR,
         "readiness_label": grade.label,
         "research_grade_reached": reached,
-        "reasons": grade.reasons,
+        "reasons": reasons,
     }
 
 
@@ -136,11 +143,20 @@ def main(argv: list[str] | None = None) -> int:
 
     export: object | None = None
     if args.fetch:
+        try:
+            kry_reconcile._validate_window(
+                args.since, args.until, require_complete=args.mode == "aggregate",
+            )
+            ids = kry_or_fetch.extract_or_ids(
+                args.mint_log, since=args.since, until=args.until,
+            )
+        except ValueError as exc:
+            print(f"assessment invalid: {exc}", file=sys.stderr)
+            return 2
         key = args.api_key or os.getenv("OPENROUTER_API_KEY", "").strip()
         if not key:
             print("OPENROUTER_API_KEY not set — cannot --fetch.", file=sys.stderr)
             return 2
-        ids = kry_or_fetch.extract_or_ids(args.mint_log)
         export = [kry_or_fetch.to_export_record(g) for g in
                   (kry_or_fetch.fetch_generation(i, key) for i in ids) if g is not None]
         print(f"fetched {len(export)}/{len(ids)} OpenRouter records", file=sys.stderr)
@@ -177,7 +193,8 @@ def main(argv: list[str] | None = None) -> int:
               f"(bar {r['bar']:.2f})")
     print(f"  readiness label:                {r['readiness_label']}")
     if r["research_grade_reached"]:
-        print("  VERDICT: research_grade REACHED — an independent oracle agrees >= the bar.")
+        print("  VERDICT: research_grade REACHED — supplied records meet reconciliation prerequisites; "
+              "source provenance is unverified.")
         return 0
     print("  VERDICT: research_grade NOT reached:")
     for reason in r["reasons"]:

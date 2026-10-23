@@ -1,33 +1,18 @@
-"""KRY Settlement — federated, registry-backed settlement protocol (offline-verifiable proofs).
+"""Experimental registry-backed accounting for routing grants.
 
-The piece that makes KRY an EXTERNAL token rather than internal accounting:
-two parties who do not trust each other settle a routing transaction using only
-the hash-chain attestation as proof. No central clearing house.
+An offer presents an internally verifiable attestation; acceptance reserves its
+amount under the supplied party string, and settlement records debit and credit.
+The receipt hash binds the accounting fields. It is not a digital signature.
 
-The flow ("a token other providers' datacenters would want"):
+Neither an attestation nor a party string authenticates ownership. By default,
+another party can present the same public attestation under a different name.
+Deployments relying on ownership must use set_settlement_guard with an
+independently authenticated principal and a previously enrolled chain anchor,
+and must share the appropriate registry/lease authority. A self-supplied holder
+field or recomputed hash does not supply that missing trust.
 
-    Party A (The host system bridge, earned KRY by being efficient)
-        wants to route work to Party B (a provider with free/cheap quota).
-    A presents: a SettlementOffer + an Attestation (proof of A's KRY balance).
-    B independently verifies A's attestation chain (verify_attestation) — B does
-        NOT trust A, B verifies the math.
-    B accepts → issues a RoutingGrant → A's KRY debited, B's received-KRY credited.
-    Both sides hold a signed SettlementReceipt.
-
-Why B accepts KRY:
-    B is a free-tier provider (NIM/Groq/AI Studio). Inbound routed traffic is B's
-    growth metric (utilization). A's KRY is a verifiable claim that A earned its
-    routing rights through proven efficiency — so B accepts KRY as the settlement
-    unit and gains utilization. A spends down its reserve to access B's capacity.
-
-The invariant that makes it a currency (NOT minting):
-    CONSERVATION. Minting creates KRY from efficiency events. Settlement only
-    MOVES existing KRY: A.balance decreases by exactly what B.received increases.
-    Total KRY across both parties is unchanged by a settlement. Double-entry.
-
-Distinct from existing systems (confirmed by deep-research, 108 agents):
-    OpenRouter settles in USD through a central account. KRY settles peer-to-peer
-    in a proof-of-efficiency unit, verified by hash chain, no central ledger.
+Conservation checks accounting arithmetic; it does not establish that savings
+occurred, that a provider accepts KRY, or that KRY is a currency or market asset.
 """
 from __future__ import annotations
 
@@ -113,7 +98,7 @@ class RoutingGrant:
 
 @dataclass
 class SettlementReceipt:
-    """Signed record both parties hold. Hash binds offer+grant+balances."""
+    """Hash-bound accounting record; not a digitally signed ownership proof."""
     receipt_id: str
     offer: dict
     grant: dict
@@ -222,6 +207,7 @@ def _registry_entries() -> list:
                     raise ValueError("prev_hash must be a string")
                 if not isinstance(rec.get("entry_hash"), str):
                     raise ValueError("entry_hash must be a string")
+                _entry_grant_payload(rec)
             except Exception as exc:
                 raise ValueError(f"registry line {lineno}: {exc}") from exc
             out.append(rec)
@@ -341,10 +327,23 @@ def _entry_grant_payload(e: dict) -> str:
     settlement binds its single grant_id; a compaction checkpoint binds the sorted
     union of the grant_ids it collapsed — so the consume-once (no-double-settle)
     guard is part of the tamper-evident chain and survives compaction."""
+    if "grant_id" in e and "grant_ids" in e:
+        raise ValueError("registry entry cannot carry both grant_id and grant_ids")
     if "grant_ids" in e:
-        return ",".join(sorted(e.get("grant_ids") or ()))
-    gid = e.get("grant_id")
-    return gid if gid else ""
+        ids = e["grant_ids"]
+        if not isinstance(ids, list):
+            raise ValueError("grant_ids must be a list")
+    elif "grant_id" in e:
+        ids = [e["grant_id"]]
+    else:
+        return ""   # legacy entries did not record grant ids
+    # The legacy hash uses ':' between fields and ',' between ids. Allowing
+    # those bytes inside an id can change accounting without changing the hash.
+    if any(not isinstance(gid, str) or not gid or ":" in gid or "," in gid for gid in ids):
+        raise ValueError("grant ids must be non-empty strings without ':' or ','")
+    if len(set(ids)) != len(ids):
+        raise ValueError("grant_ids must not contain duplicates")
+    return ",".join(sorted(ids))   # [] preserves compaction of legacy no-id rows
 
 
 def verify_registry() -> tuple[bool, list]:
@@ -483,8 +482,10 @@ def _record_settled(party: str, amount: float, grant_id: str) -> None:
         amount = _finite_number(amount, "settlement amount", positive=True)
     except ValueError as exc:
         raise SettlementPersistenceError(f"invalid settlement amount {amount}: {exc}") from exc
-    if not isinstance(grant_id, str) or not grant_id:
-        raise SettlementPersistenceError("settlement requires a non-empty grant_id")
+    try:
+        _entry_grant_payload({"grant_id": grant_id})
+    except ValueError as exc:
+        raise SettlementPersistenceError(f"invalid settlement grant_id: {exc}") from exc
     try:
         entries = _registry_entries()
     except ValueError as exc:
@@ -739,13 +740,15 @@ def verify_and_accept(
 ) -> tuple[Optional[RoutingGrant], str]:
     """Party B's side: verify A's attestation, then accept or reject the offer.
 
-    B does NOT trust A. B verifies:
-      1. A's attestation chain is internally valid (no tampering)
-      2. A's attested balance, MINUS what A has already settled (federated
-         registry), covers this offer — closes double-spend across counterparties
+    B verifies the attestation's internal consistency and checks its balance
+    minus settlements and reservations under offer.from_party. This is a
+    per-party-label accounting check, not proof that the party owns the chain.
+    The same public attestation can be reused under another label unless an
+    external policy binds authenticated identity to an independently enrolled
+    chain anchor. set_settlement_guard supplies that optional policy hook.
 
-    S1: by DEFAULT B accepts A's KRY regardless of veracity (A is spending its own earned credit, and
-    the chain proves integrity, not that the savings happened). A counterparty that will itself rely on
+    S1: by DEFAULT B accepts internally valid KRY regardless of veracity (the
+    chain proves consistency, not ownership or that savings happened). A counterparty that will rely on
     the received KRY can set `min_veracity_floor` (default 0.0 = unchanged) to REQUIRE that an anchored
     fraction backs the balance — pure self_reported / unanchored KRY (floor 0.0) is then rejected.
     verify_attestation RE-DERIVES the floor from the per-link tiers and credits only the anchored tiers

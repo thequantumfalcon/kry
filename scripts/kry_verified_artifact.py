@@ -182,6 +182,9 @@ def write_t1_manifest(
             "chain_hash": rec.get("chain_hash"),
             "metered_tokens": [int(metered[0]), int(metered[1])],
         }
+        request_digest = kry_reconcile.request_id_digest(rec, receipt=True)
+        if request_digest is not None:
+            row["provider_request_id_sha256"] = request_digest
         if rec.get("ts") is not None:
             row["ts"] = rec.get("ts")
         receipts.append(row)
@@ -1605,10 +1608,14 @@ def _claim_register(
     provider_verdict = (research.get("reconcile") or {}).get("verdict")
     t1_count = int(research.get("t1_receipts") or 0)
     t1_bound = t1_binding.get("ok") is True
-    provider_ok = provider_verdict == "RECONCILED" and t1_count > 0 and t1_bound
+    identity_ok = (research.get("mode") == "aggregate"
+                   or (research.get("reconcile") or {}).get("matching_basis") == "request_id")
+    provider_ok = provider_verdict == "RECONCILED" and t1_count > 0 and t1_bound and identity_ok
     provider_blockers = []
     if provider_verdict != "RECONCILED" or t1_count <= 0:
         provider_blockers.append(f"provider_reconciliation:{provider_verdict or 'missing'}")
+    if not identity_ok:
+        provider_blockers.append("provider_reconciliation:request_identity_unproved")
     if not t1_bound:
         provider_blockers.append("science:t1_manifest_matches_attestation")
     real_corpus_ok = (
@@ -2300,7 +2307,7 @@ def build_artifact(
     )
     production = kry_capabilities.readiness_label(
         replay_pass_rate=replay_pass_rate,
-        independent_agreement=agreement,
+        independent_agreement=(agreement if research.get("research_grade_reached") is True else None),
         real_corpus_validated=real_corpus,
         audit_clean=None,
     )
@@ -2335,6 +2342,9 @@ def build_artifact(
         _check("t1_manifest_matches_attestation", t1_binding["ok"],
                "; ".join(t1_binding["errors"]) or "T1 manifest covers provider_metered attestation links"),
         _check("provider_oracle_non_vacuous", t1_count > 0, f"T1 receipts={t1_count}"),
+        _check("research_grade_prerequisites", research.get("research_grade_reached") is True,
+               f"reconciliation={research.get('reconcile', {}).get('verdict')} "
+               f"matching_basis={research.get('reconcile', {}).get('matching_basis')}"),
         _check("independent_agreement_at_bar", agreement_pass,
                f"agreement={agreement} bar={bar}"),
         _check("readiness_can_reach_production", production.label == "production_ready",

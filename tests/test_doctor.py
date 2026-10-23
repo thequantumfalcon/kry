@@ -338,7 +338,7 @@ def test_doctor_reports_external_candidate_from_verified_claim_register(monkeypa
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -388,7 +388,7 @@ def test_doctor_fails_external_candidate_without_portable_packet(monkeypatch, tm
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -613,7 +613,7 @@ def test_doctor_detects_private_usage_content_in_packet(monkeypatch, tmp_path):
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -660,7 +660,7 @@ def test_doctor_detects_private_provider_content_in_packet(monkeypatch, tmp_path
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -706,7 +706,7 @@ def test_doctor_detects_private_public_manifest_content_in_packet(monkeypatch, t
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -753,7 +753,7 @@ def test_doctor_detects_private_review_content_in_packet(monkeypatch, tmp_path):
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Mint a KRY T2 receipt from a verified TLSNotary presentation (the T2 anchor).
+"""Import trusted external TLSNotary verifier output and optionally mint a T2 receipt.
+
+This adapter trusts the input's `verified` flag. It does not check TLSN signatures,
+the TLS certificate chain, or whether this JSON came from the Rust verifier.
+Strangers must independently run `attestation_verify` on the original proof with
+a trusted notary key; a hand-written presentation can pass this adapter's checks.
 
 The cryptographic root of trust is the Rust `tlsn` verifier (`attestation_verify`,
 see tlsnotary/README.md): it checks the notary's signature and the real CA chain,
@@ -12,7 +17,8 @@ KRY earn.
 
 What T2 (TLS-notary) does and does NOT prove — stated plainly so it is never
 overclaimed (consistent with docs/KRY_VERACITY_BINDING.md):
-  - PROVES: the provider returned exactly these bytes over a real TLS session. The
+  - An independently verified TLSN proof establishes that the provider returned
+    exactly these bytes over a real TLS session. The
     operator cannot fabricate them. This is strictly STRONGER than T1
     `provider_metered`, which trusts that the operator RETAINED a real usage payload.
   - WITNESSES a call that HAPPENED — displacement's cheap leg. It does NOT witness a
@@ -171,8 +177,9 @@ def validate_presentation(pres: dict, *, expect_server: str | None = None,
     """Fail-closed checks before any mint. Accumulates all reasons (not fail-fast).
 
     A receipt is minted ONLY if the presentation says verification passed, names
-    the expected server, the notarized response is the required status, and — when a
-    notary key is pinned (--notary-key) — was notarized by EXACTLY that notary.
+    the expected server, the reported response has the required status, and — when a
+    notary key is pinned (--notary-key) — its field matches that key. These checks
+    trust the presentation; they do not authenticate its signature or origin.
     """
     errs: list[str] = []
     if pres.get("verified") is not True:
@@ -327,7 +334,7 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
 
     if dry_run:
         result["minted"] = None
-        result["note"] = "dry-run: validated + parsed, no receipt minted"
+        result["note"] = "dry-run: input fields checked and parsed, no receipt minted"
         return result
 
     # Honest displacement gate: minting needs a GENUINE avoided model (routing record or
@@ -459,15 +466,15 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        description="Mint a KRY T2 (tlsn_attested) receipt from a verified TLSNotary presentation")
+        description="Import external TLSNotary verifier output; trusts its verified flag, "
+                    "does not check signatures")
     p.add_argument("presentation", help="verified-presentation JSON (see module docstring)")
     p.add_argument("--server", default=None,
                    help="expected TLS server_name — minting is refused if it doesn't match")
     p.add_argument("--notary-key", default=None,
-                   help="PIN the expected notary's hex k256 verifying key — minting is refused "
-                        "unless the presentation was notarized by EXACTLY this notary (exact "
-                        "full-key match). The third-party-trust gate: without it, a presentation "
-                        "from any notary the operator stands up would mint. Default: unpinned")
+                   help="expected notary's hex k256 key: exact field match required for minting; "
+                        "this adapter does not authenticate signatures. Independently run Rust "
+                        "attestation_verify with a trusted key first. Default: unpinned")
     p.add_argument("--event-type", default="short_circuit",
                    help="efficiency event this attested call backs (default: short_circuit)")
     p.add_argument("--avoided-model", default=None,
@@ -475,8 +482,8 @@ def main(argv: list[str] | None = None) -> int:
                         "routing decision for this gen id (a prior /openrouter:<id> receipt). "
                         "Absent both → 0 KRY (the counterfactual is never invented)")
     p.add_argument("--served-model", default=None,
-                   help="OVERRIDE the served model. Default: the model in the notarized "
-                        "body (cryptographically attested); its cost is netted out")
+                   help="OVERRIDE the served model. Default: the model reported in the "
+                        "presentation body; its cost is netted out")
     p.add_argument("--tokens-saved", type=float, default=None,
                    help="saving basis (default: the attested completion tokens)")
     p.add_argument("--require-status", type=int, default=200,
@@ -500,18 +507,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     at = result["attested_tokens"]
-    print("KRY T2 TLS-notary verification")
-    print(f"  server (verified):   {result['server_name']}")
-    print(f"  attested tokens:     prompt {at['prompt']} + completion {at['completion']}")
+    print("KRY T2 TLS-notary presentation import")
+    print("  trust boundary:      verified flag is trusted; signatures are not checked here")
+    print("                       independently run Rust attestation_verify on the original proof")
+    print(f"  server (reported):   {result['server_name']}")
+    print(f"  reported tokens:     prompt {at['prompt']} + completion {at['completion']}")
     if result.get("attested_cost") is not None:
-        print(f"  attested cost (USD): {result['attested_cost']}")
+        print(f"  reported cost (USD): {result['attested_cost']}")
     if result.get("generation_id"):
         print(f"  generation id:       {result['generation_id']}")
     sv, av = result.get("served_model", {}), result.get("avoided_model", {})
     print(f"  served model:        {sv.get('value')}  (source: {sv.get('source')})")
     print(f"  avoided model:       {av.get('value')}  (source: {av.get('source')})")
     if result.get("notary_key_fp"):
-        pinned = "  (pinned ✓ — verified against --notary-key)" if result.get("notary_pinned") else ""
+        pinned = "  (matches --notary-key; field match only)" if result.get("notary_pinned") else ""
         print(f"  notary key:          {result['notary_key_fp']}{pinned}")
 
     if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_SERVED_MODEL", "NO_NOTARY_PIN"):

@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 389,
+  "count": 392,
   "vectors": [
     {
       "id": "canon_f64",
@@ -1945,6 +1945,21 @@
     {
       "id": "action_ts_presence_absent",
       "category": "hardening/action",
+      "verdict": "VALID"
+    },
+    {
+      "id": "producer_usd_rounded_total",
+      "category": "savings/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "producer_floor_rounded_operands",
+      "category": "savings/valid",
+      "verdict": "VALID"
+    },
+    {
+      "id": "producer_blank_log_lines",
+      "category": "savings/anchor",
       "verdict": "VALID"
     }
   ]

@@ -353,7 +353,7 @@ def test_finops_report_allows_only_candidate_language_for_full_packet(monkeypatc
     art, usage_log, att_path, log = _minted_artifact(monkeypatch, tmp_path)
     finops = _load(FINOPS, "kry_finops_report_external")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -464,7 +464,7 @@ def test_finops_report_refuses_external_packet_missing_reviewer_surface(monkeypa
     art, usage_log, att_path, log = _minted_artifact(monkeypatch, tmp_path)
     finops = _load(FINOPS, "kry_finops_report_missing_reviewer_surface")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)

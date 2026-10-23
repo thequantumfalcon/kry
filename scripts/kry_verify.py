@@ -711,11 +711,21 @@ def verify_registry(entries: list[dict]) -> tuple[bool, list[str]]:
         # Grant-id component: individual settlements bind their grant_id; compaction
         # checkpoints bind the sorted union of collapsed ids (the no-double-settle guard).
         try:
+            if "grant_id" in e and "grant_ids" in e:
+                raise ValueError("both grant id forms are present")
             if "grant_ids" in e:
-                grant_payload = ",".join(sorted(e.get("grant_ids") or ()))
+                grant_ids = e["grant_ids"]
+                if not isinstance(grant_ids, list):
+                    raise ValueError("grant_ids must be a list")
             else:
-                grant_payload = e.get("grant_id") or ""
-        except TypeError:
+                grant_ids = [e["grant_id"]] if "grant_id" in e else []
+            if any(not isinstance(gid, str) or not gid or ":" in gid or "," in gid
+                   for gid in grant_ids):
+                raise ValueError("grant ids must be nonempty strings without delimiters")
+            if len(set(grant_ids)) != len(grant_ids):
+                raise ValueError("duplicate grant ids")
+            grant_payload = ",".join(sorted(grant_ids))
+        except ValueError:
             errors.append(f"entry {i} ({party}): malformed grant ids — tampered")
             prev = entry_hash
             continue
@@ -774,9 +784,11 @@ def verify_settlement(
     party: str,
     offer_amount: float,
 ) -> tuple[bool, list[str]]:
-    """Full end-to-end stranger check: attestation valid + registry intact +
+    """Snapshot accounting check: attestation valid + registry intact +
     the offer fits inside the attested balance net of what the party already
-    settled (double-spend guard).
+    settled under the supplied party label. Ownership is not verified: a
+    different party can present the same public attestation. Authentication
+    and independently enrolled identity-to-chain binding are external policy.
 
     NOTE (HOLE D corollary): this registry check is post-facto and snapshot-based
     — it is sound only against the COMPLETE, MERGED federation registry. It cannot
@@ -977,11 +989,14 @@ def main(argv: list[str] | None = None) -> int:
           f"source evidence requires separate verification)")
     if _floor > 0.0:
         # H2: this verifier confirms anchored tiers are CHAIN-BOUND and internally consistent, but it does
-        # NOT re-run the underlying TEE/TLSN evidence verification (that happened at mint time).
-        print("                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /")
-        print("                     kry_tlsn_verify to independently check the underlying evidence doc")
+        # NOT establish that underlying TEE/TLSN evidence was independently verified.
+        print("                   ↳ anchored tiers are chain-bound LABELS — check TEE evidence with kry_tee_verify")
+        print("                     TLSN proofs require Rust attestation_verify with a trusted notary key")
+        print("                     kry_tlsn_verify trusts external verifier output; it does not check signatures")
     print(f"  price basis:     ${_FRONTIER_USD_PER_M}/M frontier, as of {_PRICE_AS_OF} "
           f"(published benchmark; see magnitude coverage)")
+    if args.registry:
+        print("  ownership:       not verified; registry accounting is keyed by the supplied party label")
     if ok:
         _checked_magnitudes = sum("tokens_saved" in ln and "earn_rate" in ln for ln in _links)
         print(f"  magnitude:       {_checked_magnitudes}/{len(_links)} links checked; "

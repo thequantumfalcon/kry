@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Honest attestation producers could derive dollar values and veracity floors
+  from unrounded totals, producing output rejected by the verifiers. Producers
+  and vectors now derive those fields from the published rounded operands.
+- Blank mint-log lines created gaps in attestation sequence numbers and caused
+  false anchor failures. Sequence numbers now count actual receipt rows.
+- TEE promotion could confuse measurement IDs such as `m1` and `m10`; both
+  lookups now compare complete IDs. Malformed CBOR/COSE inputs now produce
+  verification errors instead of tracebacks. The optional crypto gate requires
+  the new parser and signature regression cases to execute without skips.
+- Per-request research grading matched token counts without matching request
+  IDs and could accept a discrepant 80% match. Exact unique IDs and a successful
+  reconciliation are now prerequisites in both the driver and artifact grading.
+  IDless legacy comparisons remain labeled diagnostics. Public T1 manifests may
+  carry an ID digest for matching; this is not an authenticated provenance binding.
+- Provider-record fetching ignored the selected receipt window. It now applies
+  the same time bounds before collecting IDs.
+- Settlement registry separators allowed accounting fields or consumed grant
+  IDs to change without changing a hash. Readers and writers now reject ambiguous
+  grant identifiers while preserving legitimate legacy registry records.
+- Settlement guidance overstated ownership and signature guarantees. It now
+  states the per-party-label boundary and the host policy required to bind an
+  independently authenticated principal to an enrolled receipt chain.
+- TLSNotary CLI guidance confused importing a trusted verifier presentation with
+  checking a cryptographic proof. It now names the Rust proof verifier and states
+  that the Python importer trusts the verification flag and compares fields only.
+- Research evidence guidance overstated the historical 52-record bundle. It now
+  records its exact ID/token matches, zero savings and charges, and v2 hash limits;
+  a regression pins the unchanged retained files.
+
 - The differential fuzz gate could accept matching verifier crashes or an abnormal
   JavaScript process exit, and silently omit a failed mixed-evidence base. These
   outcomes now fail the run; successful agreement is not a correctness proof.

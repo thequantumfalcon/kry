@@ -19,7 +19,7 @@ still need their underlying evidence checked. Verification establishes integrity
 and benchmark arithmetic, not actual provider charges or proven cash savings.
 Public attestations omit prompts and responses. The core has no runtime dependencies.
 
-`zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `readiness: research_grade` <sub>(scope: **n=52** free-tier **token-count** reconciliation — grounds that the calls existed, not that dollars were saved · [details](#readiness-a-computed-grade-not-a-claim))</sub>
+`zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `historical research-grade run` <sub>(**n=52** matching request IDs and metered-token records; **0 KRY / $0** free-tier self-traffic. Offline agreement does not authenticate the original calls or prove savings · [details](#readiness-a-computed-grade-not-a-claim))</sub>
 
 ![kry running live — a sample routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
 
@@ -78,8 +78,9 @@ KRY external verification — attestation
   receipts:        3 (recomputed from links)
   total_kry:       2436.0 (recomputed from links, not the declared field)
   veracity_floor:  0.3924 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
-                   ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
-                     kry_tlsn_verify to independently check the underlying evidence doc
+                   ↳ anchored tiers are chain-bound LABELS — check TEE evidence with kry_tee_verify
+                     TLSN proofs require Rust attestation_verify with a trusted notary key
+                     kry_tlsn_verify trusts external verifier output; it does not check signatures
   price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
   magnitude:       3/3 links checked; 0 unchecked (legacy inputs absent)
   anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
@@ -130,14 +131,8 @@ SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public pr
     receipts:        11 (recomputed from links)
     total_kry:       3080.4984 (recomputed from links, not the declared field)
     veracity_floor:  0.0000 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
-                     ↳ anchored tiers are chain-bound LABELS — run kry_tee_verify /
-                       kry_tlsn_verify to independently check the underlying evidence doc
     price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
     magnitude:       11/11 links checked; 0 unchecked (legacy inputs absent)
-    anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
-                     here: a genesis re-mint with upgraded tiers passes this check.
-                     Re-run with --anchor <operator's pre-published chain head> to make
-                     a retroactive re-mint detectable.
     VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
   ↑ confirmed by code that does NOT trust the producer — the whole point.
 
@@ -397,8 +392,11 @@ documented in `src/kry/_locks.py` rather than the matrix; and real-world validat
  resulting chain can claim a positive `veracity_floor`: the verifier checks the declared
  tiers' consistency, not whether their witnesses exist. An independently retained prior
  `kry_chain_anchor` makes a later re-mint detectable; it cannot authenticate the original events.
-- **Sybil-resistant identity** — settlement assumes parties are who they claim; KRY does
- not solve identity.
+- **Identity and ownership** — settlement accounting uses the supplied party label.
+ Even an authenticated party can reuse another party's public attestation unless the
+ host's settlement policy binds that identity to an independently enrolled chain anchor.
+ KRY does not supply that authentication or ownership binding; a holder field or an
+ unkeyed hash alone would not establish it. See [settlement policy](docs/KRY_SETTLEMENT_POLICY.md).
 - **Cross-node settlement (HOLE D)** — the double-spend guard is real-time atomic on a single
  HOST (multi-process: the ceiling is re-checked at _commit_ under a cross-process lock), and a
  _published_ `export_registry_anchor()` catches a rollback/un-spend. What is NOT real-time-safe by
@@ -414,8 +412,8 @@ documented in `src/kry/_locks.py` rather than the matrix; and real-world validat
  reconciliation over one shared mutable file (`src/kry/_locks.py` documents this; a platform
  with neither lock primitive warns once and falls back to in-process locks only).
 - **Real-world validation** — the historical reconciliation covers **n=52** free-tier
- `:free`, $0 self-traffic. Matching provider identifiers and token counts grounds that the
- calls existed, not that dollars were saved. The newer
+ `:free`, $0 self-traffic. Its retained request identifiers and metered token counts match;
+ that offline comparison does not authenticate the original calls or prove savings. The newer
  [synthetic API evaluation](docs/evidence/LITELLM_SYNTHETIC_API_2026_10_20.md)
  used real provider responses to invented tasks; it is an integration check, not a customer
  workload or independent billing reconciliation. External verified-savings and
@@ -496,7 +494,7 @@ prototype < prototype_plus < internally_consistent < research_grade < production
 | Level | Evidence required | KRY today |
 |---|---|---|
 | `internally_consistent` | the synthetic suite is fully green | ✅ cleared |
-| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle | ✅ **COMMITTED 2026-06-10** — `confirm()` within TTL; fresh corpus 52/52 @ 1.00 (note ↓). _Scope: **token-count** reconciliation of **n=52 free-tier** (`:free`, $0) self-traffic against the provider's records — it grounds that the calls existed, **not** that dollars were saved._ |
+| `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle; the per-request driver also requires exact request IDs and `RECONCILED` | The retained 2026-06-10 bundle matches **52/52 IDs and token counts**. It records **0 KRY / $0 free-tier self-traffic**. Its historical v2 hashes do not bind request IDs or `metered_tokens`; offline agreement does not authenticate the export or prove savings. |
 | `production_ready` | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
 
 **The top label structurally requires external evidence** — the grader refuses to let
@@ -516,11 +514,12 @@ have tooling: run real `provider_metered`/holdout traffic, then
 > cheap-model adequacy** on real paid calls (GSM8K 87%; code-routing 84% adequacy → up to ~75%
 > cost-avoidance — *model-pair-specific* and assuming the avoided frontier call would have been
 > kept, which is not separately tested; 71% prefix-cacheable, 5-fold/bootstrap). The acceptance gate's correctness specificity was **measured
-> (0% measured)** and a default-off **correctness layer** built + wired. **Committed `research_grade`
-> (2026-06-10):** the host system wired `confirm()` to the general gate, **confirmed within TTL** (the
-> stall broken), and the fresh corpus reconciled **52/52 at agreement 1.00 → `research_grade`** — graded
-> the `--since` fresh-run window; the all-time ~0.12 is dominated by OpenRouter-purged legacy gen-ids
-> (un-fetchable, **not** refuted). `production_ready` still needs **live** real-world traffic + a real counterparty.
+> (0% measured)** and a default-off **correctness layer** built + wired. **Historical `research_grade`
+> result (2026-06-10):** the run reported 52/52 agreement. The current check confirms exact IDs
+> and token counts in the unchanged retained files. Their v2 receipt hashes bind neither request IDs nor `metered_tokens`,
+> and their recorded savings and provider charges are zero. Historical run notes and their
+> private-log explanations are not independent proof of provenance or settlement.
+> `production_ready` still needs independent real-world evidence and a real counterparty.
 > Evidence: [docs/evidence/](docs/evidence/) · [research-grade anchor](docs/KRY_RESEARCH_GRADE_ANCHOR.md) ·
 > [first anchor](docs/KRY_FIRST_REAL_ANCHOR.md) · [savings](docs/KRY_SAVINGS_ANALYSIS.md).
 

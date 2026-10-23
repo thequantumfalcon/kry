@@ -1,0 +1,83 @@
+{
+  "id": "producer_blank_log_lines",
+  "kind": "savings_attestation",
+  "description": "Blank log rows do not change receipt positions.",
+  "input_anchor": {
+    "schema": "kry_chain_anchor/v1",
+    "count": 3,
+    "tip": "73648ebdd71f2790dfe796d9caf466113859ccfe4c9b4fd3ef38688385fc4ea4"
+  },
+  "input": {
+    "receipts": 3,
+    "total_kry": 3000.0,
+    "usd_equivalent": 0.075,
+    "chain_head": "73648ebdd71f2790dfe796d9caf466113859ccfe4c9b4fd3ef38688385fc4ea4",
+    "chain_valid": true,
+    "event_type_counts": {
+      "cache_hit": 3
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000001.0,
+        "receipt_hash": "3fc6b2bbe01379170e58755e9535d38b8b037406db413371656ce84ee482c183",
+        "chain_hash": "67083a26d1181d687d81d64361c3fe1af1338780af5031e1269b366fc2a7f794",
+        "sealed_evidence": "739eddffd8c4ba3c",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000002.0,
+        "receipt_hash": "06fef325330b912a7e700f769d4d8c14e6faac94e5038c50cc5a3c0893321e41",
+        "chain_hash": "593a2c45b934bb73620ceaf3bbb0383b2d978c2f8791012db224d5b531c4cf38",
+        "sealed_evidence": "225b7e14a6efe908",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      },
+      {
+        "seq": 3,
+        "event_type": "cache_hit",
+        "kry_minted": 1000.0,
+        "ts": 1700000003.0,
+        "receipt_hash": "fc66ba87910f7fdc5a53f705feb664a5fadc19bc8c32c0c7877104ec20255af1",
+        "chain_hash": "73648ebdd71f2790dfe796d9caf466113859ccfe4c9b4fd3ef38688385fc4ea4",
+        "sealed_evidence": "433809e4bea00d3f",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 1000.0,
+        "earn_rate": 1.0,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000003"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 3000.0
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 3000.0,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "f0120ea3f1800a57147c0acd2a8dce878f3143af5563a17e7b82982943818799"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}

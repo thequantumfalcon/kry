@@ -1,0 +1,66 @@
+{
+  "id": "producer_floor_rounded_operands",
+  "kind": "savings_attestation",
+  "description": "The veracity floor uses the rounded anchored amount and rounded public total.",
+  "input": {
+    "receipts": 2,
+    "total_kry": 12.9044,
+    "usd_equivalent": 0.000323,
+    "chain_head": "ae8259a6775b976451dcd806771d214694ade45bd4838a3885112993c48a223a",
+    "chain_valid": true,
+    "event_type_counts": {
+      "continuity_capsule": 2
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "continuity_capsule",
+        "kry_minted": 4.868161000000001,
+        "ts": 1700000001.0,
+        "receipt_hash": "b860fc4c4da00cef08de52c425957b7320c9c168fe289fb9ede0c82301d5f22d",
+        "chain_hash": "8e7279de75739ecce9e86b34a28e983c71a3f7d4a40e4250489857d7f15a40e7",
+        "sealed_evidence": "4c495434608b5be1",
+        "evidence_tier": "provider_metered",
+        "tokens_saved": 48.68161,
+        "earn_rate": 0.1,
+        "metered_tokens": [
+          1,
+          1
+        ],
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "continuity_capsule",
+        "kry_minted": 8.036254,
+        "ts": 1700000002.0,
+        "receipt_hash": "2a60a81c7a079c3b19f0e7aad68587ec75a75b911ca4d39dcd95b48b5f86e1ab",
+        "chain_hash": "ae8259a6775b976451dcd806771d214694ade45bd4838a3885112993c48a223a",
+        "sealed_evidence": "d47114329ad088ec",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 80.36254,
+        "earn_rate": 0.1,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "provider_metered": 4.8682,
+        "self_reported": 8.0363
+      },
+      "anchored_kry": 4.8682,
+      "self_reported_kry": 8.0363,
+      "veracity_floor": 0.3773
+    },
+    "attestation_hash": "d1b3a7ee0c204371e0e0244ded0920e9ef12d080dafb58d964f91a4aef123df5"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}
