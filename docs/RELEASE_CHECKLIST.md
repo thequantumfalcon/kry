@@ -23,8 +23,9 @@ blocked until real evidence exists.
  - `scripts/kry_verified_artifact.py`
  - `scripts/kry_finops_report.py`
  - `scripts/kry_doctor.py`
-- Additional checkout-only evidence tools, listed under [Unreleased](../CHANGELOG.md#unreleased)
- and not included in the published 0.1.10 package:
+- Additional checkout-only evidence tools in [0.1.11](../CHANGELOG.md#0111---2026-10-22).
+ They require this checkout or the full GitHub source archive; the PyPI wheel and
+ installable source distribution contain the core and standalone verifier only:
  - `scripts/kry_evidence_assess.py` — supplied-export token consistency assessment.
  - `scripts/kry_usage_link.py` — individual row commitment and linkage checks.
  - `scripts/kry_anthropic_usage.py` — a narrow, pinned-model list-price estimate.
@@ -129,7 +130,8 @@ Expected packet result on bundled sample data:
 - Push a signed `vX.Y.Z` tag on the release commit, with the version matching `pyproject.toml`. Use
   the GitHub noreply address as the tagger email: GitHub rejects a push that would publish a private
   email address, and `.github/allowed_signers` lists the noreply address.
-- The Release workflow's `gate` job checks the tag format and signature and runs
+- The Release workflow checks the tag format, package-version match and signature before
+  gating or publishing. Its `gate` job runs
   `scripts/kry_release_verify.py --full`.
 - Approve `publish` in the `release` environment. It creates the GitHub Release with the wheel,
   sdist, source tarball, `checksums.txt`, the release-verify proof and build provenance.

@@ -222,10 +222,12 @@ and step 4 uses them.
 [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
 The steps below use a checkout.
 
-The LiteLLM capture and durability changes, optional evidence assessment and row
-commitments, Anthropic helpers, and aggregate reconciliation fixes are listed under
-[Unreleased](CHANGELOG.md#unreleased). Use this checkout for those features; they
-are not included in the published 0.1.10 package.
+Version 0.1.11 includes the core receipt and LiteLLM callback fixes. See the
+[changelog](https://github.com/thequantumfalcon/kry/blob/v0.1.11/CHANGELOG.md)
+for the full changes and stricter reconciliation requirements. The PyPI package
+provides the core library, `kry-try` and `kry-verify`. Additional scripts for evidence
+assessment, row commitments, Anthropic usage/projection and reconciliation require
+this checkout or the full GitHub source archive; they are not installed by pip.
 
 ```bash
 # 0) Create a virtual environment (Python 3.11 or newer), then install this checkout with the test tools

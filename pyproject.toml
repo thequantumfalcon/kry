@@ -5,8 +5,8 @@ backend-path = ["."]
 
 [project]
 name = "kry-attest"   # PyPI distribution name ("kry" is an unrelated PyPI package); import name stays `kry`
-version = "0.1.10"
-description = "KRY — proof-of-efficiency compute credit (earn by avoiding inference cost, spend on routing permission)"
+version = "0.1.11"
+description = "Tamper-evident receipts for reported LLM efficiency events, with offline integrity and benchmark-arithmetic verification"
 keywords = [
     "llm", "llmops", "llm-cost-optimization", "inference-cost", "model-routing",
     "finops", "cost-optimization", "proof-of-efficiency", "verifiable-compute",
@@ -17,8 +17,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []   # zero-dependency, pure stdlib
 
-# "3 - Alpha" tracks the 0.1.x version and the README's own `readiness: research_grade`; do not
-# promote it ahead of either. The Python entries mirror `requires-python`, and the License
+# "3 - Alpha" tracks the 0.1.x version and the README's disclosed evidence limits; do not
+# promote it on the strength of historical self-traffic. The Python entries mirror `requires-python`, and the License
 # classifier pairs with the free-text `License:` field above — swapping that field for a PEP 639
 # `License-Expression` would make PyPI reject this classifier.
 classifiers = [
