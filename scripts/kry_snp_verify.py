@@ -69,6 +69,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import struct
 import sys
 from pathlib import Path
@@ -278,12 +279,13 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
 
     Mirrors kry_tee_verify.run / kry_tlsn_verify.run: fail-closed gate → extract the
     attested measurement → promote a prior self_reported/holdout receipt to tee_attested
-    (no double-credit), or mint fresh tee_attested value when none exists."""
+    (no double-credit), or mint fresh tee_attested value when none exists. Measurement
+    IDs must be nonempty strings without '/' or whitespace, matching receipt markers."""
     if att.get("verified") is not True:
         return {"verdict": "REJECTED", "errors": att.get("errors") or ["report not verified"]}
 
     m = att.get("parsed_measurement") or {}
-    mid = measurement_id or m.get("measurement_id")
+    mid = measurement_id if measurement_id is not None else m.get("measurement_id")
     basis = tokens_saved if tokens_saved is not None else m.get("tokens_saved")
     basis = _positive_finite_number(basis)
     avoided = avoided_model or m.get("avoided_model")
@@ -300,10 +302,14 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
         "tokens_saved_basis": basis,
     }
 
-    if not mid:
+    if mid is None:
         result["verdict"] = "NO_MEASUREMENT_ID"
         result["note"] = ("the attested measurement carries no measurement_id — cannot bind "
                           "the report to a measurement (pass --measurement-id or embed it)")
+        return result
+    if not isinstance(mid, str) or re.fullmatch(r"[^/\s]+", mid) is None:
+        result["verdict"] = "INVALID_MEASUREMENT_ID"
+        result["note"] = "measurement_id must be a nonempty string without '/' or whitespace"
         return result
     if basis <= 0:
         result["verdict"] = "NO_BASIS"
@@ -456,7 +462,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  avoided model:    {av.get('value')}  (source: {av.get('source')})")
     print(f"  served model:     {result.get('served_model')}")
 
-    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_MEASUREMENT_ID"):
+    if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_MEASUREMENT_ID",
+                              "INVALID_MEASUREMENT_ID"):
         print(f"  -> {result['note']}")
         return 1
     if result["verdict"] == "ALREADY_UPGRADED":

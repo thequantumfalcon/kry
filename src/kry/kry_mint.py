@@ -693,13 +693,12 @@ def _find_fresh_tee_receipt_for_measurement(measurement_id: str) -> Optional[dic
     tier_promotion rows. Exact measurement-id match. Returns the raw receipt dict, or None."""
     if not measurement_id or not _MINT_LOG_PATH.exists():
         return None
-    marker = f"/measurement:{measurement_id}"
     found: Optional[dict] = None
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or marker not in line:
+                if not line:
                     continue
                 rec = _json_loads(line)
                 if measurement_id not in _MEASUREMENT_REF.findall(str(rec.get("detail") or "")):
@@ -827,14 +826,13 @@ def _find_measurement_receipt_for_tee(measurement_id: str) -> Optional[dict]:
     None when no prior measurement receipt exists (then tee mints fresh value)."""
     if not measurement_id or not _MINT_LOG_PATH.exists():
         return None
-    marker = f"/measurement:{measurement_id}"
     _UPGRADABLE = {TIER_SELF_REPORTED, TIER_HOLDOUT_VALIDATED}
     found: Optional[dict] = None
     try:
         with open(_MINT_LOG_PATH, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or marker not in line:
+                if not line:
                     continue
                 rec = _json_loads(line)
                 if measurement_id not in _MEASUREMENT_REF.findall(str(rec.get("detail") or "")):
@@ -877,7 +875,11 @@ def promote_to_tee(
     Idempotent: a second promotion of the same measurement id is a no-op (returns None).
 
     Returns (promotion_receipt, superseded_receipt_id, moved_kry), or None when no
-    matching un-promoted measurement receipt exists (caller then mints fresh tee value)."""
+    matching un-promoted measurement receipt exists (caller then mints fresh tee value).
+    Raises ValueError for IDs that are not nonempty strings without '/' or whitespace;
+    invalid IDs must not be mistaken for permission to mint fresh value."""
+    if not isinstance(measurement_id, str) or re.fullmatch(r"[^/\s]+", measurement_id) is None:
+        raise ValueError("measurement_id must be a nonempty string without '/' or whitespace")
     prior = _find_measurement_receipt_for_tee(measurement_id)
     if prior is None:
         return None

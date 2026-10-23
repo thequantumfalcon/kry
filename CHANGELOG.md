@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-10-22
+
+### Fixed
+
+- TEE and SEV-SNP minting could credit the same measurement repeatedly when its
+  ID contained a slash or whitespace. Both entry points and direct TEE promotion
+  now reject IDs outside the receipt marker's nonempty, delimiter-safe format.
+  Explicit invalid overrides no longer fall back to an embedded ID, and CLI
+  rejection exits nonzero even in dry-run mode.
+- TEE receipt lookups searched raw JSON before decoding it, missing valid IDs
+  containing escaped characters and permitting repeated credit. Both lookups
+  now compare complete IDs in decoded receipt details.
+
 ## [0.1.11] - 2026-10-22
 
 ### Fixed
@@ -1176,7 +1189,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.11...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.12...HEAD
+[0.1.12]: https://github.com/thequantumfalcon/kry/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/thequantumfalcon/kry/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/thequantumfalcon/kry/compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com/thequantumfalcon/kry/compare/v0.1.8...v0.1.9
