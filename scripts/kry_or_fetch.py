@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sys
@@ -53,10 +54,19 @@ def _json_dumps(value, **kwargs) -> str:
     return json.dumps(value, allow_nan=False, **kwargs)
 
 
-def extract_or_ids(mint_log_path: str) -> list[str]:
+def extract_or_ids(mint_log_path: str, *, since: float | None = None,
+                   until: float | None = None) -> list[str]:
     """Generation ids from provider_metered receipts whose `detail` carries an
     `/openrouter:<id>` handle (the host stamps it there — `detail` is stored RAW,
-    unlike `evidence` which is hashed). De-duplicated, order preserved."""
+    unlike `evidence` which is hashed). De-duplicated, order preserved. Optional
+    bounds select the same half-open receipt-time window as reconciliation."""
+    for name, bound in (("since", since), ("until", until)):
+        if bound is not None and (isinstance(bound, bool)
+                                  or not isinstance(bound, (int, float))
+                                  or not math.isfinite(bound)):
+            raise ValueError(f"{name} must be a finite number")
+    if since is not None and until is not None and since >= until:
+        raise ValueError("receipt window requires since < until")
     ids: list[str] = []
     with open(mint_log_path, encoding="utf-8") as f:
         for line in f:
@@ -66,6 +76,17 @@ def extract_or_ids(mint_log_path: str) -> list[str]:
             rec = _json_loads(line)
             if rec.get("evidence_tier") != "provider_metered":
                 continue
+            if since is not None or until is not None:
+                ts = rec.get("ts")
+                if ts is None:
+                    continue
+                if (isinstance(ts, bool) or not isinstance(ts, (int, float))
+                        or not math.isfinite(ts)):
+                    raise ValueError("receipt ts must be a finite number")
+                if since is not None and ts < since:
+                    continue
+                if until is not None and ts >= until:
+                    continue
             m = _OR_REF.search(str(rec.get("detail") or ""))
             if m:
                 ids.append(m.group(1))
@@ -147,9 +168,15 @@ def main(argv: list[str] | None = None) -> int:
                    help="write provider-export JSON here (default: stdout)")
     p.add_argument("--api-key", default=None,
                    help="OpenRouter key (default: $OPENROUTER_API_KEY)")
+    p.add_argument("--since", type=float, default=None, help="receipts with ts >= SINCE")
+    p.add_argument("--until", type=float, default=None, help="receipts with ts < UNTIL")
     args = p.parse_args(argv)
 
-    ids = extract_or_ids(args.mint_log)
+    try:
+        ids = extract_or_ids(args.mint_log, since=args.since, until=args.until)
+    except ValueError as exc:
+        print(f"fetch window invalid: {exc}", file=sys.stderr)
+        return 2
     if not ids:
         print("No OpenRouter-anchored provider_metered receipts found "
               "(evidence with /openrouter:<id>). Nothing to fetch.", file=sys.stderr)

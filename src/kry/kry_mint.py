@@ -52,6 +52,7 @@ logger = logging.getLogger("kry.mint")
 # resolve a different session's receipt ('/openrouter:gen-1234…'), mis-binding a T2 proof / avoided
 # model. Membership in the extracted id list is an exact match.
 _OR_REF = re.compile(r"/openrouter:([^/\s]+)")
+_MEASUREMENT_REF = re.compile(r"/measurement:([^/\s]+)")
 
 
 def _kry_data_dir() -> Path:
@@ -701,7 +702,7 @@ def _find_fresh_tee_receipt_for_measurement(measurement_id: str) -> Optional[dic
                 if not line or marker not in line:
                     continue
                 rec = _json_loads(line)
-                if marker not in str(rec.get("detail") or ""):
+                if measurement_id not in _MEASUREMENT_REF.findall(str(rec.get("detail") or "")):
                     continue
                 if rec.get("evidence_tier") != TIER_TEE_ATTESTED:
                     continue
@@ -836,7 +837,7 @@ def _find_measurement_receipt_for_tee(measurement_id: str) -> Optional[dict]:
                 if not line or marker not in line:
                     continue
                 rec = _json_loads(line)
-                if marker not in str(rec.get("detail") or ""):
+                if measurement_id not in _MEASUREMENT_REF.findall(str(rec.get("detail") or "")):
                     continue
                 if rec.get("evidence_tier") not in _UPGRADABLE:
                     continue
@@ -1465,16 +1466,18 @@ def veracity_breakdown() -> dict:
     anchored = sum(v for t, v in by_tier.items() if t in _ANCHORED_TIERS)
     tlsn = by_tier.get(TIER_TLSN_ATTESTED, 0.0)
     tee = by_tier.get(TIER_TEE_ATTESTED, 0.0)
+    rounded_total = round(total, 4)
+    rounded_anchored = round(anchored, 4)
     return {
         "by_tier": {t: round(v, 4) for t, v in by_tier.items()},
-        "total_kry": round(total, 4),
-        "anchored_kry": round(anchored, 4),
+        "total_kry": rounded_total,
+        "anchored_kry": rounded_anchored,
         "self_reported_kry": round(by_tier.get(TIER_SELF_REPORTED, 0.0), 4),
         "tlsn_attested_kry": round(tlsn, 4),                       # T2: cryptographically notarized
         "tlsn_attested_fraction": round(tlsn / total, 4) if total > 0 else 0.0,
         "tee_attested_kry": round(tee, 4),                         # T2: measured in attested hardware
         "tee_attested_fraction": round(tee / total, 4) if total > 0 else 0.0,
-        "veracity_floor": round(anchored / total, 4) if total > 0 else 0.0,
+        "veracity_floor": round(rounded_anchored / rounded_total, 4) if rounded_total > 0 else 0.0,
         "note": ("veracity_floor = fraction backed by something STRONGER than bare operator "
                  "self-report — an EXTERNAL anchor (TEE / TLS-notary) OR an OPERATOR-RUN measurement "
                  "(provider metering / holdout). 'anchored' is NOT all third-party: provider_metered "

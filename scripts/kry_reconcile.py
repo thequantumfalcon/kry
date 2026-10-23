@@ -15,8 +15,10 @@ billing/activity log is the witness. stdlib only; reads either the private mint 
 or a minimal `kry_t1_reconciliation_manifest/v1` derived from it.
 
 Two modes:
-  - per-request (default): greedy 1:1 match of each T1 receipt to a provider
-    usage record by token counts, not request identity. Requires a separately
+  - per-request (default): exact one-to-one request-ID join when either input
+    supplies IDs, then a token-count comparison. IDless inputs retain explicitly
+    labeled token-count-only consistency, which does not establish request
+    identity and cannot advance the research grade. Requires a separately
     retrievable per-request source, such as OpenRouter's generation API.
     The standard OpenAI/Anthropic organization usage/cost APIs return time-bucket
     aggregates; do not assume they supply per-call exports. An inference key
@@ -60,8 +62,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
+import re
 import sys
 from fractions import Fraction
 
@@ -254,34 +258,94 @@ def provider_record_rows(raw: object) -> list[dict]:
     return []
 
 
+_OR_REF = re.compile(r"/openrouter:([^/\s]+)")
+_REQUEST_DIGEST = re.compile(r"[0-9a-f]{64}")
+
+
+def request_id_digest(record: dict, *, receipt: bool = False) -> str | None:
+    """Return an exact request-ID join key, never a proof of source authenticity.
+
+    Public T1 manifests retain only a SHA-256 projection of the identifier. This
+    projection is not bound by existing receipt chain hashes; raw mint-log detail
+    and provider exports remain operator-supplied reconciliation inputs.
+    Missing, malformed or conflicting identifiers cannot become a join key.
+    """
+    values = []
+    if receipt:
+        detail = record.get("detail")
+        if isinstance(detail, str):
+            values.extend(_OR_REF.findall(detail))
+        if "provider_request_id" in record:
+            values.append(record["provider_request_id"])
+    else:
+        values.extend(record[key] for key in ("id", "request_id") if key in record)
+    if any(not isinstance(value, str) or not value or value.strip() != value
+           for value in values):
+        return None
+    digests = {hashlib.sha256(value.encode("utf-8")).hexdigest() for value in values}
+    if receipt and "provider_request_id_sha256" in record:
+        digest = record["provider_request_id_sha256"]
+        if not isinstance(digest, str) or not _REQUEST_DIGEST.fullmatch(digest):
+            return None
+        digests.add(digest)
+    return next(iter(digests)) if len(digests) == 1 else None
+
+
+def _has_request_id(record: dict, *, receipt: bool = False) -> bool:
+    if receipt:
+        return ("provider_request_id" in record or "provider_request_id_sha256" in record
+                or "/openrouter:" in str(record.get("detail", "")))
+    return "id" in record or "request_id" in record
+
+
 def reconcile(t1_receipts: list[dict], provider_records: list[dict],
               *, tolerance: int = 0) -> dict:
     """Match each T1 receipt's metered tokens to a provider usage record.
 
-    Greedy one-to-one: each provider record backs at most one receipt (so N
-    receipts need N distinct provider calls — a single real call can't anchor
-    many claims). tolerance allows minor per-side token accounting differences.
+    When either input supplies request IDs, join unique exact IDs first; missing,
+    duplicate or conflicting IDs never fall back to token matching. When neither
+    input has IDs, retain legacy one-to-one token consistency only and label it
+    token_counts_only. tolerance allows minor per-side accounting differences.
     """
     tolerance = _validate_tolerance(tolerance)
     pool = [(_norm_provider(r), _legacy_uncached_prompt(r)) for r in provider_records]
+    by_identity = (any(_has_request_id(r, receipt=True) for r in t1_receipts)
+                   or any(_has_request_id(r) for r in provider_records))
+    receipt_ids = [request_id_digest(r, receipt=True) for r in t1_receipts]
+    provider_ids = [request_id_digest(r) for r in provider_records]
+    provider_index = {}
+    for i, identity in enumerate(provider_ids):
+        if identity is not None:
+            provider_index.setdefault(identity, []).append(i)
+    receipt_counts = {}
+    for identity in receipt_ids:
+        receipt_counts[identity] = receipt_counts.get(identity, 0) + 1
     used = [False] * len(pool)
     matched: list[dict] = []
     unmatched: list[dict] = []
     legacy_matches = 0
-    for rcpt in t1_receipts:
+    for receipt_index, rcpt in enumerate(t1_receipts):
         try:
             rp, rc = _metered_pair(rcpt.get("metered_tokens"))
         except ValueError as exc:
             raise ValueError(f"T1 receipt {rcpt.get('receipt_id')}: {exc}") from exc
         hit = None
-        for i, ((pp, cc), _) in enumerate(pool):
+        candidates = range(len(pool))
+        if by_identity:
+            identity = receipt_ids[receipt_index]
+            identified = provider_index.get(identity, [])
+            candidates = (identified if identity is not None
+                          and receipt_counts[identity] == 1 and len(identified) == 1 else [])
+        for i in candidates:
+            (pp, cc), _ = pool[i]
             if not used[i] and abs(pp - rp) <= tolerance and abs(cc - rc) <= tolerance:
                 hit = i
                 break
         legacy = False
         if hit is None:
             # A receipt minted before prompts counted Anthropic cache tokens: match its uncached count.
-            for i, ((_, cc), lp) in enumerate(pool):
+            for i in candidates:
+                (_, cc), lp = pool[i]
                 if (not used[i] and lp is not None and abs(lp - rp) <= tolerance
                         and abs(cc - rc) <= tolerance):
                     hit, legacy = i, True
@@ -294,6 +358,7 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
             unmatched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc]})
     total = len(t1_receipts)
     return {
+        "matching_basis": "request_id" if by_identity else "token_counts_only",
         "t1_receipts": total,
         "provider_records": len(pool),
         "matched": len(matched),
@@ -305,8 +370,10 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
         "verdict": ("NO_T1_RECEIPTS" if not total
                     else "RECONCILED" if not unmatched else "DISCREPANCY"),
         "note": ("unmatched T1 receipts = a provider_metered claim with NO "
-                 "corresponding provider usage record → the external anchor is "
-                 "missing for that KRY; investigate or downgrade to self_reported"),
+                 "corresponding provider usage record; request_id matching joins supplied "
+                 "identifiers before checking counts. token_counts_only matching does "
+                 "not establish request identity. Neither mode authenticates the export "
+                 "or establishes charges, receipt-ID binding, or savings veracity"),
     }
 
 
@@ -385,8 +452,8 @@ def main(argv: list[str] | None = None) -> int:
                         "aggregate total / list of aggregates (aggregate mode). "
                         "Omit to PREVIEW the T1 receipts + ts window you need to cover.")
     p.add_argument("--mode", choices=["per-request", "aggregate"], default="per-request",
-                   help="per-request: greedy 1:1 match (providers that export each call, "
-                        "e.g. OpenRouter). aggregate: sum-vs-billed-total (providers with "
+                   help="per-request: ID join or labeled IDless token consistency (e.g. "
+                        "OpenRouter). aggregate: sum-vs-billed-total (providers with "
                         "only aggregate billing, e.g. Google)")
     p.add_argument("--tolerance", type=int, default=0,
                    help="per-request: allowed per-side token difference (default 0 = exact)")
@@ -478,7 +545,11 @@ def main(argv: list[str] | None = None) -> int:
         for u in result["unmatched_receipts"]:
             print(f"    - {u['receipt_id']} metered={u['metered']}")
         return 1
-    print("  VERDICT: RECONCILED — every T1 claim is anchored to a provider record.")
+    print(f"  matching basis:                 {result['matching_basis']}")
+    if result["matching_basis"] == "token_counts_only":
+        print("  VERDICT: RECONCILED — token counts match; request identity is unproved.")
+    else:
+        print("  VERDICT: RECONCILED — supplied request IDs and token counts match.")
     return 0
 
 

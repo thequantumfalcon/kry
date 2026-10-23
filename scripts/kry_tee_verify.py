@@ -99,7 +99,8 @@ _BREAK = object()   # CBOR "break" stop code (0xff) terminating an indefinite-le
 _CBOR_MAX_DEPTH = 64   # EXT-2: max CBOR nesting before failing closed (vs an uncaught RecursionError)
 
 
-def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
+def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0, *,
+                 allow_break: bool = False) -> tuple[object, int]:
     """Decode one CBOR item starting at index i. Returns (value, next_index)."""
     if depth > _CBOR_MAX_DEPTH:    # EXT-2: bound recursion -> clean _CBORError, not a RecursionError
         raise _CBORError("CBOR nesting too deep")
@@ -111,11 +112,16 @@ def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
 
     if ai == 31:                           # indefinite-length item (or the break code)
         if major == 7:                     # 0xff — break stop code
+            if not allow_break:
+                raise _CBORError("unexpected CBOR break")
             return _BREAK, i
         if major in (2, 3):                # indefinite byte/text string: concat chunks
             chunks = []
             while True:
-                item, i = _cbor_decode(buf, i, depth + 1)
+                if i < len(buf) and buf[i] != 0xff:
+                    if buf[i] >> 5 != major or buf[i] & 0x1f == 31:
+                        raise _CBORError("CBOR string chunk must have the same definite-length type")
+                item, i = _cbor_decode(buf, i, depth + 1, allow_break=True)
                 if item is _BREAK:
                     break
                 chunks.append(item)
@@ -123,7 +129,7 @@ def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
         if major == 4:                     # indefinite array
             out = []
             while True:
-                item, i = _cbor_decode(buf, i, depth + 1)
+                item, i = _cbor_decode(buf, i, depth + 1, allow_break=True)
                 if item is _BREAK:
                     break
                 out.append(item)
@@ -131,14 +137,19 @@ def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
         if major == 5:                     # indefinite map
             out_map: dict = {}
             while True:
-                k, i = _cbor_decode(buf, i, depth + 1)
+                k, i = _cbor_decode(buf, i, depth + 1, allow_break=True)
                 if k is _BREAK:
                     break
                 v, i = _cbor_decode(buf, i, depth + 1)
-                out_map[k] = v
+                try:
+                    out_map[k] = v
+                except TypeError as e:
+                    raise _CBORError("unsupported CBOR map key") from e
             return out_map, i
         raise _CBORError(f"indefinite-length not valid for major type {major}")
 
+    if 24 <= ai <= 27 and i + (1 << (ai - 24)) > len(buf):
+        raise _CBORError("truncated CBOR argument")
     if ai < 24:
         val = ai
     elif ai == 24:
@@ -160,10 +171,15 @@ def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
         return val, i
     if major == 1:                         # negative int
         return -1 - val, i
+    if major in (2, 3) and i + val > len(buf):
+        raise _CBORError("truncated CBOR string")
     if major == 2:                         # byte string
         return buf[i:i + val], i + val
     if major == 3:                         # text string
-        return buf[i:i + val].decode("utf-8"), i + val
+        try:
+            return buf[i:i + val].decode("utf-8"), i + val
+        except UnicodeDecodeError as e:
+            raise _CBORError("CBOR text string is not valid UTF-8") from e
     if major == 4:                         # array
         out = []
         for _ in range(val):
@@ -175,7 +191,10 @@ def _cbor_decode(buf: bytes, i: int = 0, depth: int = 0) -> tuple[object, int]:
         for _ in range(val):
             k, i = _cbor_decode(buf, i, depth + 1)
             v, i = _cbor_decode(buf, i, depth + 1)
-            out_map[k] = v
+            try:
+                out_map[k] = v
+            except TypeError as e:
+                raise _CBORError("unsupported CBOR map key") from e
         return out_map, i
     if major == 6:                         # tag — decode and return the tagged item
         item, i = _cbor_decode(buf, i, depth + 1)
@@ -310,7 +329,9 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
 
     # 1. COSE_Sign1 structure
     try:
-        cose, _ = _cbor_decode(doc_bytes)
+        cose, end = _cbor_decode(doc_bytes)
+        if end != len(doc_bytes):
+            raise _CBORError("trailing bytes after COSE_Sign1")
     except _CBORError as e:
         errs.append(f"attestation is not decodable CBOR: {e}")
         return result
@@ -318,6 +339,11 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
         errs.append("not a COSE_Sign1 (expected a 4-element array)")
         return result
     protected_bytes, _unprotected, payload_bytes, signature = cose
+    if not (isinstance(protected_bytes, bytes) and isinstance(_unprotected, dict)
+            and isinstance(payload_bytes, bytes)):
+        errs.append("COSE protected header and payload must be byte strings; "
+                    "unprotected header must be a map")
+        return result
     if not isinstance(signature, (bytes, bytearray)) or len(signature) != 96:
         errs.append("COSE signature is not a 96-byte ES384 (P-384 r||s) value")
         return result
@@ -328,8 +354,9 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
     prot_alg_ok = False
     try:
         if protected_bytes:
-            prot_hdr, _ = _cbor_decode(bytes(protected_bytes))
-            prot_alg_ok = isinstance(prot_hdr, dict) and prot_hdr.get(1) == COSE_ALG_ES384
+            prot_hdr, end = _cbor_decode(protected_bytes)
+            prot_alg_ok = (end == len(protected_bytes) and isinstance(prot_hdr, dict)
+                           and prot_hdr.get(1) == COSE_ALG_ES384)
     except _CBORError:
         prot_alg_ok = False
     if not prot_alg_ok:
@@ -338,7 +365,9 @@ def verify_attestation(doc_bytes: bytes, *, root_cert_der: bytes,
 
     # decode the attestation payload
     try:
-        doc, _ = _cbor_decode(bytes(payload_bytes))
+        doc, end = _cbor_decode(payload_bytes)
+        if end != len(payload_bytes):
+            raise _CBORError("trailing bytes after attestation payload")
     except _CBORError as e:
         errs.append(f"attestation payload is not decodable CBOR: {e}")
         return result

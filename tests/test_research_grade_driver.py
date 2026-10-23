@@ -59,7 +59,7 @@ def test_full_agreement_reaches_research_grade(tmp_path):
 def test_flat_provider_record_reaches_research_grade_for_single_t1(tmp_path):
     mod = _load()
     log = _t1_log(tmp_path, 1)
-    export = {"prompt_tokens": 100, "completion_tokens": 200}
+    export = {"id": "gen-0", "prompt_tokens": 100, "completion_tokens": 200}
 
     r = mod.assess(log, provider_export=export)
 
@@ -69,13 +69,16 @@ def test_flat_provider_record_reaches_research_grade_for_single_t1(tmp_path):
     assert r["research_grade_reached"] is True
 
 
-def test_eighty_percent_is_the_boundary(tmp_path):
+def test_eighty_percent_agreement_does_not_override_discrepancy(tmp_path):
     mod = _load()
     log = _t1_log(tmp_path, 5)
     export = [_provider_record(i) for i in range(4)]   # 4/5 = 0.80, exactly the bar
     r = mod.assess(log, provider_export=export)
     assert r["independent_agreement"] == 0.80
-    assert r["research_grade_reached"] is True         # >= bar passes
+    assert r["reconcile"]["verdict"] == "DISCREPANCY"
+    assert r["research_grade_reached"] is False
+    assert r["readiness_label"] == "internally_consistent"
+    assert any("DISCREPANCY" in reason for reason in r["reasons"])
 
 
 def test_below_bar_does_not_advance(tmp_path):

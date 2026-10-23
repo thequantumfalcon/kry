@@ -339,10 +339,11 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
     prev_version = 0
     if path.exists():
         with open(path, encoding="utf-8") as f:
-            for i, line in enumerate(f, 1):
+            for line in f:
                 line = line.strip()
                 if not line:
                     continue
+                i = len(links) + 1
                 rec = _json_loads(line)
 
                 # Verify chain link (same logic an external verifier runs) — v4 binds the public block.
@@ -418,17 +419,19 @@ def build_attestation(mint_log_path: Optional[Path] = None) -> Attestation:
     # under-reported the anchored fraction). Anchored = the non-self_reported tiers (_ANCHORED_TIERS).
     from kry.kry_mint import _ANCHORED_TIERS, _apply_promotion_overlay
     _apply_promotion_overlay(tier_kry, promotions, kry_by_receipt)
-    anchored = sum(v for t, v in tier_kry.items() if t in _ANCHORED_TIERS)
+    # SPEC §§3.1/3.5 derive USD and the floor from the rounded public amounts.
+    total_kry = round(total_kry, 4)
+    anchored = round(sum(v for t, v in tier_kry.items() if t in _ANCHORED_TIERS), 4)
     veracity = {
         "by_tier": {t: round(v, 4) for t, v in tier_kry.items()},
-        "anchored_kry": round(anchored, 4),
+        "anchored_kry": anchored,
         "self_reported_kry": round(tier_kry.get("self_reported", 0.0), 4),
         "veracity_floor": round(anchored / total_kry, 4) if total_kry > 0 else 0.0,
     }
 
     att = Attestation(
         receipts=len(links),
-        total_kry=round(total_kry, 4),
+        total_kry=total_kry,
         usd_equivalent=round(total_kry * 0.000025, 6),
         chain_head=chain_head,
         chain_valid=valid,

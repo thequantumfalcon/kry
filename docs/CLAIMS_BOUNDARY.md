@@ -22,14 +22,23 @@ subject is void.
  tradeable-token claims.
 - The release verifier can run install, compileall, ruff, pytest, attribution,
  packet, doctor, diff-check, dry-run untracked-file, and reproducibility gates.
-- `research_grade` readiness, reached 2026-06-10: a fresh real-traffic run reconciled
- 52/52 against the provider's own per-request records at agreement 1.00 (≥ the 0.80 bar).
- Evidence: `docs/evidence/research_grade/` (offline-verifiable) and `docs/KRY_READINESS.md`.
- Honest scope: graded the fresh-run window; the all-time ledger is lower only because some
- legacy generation-ids are provider-purged (un-fetchable, **not** refuted).
-- Provider-reconciled savings **for that window** (same bundle): the operator cannot inflate
- the reconciled token counts without the check against the provider export breaking. This is
- reconciliation veracity, **not** an external verified-savings claim (that stays blocked below).
+- The retained 2026-06-10 research bundle has 52 unique request IDs on each side,
+ 52 one-to-one ID matches and no token-count mismatches. It records **0 KRY and $0
+ provider cost**, from free-tier self-traffic. The original run reported `research_grade`;
+ the current per-request driver requires exact request-ID matching and a `RECONCILED` verdict.
+ The generic readiness rubric retains its 0.80 agreement threshold; a partial match
+ with a discrepancy is not eligible evidence for that threshold.
+- The historical bundle's v2 receipt hashes bind neither `metered_tokens` nor request IDs.
+ Offline comparison establishes consistency of the retained files, not provider
+ authenticity or an authenticated savings amount. Current v7 hashes bind metered
+ tokens but not the request ID in `detail`; the optional manifest request-ID digest
+ supports a file join and is not an authenticated ownership or provenance binding.
+ Pinning the retained files detects subsequent edits, not false original data.
+ See `docs/KRY_RESEARCH_GRADE_ANCHOR.md` for the reproducible check and its limits.
+- Settlement validates arithmetic and registry accounting under a supplied party
+ label. It does not bind an attestation to its owner: even an authenticated party
+ can reuse someone else's public attestation unless external policy binds identity
+ to an independently enrolled chain anchor. Receipt hashes are not digital signatures.
 - The **action-receipt layer** (`kry_action`) gives tamper-evident, content-free, hash-chained
  receipts for agent ACTIONS, with a stdlib stranger verifier (`scripts/kry_action_verify.py`) and
  automated regression coverage (`tests/test_action.py`, `tests/test_action_concurrency.py`, incl. a
@@ -98,7 +107,9 @@ release environment:
 - TEE/Nitro path: requires real AWS Nitro hardware, `cryptography`, Nitro tooling,
  and the PoC verifier output.
 - TLSNotary T2 path: requires the TLSNotary toolchain and an independently run
- notary if claiming third-party neutrality.
+ notary if claiming third-party neutrality. The Python presentation importer trusts
+ `verified: true` and only compares key fields; Rust `attestation_verify` must
+ independently check the original proof against a trusted notary key.
 
 ## Approved Short Description
 

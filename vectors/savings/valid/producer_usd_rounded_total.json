@@ -1,0 +1,63 @@
+{
+  "id": "producer_usd_rounded_total",
+  "kind": "savings_attestation",
+  "description": "USD is derived from the rounded public total, not its floating-point accumulator.",
+  "input": {
+    "receipts": 2,
+    "total_kry": 5947.1,
+    "usd_equivalent": 0.148678,
+    "chain_head": "d6c04f3385dcd1088bc9fce5300ae397070a5c346c8a50e9ca9479931bbcb5fa",
+    "chain_valid": true,
+    "event_type_counts": {
+      "feed_bag_deposit": 1,
+      "compression": 1
+    },
+    "links": [
+      {
+        "seq": 1,
+        "event_type": "feed_bag_deposit",
+        "kry_minted": 4228.7,
+        "ts": 1700000001.0,
+        "receipt_hash": "e36eac30dff8f62fb96548d74d822dab8c07d399d236d575bbe0574998915207",
+        "chain_hash": "de97cf3d291d1d3d219635df43776982bb5bdf8340f1a6db840d73e236d8bfd7",
+        "sealed_evidence": "ec9012c95dfebd18",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 6041.0,
+        "earn_rate": 0.7,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000001"
+      },
+      {
+        "seq": 2,
+        "event_type": "compression",
+        "kry_minted": 1718.3999999999999,
+        "ts": 1700000002.0,
+        "receipt_hash": "c56a41adb9131a37d3b8e473d55ec5219d926510acd025da69a659ed0ace2435",
+        "chain_hash": "d6c04f3385dcd1088bc9fce5300ae397070a5c346c8a50e9ca9479931bbcb5fa",
+        "sealed_evidence": "851cc571ea50c41e",
+        "evidence_tier": "self_reported",
+        "tokens_saved": 2864.0,
+        "earn_rate": 0.6,
+        "metered_tokens": null,
+        "hash_version": 7,
+        "supersedes": null,
+        "receipt_id": "KRY-00000002"
+      }
+    ],
+    "veracity": {
+      "by_tier": {
+        "self_reported": 5947.1
+      },
+      "anchored_kry": 0,
+      "self_reported_kry": 5947.1,
+      "veracity_floor": 0.0
+    },
+    "attestation_hash": "ae9fa084b9c4a31777461af7e33cb98995d788fd18015a5b2d92ab1893f26af9"
+  },
+  "expected": {
+    "verdict": "VALID",
+    "reasons": []
+  }
+}

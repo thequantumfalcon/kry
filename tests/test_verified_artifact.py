@@ -72,7 +72,8 @@ def _mint_explicit_fixture(sr, records, att_path):
     sr._mint_and_attest(other, None)
     for normalized in displacements:
         receipt = km.mint(
-            "short_circuit", normalized["completion"], "constructed explicit provider fixture",
+            "short_circuit", normalized["completion"],
+            f"constructed explicit provider fixture /openrouter:{normalized['id']}",
             evidence=f"fixture:{normalized['id']}", avoided_model=normalized["avoided_model"],
             served_model=normalized["served_model"], evidence_tier=km.TIER_PROVIDER_METERED,
             metered_tokens=[normalized["prompt"], normalized["completion"]],
@@ -502,7 +503,7 @@ def test_bundled_sample_cannot_be_declared_real_for_external_candidate(tmp_path,
     att_path = tmp_path / "attestation.json"
     _mint_explicit_fixture(sr, records, att_path)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -541,7 +542,7 @@ def test_full_packet_can_be_external_verified_candidate(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_external")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -622,7 +623,7 @@ def test_cli_requires_bundle_dir_for_external_candidate_output(minted_sample, tm
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_cli_requires_bundle")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -662,7 +663,7 @@ def test_generated_provider_and_corpus_manifests_can_feed_external_candidate(min
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_generated_manifests")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_manifest = tmp_path / "provider_export_manifest.json"
@@ -730,7 +731,7 @@ def test_external_review_evidence_must_include_source_and_reference(minted_sampl
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_provenance")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -772,7 +773,7 @@ def test_external_review_evidence_must_replace_todo_placeholders(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_todo")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -815,7 +816,7 @@ def test_external_review_evidence_must_replace_option_list_placeholders(minted_s
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_option_placeholders")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -874,7 +875,7 @@ def test_external_review_evidence_must_replace_generic_placeholders(minted_sampl
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_generic_placeholders")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -926,7 +927,7 @@ def test_external_review_evidence_rejects_multiline_provenance_fields(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_multiline_provenance")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -970,7 +971,7 @@ def test_external_review_evidence_must_name_reviewed_claims(minted_sample, tmp_p
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_claim_scope")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1026,7 +1027,7 @@ def test_outside_review_must_name_artifact_checks(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_outside_review_check_scope")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1089,7 +1090,7 @@ def test_outside_review_must_record_command_outputs(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_outside_review_command_outputs")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1175,7 +1176,7 @@ def test_outside_review_must_record_revocation_status(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_outside_review_revocation_status")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1241,7 +1242,7 @@ def test_buyer_feedback_must_name_buyer_local_evidence_gates(minted_sample, tmp_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_buyer_feedback_gate_scope")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1304,7 +1305,7 @@ def test_buyer_feedback_must_record_threshold_context(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_buyer_feedback_threshold_context")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1367,7 +1368,7 @@ def test_buyer_feedback_must_record_machine_readable_materiality(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_buyer_materiality")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1433,7 +1434,7 @@ def test_legal_review_must_name_claim_checks(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_legal_review_check_scope")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1496,7 +1497,7 @@ def test_legal_review_must_record_limitations(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_legal_review_limitations")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1579,7 +1580,7 @@ def test_review_evidence_rejects_private_packet_material(minted_sample, tmp_path
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_evidence_privacy")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1623,7 +1624,7 @@ def test_external_review_evidence_reviewed_claims_must_be_known_claim_ids(minted
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_unknown_reviewed_claims")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1702,7 +1703,7 @@ def test_provider_export_manifest_generation_rejects_private_content(minted_samp
     usage_log, _att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_manifest_generation_private_provider")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{
+    provider.write_text(json.dumps([{"id": "d0",
         "prompt_tokens": 2000,
         "completion_tokens": 400,
         "raw_response": {"content": "private response text"},
@@ -1769,7 +1770,7 @@ def test_provider_export_manifest_generation_rejects_zero_token_provider_export(
     usage_log, _att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_manifest_generation_zero_token_provider")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 0, "completion_tokens": 0}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 0, "completion_tokens": 0}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_manifest = tmp_path / "provider_export_manifest.json"
@@ -1800,7 +1801,7 @@ def test_provider_export_manifest_generation_rejects_placeholder_provenance(mint
     usage_log, _att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_manifest_generation_placeholder_provider")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_manifest = tmp_path / "provider_export_manifest.json"
@@ -1840,7 +1841,7 @@ def test_corpus_manifest_generation_rejects_private_usage_log(minted_sample, tmp
     }
     private_usage.write_text("\n".join(json.dumps(record, sort_keys=True) for record in records) + "\n", encoding="utf-8")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1874,7 +1875,7 @@ def test_corpus_manifest_generation_rejects_placeholder_provenance(minted_sample
     usage_log, _att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_manifest_generation_placeholder_corpus")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1910,7 +1911,7 @@ def test_real_corpus_without_validation_plan_cannot_pass_science_gate(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_validation_plan")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -1951,7 +1952,7 @@ def test_full_packet_accepts_single_flat_provider_usage_record(minted_sample, tm
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_flat_provider_record")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps({"prompt_tokens": 2000, "completion_tokens": 400}), encoding="utf-8")
+    provider.write_text(json.dumps({"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, count=1)
@@ -1987,7 +1988,7 @@ def test_review_evidence_cannot_predate_reviewed_manifests(minted_sample, tmp_pa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_stale_review_date")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2028,7 +2029,7 @@ def test_review_evidence_timestamp_cannot_predate_same_day_manifest_timestamp(mi
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_same_day_stale_review_timestamp")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -2084,7 +2085,7 @@ def test_review_evidence_date_must_be_iso_string(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_numeric_date")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2125,7 +2126,7 @@ def test_review_evidence_date_must_not_be_future(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_future_date")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2178,7 +2179,7 @@ def test_review_evidence_same_day_future_timestamp_is_rejected(minted_sample, tm
 
     monkeypatch.setattr(art, "datetime", FrozenDateTime)
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2219,7 +2220,7 @@ def test_review_evidence_identity_fields_must_be_nonblank(minted_sample, tmp_pat
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_blank_review_identity")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2317,7 +2318,7 @@ def test_attestation_event_counts_must_match_savings_report(minted_sample, tmp_p
     assert art.kry_verify.verify_attestation(att)[0]
     tampered_att.write_text(json.dumps(att, indent=2, sort_keys=True), encoding="utf-8")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2355,7 +2356,7 @@ def test_private_log_without_t1_manifest_cannot_pass_science_gate(minted_sample,
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_private_log_no_t1_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     corpus_manifest = _corpus_manifest(tmp_path, art, usage_log, provider, record_count=_record_count(usage_log))
     outside, buyer, legal = _review_files(tmp_path, art, usage_log, att_path, provider, corpus_manifest)
 
@@ -2382,7 +2383,7 @@ def test_missing_provider_export_manifest_cannot_pass_science_gate(minted_sample
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_provider_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     corpus_manifest = _corpus_manifest(tmp_path, art, usage_log, provider, record_count=_record_count(usage_log))
@@ -2410,7 +2411,7 @@ def test_corpus_manifest_must_bind_provider_provenance(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_corpus_missing_provider_binding")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2447,7 +2448,7 @@ def test_full_packet_can_use_t1_manifest_instead_of_private_log(minted_sample, t
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_external_t1_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2483,7 +2484,7 @@ def test_saved_packet_verifies_by_recomputing_inputs(minted_sample, tmp_path, ca
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_verify_clean")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2524,7 +2525,7 @@ def test_external_candidate_requires_portable_command_inputs(minted_sample, tmp_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_nonportable_external")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2561,7 +2562,7 @@ def test_external_candidate_rejects_private_mint_log_command_input(minted_sample
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_private_log_external")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2615,7 +2616,7 @@ def test_external_candidate_requires_packet_checklist_and_report(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_packet_surfaces")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2669,7 +2670,7 @@ def test_external_candidate_verifier_rejects_stale_packet_checklist(minted_sampl
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_stale_packet_checklist")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2709,7 +2710,7 @@ def test_external_candidate_verifier_rejects_nonstandard_packet_checklist_json(m
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_nonstandard_packet_checklist_json")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2749,7 +2750,7 @@ def test_external_candidate_verifier_rejects_stale_packet_report(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_stale_packet_report")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2790,7 +2791,7 @@ def test_external_candidate_verifier_rejects_private_packet_runtime_file(minted_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_private_packet_runtime_file")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2827,7 +2828,7 @@ def test_external_candidate_verifier_rejects_unbound_packet_file(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_unbound_packet_file")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2864,7 +2865,7 @@ def test_external_candidate_verifier_rejects_unbound_packet_directory(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_unbound_packet_directory")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2901,7 +2902,7 @@ def test_external_candidate_verifier_allows_declared_input_parent_directory(mint
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_declared_input_parent_directory")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -2964,7 +2965,7 @@ def test_external_candidate_verifier_rejects_packet_symlink(minted_sample, tmp_p
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_packet_symlink")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3004,7 +3005,7 @@ def test_external_candidate_verifier_requires_canonical_artifact_name(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_canonical_artifact_name")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3128,7 +3129,7 @@ def test_bundle_uses_relative_paths_and_verifies_from_any_cwd(minted_sample, tmp
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_clean")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3209,7 +3210,11 @@ def test_bundle_uses_relative_paths_and_verifies_from_any_cwd(minted_sample, tmp
     assert manifest["receipt_count"] == 1
     assert set(manifest["receipts"][0]) <= {
         "receipt_id", "evidence_tier", "receipt_hash", "chain_hash", "metered_tokens", "ts",
+        "provider_request_id_sha256",
     }
+    assert manifest["receipts"][0]["provider_request_id_sha256"] == hashlib.sha256(b"d0").hexdigest()
+    assert "provider_request_id" not in manifest["receipts"][0]
+    assert "detail" not in manifest["receipts"][0]
     assert manifest["receipts"][0]["receipt_hash"]
     assert manifest["receipts"][0]["chain_hash"]
     assert manifest["receipts"][0]["metered_tokens"] == [2000, 400]
@@ -3220,7 +3225,7 @@ def test_bundle_refuses_dirty_existing_packet_directory(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_dirty")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3258,7 +3263,7 @@ def test_cli_bundle_refuses_dirty_existing_packet_directory_without_traceback(mi
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_cli_dirty_bundle")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3335,7 +3340,7 @@ def test_bundle_refuses_private_provider_export_before_copying_inputs(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_private_provider")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{
+    provider.write_text(json.dumps([{"id": "d0",
         "prompt_tokens": 2000,
         "completion_tokens": 400,
         "raw_response": {"content": "private response text"},
@@ -3360,7 +3365,7 @@ def test_bundle_refuses_private_review_evidence_before_copying_inputs(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_private_review_evidence")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3400,7 +3405,7 @@ def test_bundle_refuses_private_public_manifest_before_copying_inputs(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_private_public_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3440,7 +3445,7 @@ def test_bundle_verifier_rejects_tampered_included_input(minted_sample, tmp_path
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_tamper")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3465,7 +3470,7 @@ def test_bundle_verifier_rejects_tampered_included_input(minted_sample, tmp_path
         buyer_feedback=str(buyer),
         legal_review=str(legal),
     )
-    (bundle / "provider_export.json").write_text(json.dumps([{"prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
+    (bundle / "provider_export.json").write_text(json.dumps([{"id": "d0", "prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
 
     result = art.verify_artifact_file(str(bundle / "artifact.json"))
 
@@ -3477,7 +3482,7 @@ def test_bundle_verifier_rejects_private_public_manifest_content(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_manifest_privacy")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3521,7 +3526,7 @@ def test_bundle_verifier_rejects_tampered_t1_manifest(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_bundle_t1_tamper")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "prebundle_t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -3561,7 +3566,7 @@ def test_t1_manifest_must_match_attestation_links(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_forged_t1_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3607,7 +3612,7 @@ def test_t1_manifest_metered_tokens_must_match_attestation(minted_sample, tmp_pa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_metered_tamper")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3648,7 +3653,7 @@ def test_t1_manifest_timestamp_must_match_attestation(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_ts_tamper")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3689,7 +3694,7 @@ def test_malformed_t1_manifest_metered_tokens_fail_gate_without_crashing(minted_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_metered_malformed")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3731,7 +3736,7 @@ def test_boolean_t1_manifest_metered_tokens_fail_gate_without_coercion(minted_sa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_metered_bool")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 1, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 1, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3814,7 +3819,7 @@ def test_t1_manifest_receipt_count_must_be_json_integer(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_receipt_count_bool")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3855,7 +3860,7 @@ def test_t1_manifest_source_hash_must_be_valid_sha256(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_t1_source_hash")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -3896,7 +3901,7 @@ def test_evidence_templates_are_hash_bound_but_non_passing(minted_sample, tmp_pa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_templates")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     assert art.main([
         "--mint-log", str(log),
@@ -4127,7 +4132,7 @@ def test_real_flag_without_manifest_does_not_pass_science_gate(minted_sample, tm
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_corpus_manifest")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
 
     packet = art.build_artifact(
         str(usage_log),
@@ -4146,7 +4151,7 @@ def test_placeholder_review_files_do_not_pass_external_gate(minted_sample, tmp_p
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_placeholder_reviews")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4184,7 +4189,7 @@ def test_hash_mismatched_review_evidence_does_not_pass(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_mismatched_review")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4223,7 +4228,7 @@ def test_review_evidence_must_bind_t1_manifest(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_t1_review_binding")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4267,7 +4272,7 @@ def test_review_evidence_must_bind_gate_config(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_basis_mismatch")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4314,7 +4319,7 @@ def test_review_evidence_must_bind_tool_manifest(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_tool_manifest_review_binding")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4354,7 +4359,7 @@ def test_review_evidence_channels_must_be_distinct(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_review_channel_separation")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4405,7 +4410,7 @@ def test_provider_export_manifest_count_must_match_export(minted_sample, tmp_pat
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_count_mismatch")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, count=2)
@@ -4446,7 +4451,7 @@ def test_provider_export_manifest_count_must_be_json_integer(minted_sample, tmp_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_count_bool")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, count=True)
@@ -4523,7 +4528,7 @@ def test_provider_export_manifest_token_total_must_be_positive(minted_sample, tm
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_token_total_zero")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 0, "completion_tokens": 0}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 0, "completion_tokens": 0}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, count=1)
@@ -4567,7 +4572,7 @@ def test_usage_log_with_private_content_fields_blocks_public_claim(minted_sample
     }
     private_usage.write_text("\n".join(json.dumps(record, sort_keys=True) for record in records) + "\n", encoding="utf-8")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -4613,7 +4618,7 @@ def test_provider_export_with_private_content_fields_blocks_public_claim(minted_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_private_fields")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{
+    provider.write_text(json.dumps([{"id": "d0",
         "prompt_tokens": 2000,
         "completion_tokens": 400,
         "request_body": {
@@ -4661,7 +4666,7 @@ def test_provider_export_with_private_string_value_blocks_public_claim(minted_sa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_private_string")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{
+    provider.write_text(json.dumps([{"id": "d0",
         "prompt_tokens": 2000,
         "completion_tokens": 400,
         "metadata": {
@@ -4707,7 +4712,7 @@ def test_malformed_provider_export_tokens_fail_without_coercion(minted_sample, t
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_token_bool")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": True, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": True, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, count=1)
@@ -4745,7 +4750,7 @@ def test_provider_export_manifest_date_must_be_iso_8601(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_date_invalid")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -4784,7 +4789,7 @@ def test_provider_export_manifest_date_must_be_iso_string_not_epoch(minted_sampl
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_numeric_date")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -4823,7 +4828,7 @@ def test_manifest_provenance_fields_must_be_nonblank(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_blank_manifest_provenance")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -4878,7 +4883,7 @@ def test_manifest_provenance_fields_must_replace_todo_placeholders(minted_sample
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_todo_manifest_provenance")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -4933,7 +4938,7 @@ def test_manifest_provenance_fields_must_replace_option_list_placeholders(minted
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_manifest_option_placeholders")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -4986,7 +4991,7 @@ def test_validation_plan_kill_criteria_must_replace_todo_placeholders(minted_sam
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_todo_kill_criteria")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5029,7 +5034,7 @@ def test_validation_plan_must_include_required_kill_criteria(minted_sample, tmp_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_required_kill_criteria")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5074,7 +5079,7 @@ def test_validation_plan_registered_date_must_not_postdate_collection_start(mint
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_posthoc_validation_plan")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -5120,7 +5125,7 @@ def test_validation_plan_registered_timestamp_must_not_postdate_same_day_collect
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_same_day_posthoc_validation_plan")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5167,7 +5172,7 @@ def test_validation_plan_registered_date_must_not_postdate_epoch_collection_star
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_posthoc_epoch_validation_plan")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     window = {
@@ -5217,7 +5222,7 @@ def test_manifest_dates_must_not_be_future(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_future_manifest_dates")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(
@@ -5262,7 +5267,7 @@ def test_provider_export_manifest_window_must_match_reconciliation_window(minted
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_provider_window_mismatch")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5311,7 +5316,7 @@ def test_aggregate_mode_requires_receipt_window_filters(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_aggregate_window_required")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest, mode="aggregate")
@@ -5353,7 +5358,7 @@ def test_aggregate_mode_can_pass_with_receipt_window_filters(minted_sample, tmp_
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_aggregate_window_applied")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     t1_data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -5403,7 +5408,7 @@ def test_aggregate_external_candidate_requires_two_percent_tolerance(minted_samp
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_aggregate_tolerance_threshold")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     t1_data = json.loads(t1_manifest.read_text(encoding="utf-8"))
@@ -5456,7 +5461,7 @@ def test_collection_windows_must_have_parseable_bounds_and_order(minted_sample, 
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_malformed_windows")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5512,7 +5517,7 @@ def test_collection_windows_must_have_positive_duration(minted_sample, tmp_path)
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_zero_duration_windows")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     window = {"since": "2026-06-09T00:00:00Z", "until": "2026-06-09T00:00:00Z"}
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
@@ -5566,7 +5571,7 @@ def test_collection_window_bounds_must_not_be_booleans(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_boolean_windows")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     window = {"since": False, "until": True}
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
@@ -5629,7 +5634,7 @@ def test_collection_window_bounds_must_be_finite(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_nonfinite_windows")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     window = {"since": "nan", "until": "inf"}
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
@@ -5686,7 +5691,7 @@ def test_artifact_numeric_config_must_be_finite_before_public_json(minted_sample
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_nonfinite_config")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5765,7 +5770,7 @@ def test_corpus_and_provider_collection_windows_must_align(minted_sample, tmp_pa
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_corpus_provider_window_mismatch")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5810,7 +5815,7 @@ def test_review_evidence_must_bind_provider_export_manifest(minted_sample, tmp_p
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_missing_provider_review_binding")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 2000, "completion_tokens": 400}]), encoding="utf-8")
     t1_manifest = tmp_path / "t1_manifest.json"
     art.write_t1_manifest(str(log), t1_manifest)
     provider_export_manifest = _provider_export_manifest(tmp_path, art, provider, t1_manifest)
@@ -5847,7 +5852,7 @@ def test_provider_discrepancy_triggers_kill_gate(minted_sample, tmp_path):
     usage_log, att_path, log = minted_sample
     art = _load(_ARTIFACT, "kry_verified_artifact_discrepancy")
     provider = tmp_path / "provider.json"
-    provider.write_text(json.dumps([{"prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
+    provider.write_text(json.dumps([{"id": "d0", "prompt_tokens": 1, "completion_tokens": 1}]), encoding="utf-8")
 
     packet = art.build_artifact(
         str(usage_log),

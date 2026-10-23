@@ -18,19 +18,19 @@ prototype < prototype_plus < internally_consistent < research_grade < production
 | Level | Evidence required | KRY status |
 |---|---|---|
 | internally_consistent | the **synthetic** test suite is fully green | ✅ cleared |
-| research_grade | + agreement **≥ 0.80** with an **independent, non-self-referential** oracle | ✅ **REACHED 2026-06-10** (durable anchor: confirm() within TTL, fresh 52/52 @ 1.00) |
+| research_grade | + agreement **≥ 0.80** with an **independent, non-self-referential** oracle | Historical 2026-06-10 result; retained files match 52/52 IDs and counts. Current per-request grading additionally requires exact IDs and `RECONCILED`. See evidence limits below. |
 | production_ready | + validation on an **independent real-world corpus** (real traffic) **+ clean capability audit** | ❌ needs real traffic + counterparty |
 
 **The top label structurally requires external evidence.** That is not pessimism — it
 is the grader refusing to let *more code* buy a grade only *real data* can earn
 (`tests/test_capabilities.py::test_production_ready_requires_external_evidence_code_alone_cannot_reach_it`).
 
-## Where KRY is right now (computed)
+## Historical readiness record and current evidence limits
 
 ```
 audit_clean: True # all 14 'implemented' capabilities resolve to real code + tests
 status counts: 14 implemented · 1 scaffolded · 4 not_guaranteed (disclosed limits)
-readiness label TODAY: research_grade
+historical run label (2026-06-10): research_grade
 ```
 
 **Milestone (2026-06-09):** the external-anchor *mechanism* was first demonstrated on **real**
@@ -39,12 +39,19 @@ OpenRouter traffic — 18 real free-model displacement calls reconciled 18/18 (a
 corpus), so the label correctly stayed `internally_consistent` then. Bundle:
 [`KRY_FIRST_REAL_ANCHOR.md`](KRY_FIRST_REAL_ANCHOR.md).
 
-**Durable anchor → `research_grade` committed (2026-06-10):** the host system wired `confirm()` to the **general**
-acceptance gate, ran real free-OpenRouter displacements under the correctness layer, **confirmed them
-within the TTL (the stall broken)**, and `kry_research_grade.py --fetch --since <run>` reconciled the
-fresh corpus **52/52 at agreement 1.00 → `research_grade`**. Honest disclosure: graded the fresh-run window
-(`--since`, the documented path); the all-time agreement is ~0.12 only because 14 legacy gen-ids are
-OpenRouter-purged (un-fetchable, **not** refuted). Bundle: [`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md).
+**Retained 2026-06-10 bundle:** all 52 request IDs match one-to-one and their token
+counts agree. The records contain **0 KRY and $0 provider cost**, from free-tier
+self-traffic. The original driver reported `research_grade` using token-count
+matching; that algorithm also accepted rewritten IDs and partial discrepant
+coverage. The current driver rejects those cases.
+
+The historical v2 hashes do not bind `metered_tokens` or request IDs. Rechecking the
+files is an offline consistency check, not authentication of the provider export,
+proof of nonzero savings, or financial settlement. Current v7 hashes bind token
+counts but not request IDs in `detail`. A manifest's optional request-ID digest
+supports comparison without publishing the raw ID; it does not establish source
+provenance. Retained-file hash tests detect later edits only. Full scope:
+[`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md).
 
 Current local verification command:
 
@@ -56,41 +63,38 @@ Optional crypto/TEE/PQC tiers are evidence add-ons, not hidden prerequisites for
 stdlib label. If their dependencies are missing, those tests must skip or fail closed;
 they do not turn synthetic self-consistency into real-world validation.
 
-Step 1 (an independent oracle agreeing ≥ 0.80) is now **DONE** — see the durable anchor above. The
-**one remaining gap to `production_ready` is external**:
-- *not validated on an independent REAL-WORLD corpus (real traffic) + a real counterparty*
+An offline `research_grade` result remains conditional on the supplied records'
+provenance and the reported synthetic replay result. It is not a substitute for
+independent real-world validation, buyer evidence or external review.
 
-## The two steps to `production_ready` — each a Minimal Viable Falsifier
+## The two steps to `production_ready`
 
-### Step 1 → `research_grade`: an independent oracle agrees ≥ 0.80 — ✅ DONE (2026-06-10)
-KRY's savings/holdout numbers are computed by KRY's own math — grading them with KRY
-is self-referential (the very trap this rubric flags). The **independent** oracle already
-exists in the design: the **provider's own billing record**. Run real
-`provider_metered` / holdout calls, then reconcile:
+### Step 1 → `research_grade`: reconcile identifiable provider records
 
-```bash
-python3 scripts/kry_or_fetch.py kry_data/kry_mint_log.jsonl --out or.json # provider's own counts
-python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export or.json
-```
-
-Or do all three steps (fetch → reconcile → grade against the 0.80 bar) in **one command**:
+Use provider records obtained through an authorized export or reporting API and
+retain their collection window and provenance. For per-request grading, every
+receipt must have a unique matching request ID and matching token counts within
+the selected tolerance. Missing, duplicated, conflicting or mismatched IDs fail;
+the `RECONCILED` verdict is required. Token-count-only legacy comparisons remain
+available as diagnostics but cannot advance the driver or artifact grade.
 
 ```bash
-python3 scripts/kry_research_grade.py kry_data/kry_mint_log.jsonl --fetch # needs OPENROUTER_API_KEY
-# -> prints the independent-agreement number and "research_grade REACHED / NOT reached" (exit 0/1)
+python3 scripts/kry_research_grade.py kry_data/kry_mint_log.jsonl --fetch
+# requires OPENROUTER_API_KEY; fetches records within the selected window
 ```
 
-> **✅ REACHED on real data.** First demonstrated 2026-06-09 (18/18 reconciled, agreement 1.00 — but
-> *unconfirmed/expired*, so veracity-only). Then **committed 2026-06-10**: with `confirm()` wired to the
-> general gate, real free-OpenRouter displacements were **confirmed within TTL** and the fresh
-> corpus reconciled **52/52 at agreement 1.00 → `research_grade`** (graded the `--since` fresh-run window;
-> all-time ~0.12 is dominated by OpenRouter-purged legacy gen-ids — un-fetchable, not refuted). Bundles:
-> [`KRY_FIRST_REAL_ANCHOR.md`](KRY_FIRST_REAL_ANCHOR.md) (the 18) · [`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md) (the durable 52).
+Or recheck already retained records without network access:
 
-- **MVF (pass):** ≥ 80% of T1 receipts reconcile against the provider's record.
-- **MVF (fail):** < 80% reconcile → the magnitude/veracity claims don't survive contact
- with the provider's truth, and the holdout/pricing needs correction. *That negative
- is the contribution* — it's real information, not a setback.
+```bash
+python3 scripts/kry_research_grade.py docs/evidence/research_grade/research_grade_mintlog.jsonl \
+ --provider-export docs/evidence/research_grade/or_provider_export.json
+```
+
+The generic readiness rubric still uses the pre-existing ≥ 0.80 threshold. The
+raw match fraction is diagnostic; a `DISCREPANCY` cannot advance the grade even
+when that fraction is ≥ 0.80. Aggregate mode also requires `RECONCILED`, with an
+explicit time window and its configured tolerance; it compares window totals,
+not individual requests. Neither mode authenticates a supplied export.
 
 ### Step 2 → `production_ready`: an independent real-world corpus
 Run **real traffic** (not `examples/gen_dataset.py` synthetic) through the savings
@@ -119,16 +123,10 @@ Four capabilities are **permanently out of scope for any software** and are ship
 Blocking `production_ready` on these would conflate *scope* with *validation*. It requires the audit to
 be clean and the real-corpus bar met — **with the out-of-scope items honestly disclosed**.
 
-## The honest bottom line
+## Remaining evidence requirements
 
-KRY is a **committed `research_grade` build** as of **2026-06-10**: a clean, fully-audited base
-(suite green, audit clean, limits disclosed) **plus a durable live anchor** — `confirm()` wired to
-the host system's general acceptance gate, real free-OpenRouter displacements **confirmed within TTL**
-(the stall that expired the first 18 is broken), and the fresh corpus reconciled **52/52 against
-OpenRouter's own records at agreement 1.00 ≥ the 0.80 bar** ([`KRY_RESEARCH_GRADE_ANCHOR.md`](KRY_RESEARCH_GRADE_ANCHOR.md)).
-That is the independent, non-self-referential oracle the rung requires, earned per this pre-dated
-rubric — not a self-graded claim. *Honest disclosure:* the grade is on the fresh-run window (`--since`,
-the documented path); the all-time agreement is ~0.12 only because 14 legacy gen-ids are
-OpenRouter-purged (un-fetchable, **not** refuted). **`production_ready` is the one remaining rung**
-and is **defined, falsifiable, and external** — it needs an independent real-world corpus (real traffic)
-plus a real counterparty; no code round can move it.
+The retained 52-record bundle supports exact ID and token consistency with zero
+recorded savings and charges. It does not establish independent acceptance,
+paid customer value, a counterfactual savings amount or payment settlement.
+`production_ready` requires independent real-world evidence and a clean capability
+audit; passing more local tests cannot supply that external evidence.

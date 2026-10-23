@@ -132,7 +132,8 @@ def rechain(att: dict) -> dict:
     anchored = round(sum(v for t, v in by_tier.items() if t in km._ANCHORED_TIERS), 4)
     self_rep = round(by_tier.get("self_reported", 0.0), 4)
     att["chain_head"] = prev
-    att["total_kry"] = round(total, 4)
+    total = round(total, 4)
+    att["total_kry"] = total
     att["usd_equivalent"] = round(total * 0.000025, 6)
     att["event_type_counts"] = counts
     att["receipts"] = len(att["links"])
@@ -996,6 +997,37 @@ def gen_review_cases() -> None:
         write(f"hardening/{profile}", vector["id"], vector)
 
 
+def gen_producer_boundaries() -> None:
+    """Real producer output at rounded-envelope and blank-line boundaries."""
+    for vid, mints, description in (
+        ("producer_usd_rounded_total", [
+            {"event_type": "feed_bag_deposit", "tokens_saved": 6041, "evidence": "deposit"},
+            {"event_type": "compression", "tokens_saved": 2864, "evidence": "compression"},
+        ], "USD is derived from the rounded public total, not its floating-point accumulator."),
+        ("producer_floor_rounded_operands", [
+            {"event_type": "continuity_capsule", "tokens_saved": 48.68161, "evidence": "metered",
+             "evidence_tier": "provider_metered", "metered_tokens": [1, 1]},
+            {"event_type": "continuity_capsule", "tokens_saved": 80.36254, "evidence": "self"},
+        ], "The veracity floor uses the rounded anchored amount and rounded public total."),
+    ):
+        att = build(mints)
+        expected = verdict_savings(att)
+        assert expected["verdict"] == "VALID", expected
+        write("savings/valid", vid, {"kind": "savings_attestation", "description": description,
+                                    "input": att, "expected": expected})
+
+    build([{**CACHE, "evidence": f"blank-line-{i}"} for i in range(3)])
+    anchor = km.export_chain_anchor()
+    log = WORK / "mint.jsonl"
+    log.write_text("\n" + "\n".join(log.read_text().splitlines(keepends=True)), encoding="utf-8")
+    att = json.loads(ka.build_attestation(log).to_public_json())
+    expected = verdict_savings_anchored(att, anchor)
+    assert expected["verdict"] == "VALID", expected
+    write("savings/anchor", "producer_blank_log_lines", {
+        "kind": "savings_attestation", "description": "Blank log rows do not change receipt positions.",
+        "input_anchor": anchor, "input": att, "expected": expected})
+
+
 def gen_timestamp_presence() -> None:
     """Present nonnumbers fail; omitting the timestamp preserves legacy behavior."""
     base = build([{**CACHE, "detail": "timestamp presence", "evidence": "u-timestamp-presence"}])
@@ -1031,6 +1063,7 @@ def main() -> None:
     gen_hardening()
     gen_review_cases()
     gen_timestamp_presence()
+    gen_producer_boundaries()
     if WORK.exists():
         shutil.rmtree(WORK)
     (OUT / "manifest.json").write_text(json.dumps(
