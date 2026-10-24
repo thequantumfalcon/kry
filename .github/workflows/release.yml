@@ -21,7 +21,7 @@ jobs:
   # Hash verification restricts downloaded artifacts; it does not make third-party code trusted.
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
@@ -196,7 +196,8 @@ jobs:
                 || { echo "::error::${f} is not listed in the release checksums"; exit 1; }
               sha256sum -c "../${f}.sha256"
             done )
-          [ "$(ls dist | wc -l)" -eq 2 ] || { echo "::error::expected exactly a wheel and an sdist"; exit 1; }
+          files=(dist/*)
+          [ "${#files[@]}" -eq 2 ] || { echo "::error::expected exactly a wheel and an sdist"; exit 1; }
 
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
