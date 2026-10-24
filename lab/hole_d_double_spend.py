@@ -68,7 +68,16 @@ def _accept_and_settle(reg_path: Path, party: str, att_json: str,
     accepted, settle (record to that registry). Returns True if it settled."""
     ks._REGISTRY_PATH = reg_path
     offer = ks.make_offer(party, "counterparty", amount, 1000, now=time.time())
-    grant, reason = ks.verify_and_accept(offer, att_json, now=time.time())
+    previous_lease_dir = os.environ.get("KRY_SETTLE_LEASE_DIR")
+    try:
+        # This phase demonstrates separate registries without a lease authority.
+        os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        grant, reason = ks.verify_and_accept(offer, att_json, now=time.time())
+    finally:
+        if previous_lease_dir is None:
+            os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        else:
+            os.environ["KRY_SETTLE_LEASE_DIR"] = previous_lease_dir
     if grant is None:
         print(f"      node sees registry {reg_path.parent.name}: REJECTED ({reason[:50]})")
         return False

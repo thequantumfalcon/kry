@@ -62,12 +62,19 @@ def accept(share: Path, kry_dir: Path, party: str, offer: float, use_lease: bool
     # at the shared lease dir so every node reserves against one ceiling. This
     # exercises the real production path, not a lab-only prototype — so Test 3
     # validates what actually ships.
-    if use_lease:
-        os.environ["KRY_SETTLE_LEASE_DIR"] = str(share / "leases")
-    else:
-        os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
     offer_obj = ks.make_offer(party, kry_dir.name, offer, 1000, now=time.time())
-    grant, reason = ks.verify_and_accept(offer_obj, att_json, now=time.time())
+    previous_lease_dir = os.environ.get("KRY_SETTLE_LEASE_DIR")
+    try:
+        if use_lease:
+            os.environ["KRY_SETTLE_LEASE_DIR"] = str(share / "leases")
+        else:
+            os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        grant, reason = ks.verify_and_accept(offer_obj, att_json, now=time.time())
+    finally:
+        if previous_lease_dir is None:
+            os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        else:
+            os.environ["KRY_SETTLE_LEASE_DIR"] = previous_lease_dir
     if grant is None:
         print(f"accept[{kry_dir.name}]: REJECTED ({reason[:80]})")
         return 0
