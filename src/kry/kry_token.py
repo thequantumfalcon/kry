@@ -126,6 +126,10 @@ class LedgerPersistenceError(RuntimeError):
     """A ledger write may have committed; inspect retained state before retrying."""
 
 
+class _JournalHardLinkError(LedgerPersistenceError):
+    """Journal activation requires hard links permitted by the data filesystem."""
+
+
 def _journal_path() -> Path:
     return _LEDGER_PATH.with_name(_LEDGER_PATH.stem + ".v2" + _LEDGER_PATH.suffix)
 
@@ -584,7 +588,7 @@ class KRYLedger:
         with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
             self._save_locked()
 
-    def _save_locked(self, on_disk: dict | None = None) -> None:
+    def _save_locked(self, on_disk: dict | None = None, *, recovery: dict | None = None) -> None:
         self._last_write_committed = False
         if self._recovery_required:
             raise ValueError("debit history unavailable; restore the ledger before further writes")
@@ -639,8 +643,10 @@ class KRYLedger:
             "efficiency_ratio": round(_ratio, 4),
             "events": [asdict(e) for e in merged_events],
         }
-        if self._recovery:
-            data["recovery"] = self._recovery
+        if recovery is None:
+            recovery = on_disk.get("recovery", {}) if on_disk else self._recovery
+        if recovery:
+            data["recovery"] = recovery
         if self._ledger_format == 2 or disk_format == 2:
             operations = {key: value.copy() for key, value in disk_ops.items()}
             for key, value in self._ops.items():
@@ -765,6 +771,8 @@ class KRYLedger:
             self._recovery_required = uncertain
             if uncertain:
                 raise LedgerPersistenceError("ledger commitment uncertain; recovery required") from exc
+            if isinstance(exc, _JournalHardLinkError):
+                raise
             return False
         return True
 
@@ -817,11 +825,11 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
         if ledger.balance < 0:
             raise ValueError("restored ledger balance is negative; establish consistent accounting first")
         activation = ledger._recovery.get("journal_activation")
-        ledger._recovery = {"reason": reason, "ts": time.time(), "incidents": _ledger_incidents()}
+        recovery = {"reason": reason, "ts": time.time(), "incidents": _ledger_incidents()}
         if activation is not None:
-            ledger._recovery["journal_activation"] = activation
+            recovery["journal_activation"] = activation
         try:
-            ledger._save_locked(raw)
+            ledger._save_locked(raw, recovery=recovery)
         except Exception:
             if not ledger._last_write_committed:
                 raise

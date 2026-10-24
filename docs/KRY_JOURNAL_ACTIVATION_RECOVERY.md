@@ -1,6 +1,7 @@
 # Recovering interrupted journal activation
 
-This procedure applies to the operation journal introduced in v0.1.15.
+This procedure applies to the operation journal introduced in the v0.1.15 source
+tag. Use v0.1.16 or newer to preserve current recovery metadata across stale handles.
 Read [ledger recovery](KRY_LEDGER_RECOVERY.md) and
 [operation identity](KRY_OPERATION_IDENTITY.md) first.
 
@@ -81,13 +82,19 @@ If interrupted, calling abandonment again resumes the original frozen review.
 Changing the reason argument does not replace that review. Any subsequent change
 to the reviewed accounting or incident files blocks resumption. An immediate
 repeat after success returns the retained receipt without changing accounting.
+A retained migration backup without its activation intent is not a clean repeat:
+restore that attempt's exact intent before requesting abandonment. An older
+attempt's receipt cannot resolve the newer backup.
 A later generic acknowledgement may replace that convenience receipt field, but
 the archived assertion and incident bindings remain. Normal keyed activation can
 then proceed using the caller's independently established retry decision.
 
 The sentinel `kry_ledger.json.v2-activated` binds the attempt ID and initial journal
 hash. New journals retain that identity in `accounting.recovery.journal_activation`.
-Ordinary writes and generic recovery preserve it. The healthy reader checks the
+Ordinary writes preserve the recovery block read from disk under the writer lock,
+including when their handle predates activation or another writer's recovery
+acknowledgement. Generic recovery replaces its reason, timestamp and incident
+bindings while preserving the activation identity. The healthy reader checks the
 completion identity. After the intent is removed, the initial hash is retained
 for review and is not revalidated against historical journal bytes or later states.
 Missing or malformed completion evidence, or a mismatched attempt identity, blocks

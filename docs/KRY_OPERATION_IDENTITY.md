@@ -1,6 +1,8 @@
 # Retrying internal debits
 
-This opt-in API is available starting with v0.1.15.
+Use v0.1.16 or newer for this opt-in API. The v0.1.15 source tag introduced it,
+but a stale ledger handle could remove activation identity or overwrite newer
+recovery metadata. That version was not published to PyPI.
 
 The keyed debit API records an operation ID and its result in the same atomic
 ledger replacement as the balance change. Retrying the same ID with the same
@@ -12,6 +14,14 @@ This API is opt-in. Before the first keyed debit, stop every writer sharing the
 data directory, make a private backup, and upgrade all writers to a version that
 supports the operation journal. Do not activate it in a directory used by older
 installations or a host integration that reads the old ledger JSON directly.
+
+Journal activation requires a filesystem that supports and permits hard links
+within the data directory. A denied or unsupported hard link raises an explicit
+error; repeating the same call cannot fix that filesystem requirement. Stop all
+writers before moving the complete data directory to a suitable filesystem and
+review any retained activation evidence before retrying with the same operation
+ID. Existing unkeyed accounting does not require hard links. Temporary files may
+remain after a failed activation; preserve them with the incident backup.
 
 ## Using an operation ID
 

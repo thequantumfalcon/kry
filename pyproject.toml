@@ -5,7 +5,7 @@ backend-path = ["."]
 
 [project]
 name = "kry-attest"   # PyPI distribution name ("kry" is an unrelated PyPI package); import name stays `kry`
-version = "0.1.15"
+version = "0.1.16"
 description = "Tamper-evident receipts for reported LLM efficiency events, with offline integrity and benchmark-arithmetic verification"
 keywords = [
     "llm", "llmops", "llm-cost-optimization", "inference-cost", "model-routing",

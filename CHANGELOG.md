@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-10-24
+
+### Fixed
+
+- A stale ledger handle could remove a newer journal activation identity or
+  overwrite another process's recovery acknowledgement. Ordinary saves now
+  preserve the recovery metadata read under the writer lock; acknowledgement
+  explicitly replaces reviewed metadata while retaining the activation identity.
+- Repeated activation abandonment could return an older attempt's receipt while
+  a newer migration backup still blocked accounting. That state now requires the
+  newer attempt's exact intent to be restored.
+- Keyed debits on filesystems that deny or lack hard links reported an unhelpful
+  same-ID retry instruction. They now explain the hard-link requirement without
+  changing accounting or using partial-publication fallbacks.
+
 ## [0.1.15] - 2026-10-24
+
+Publication was withheld before GitHub release assets or PyPI distributions were
+published. The signed tag is retained; the changes below are included in 0.1.16.
 
 ### Added
 
@@ -1354,7 +1372,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.15...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.16...HEAD
+[0.1.16]: https://github.com/thequantumfalcon/kry/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/thequantumfalcon/kry/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/thequantumfalcon/kry/compare/v0.1.12...v0.1.13
