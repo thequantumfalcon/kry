@@ -13,6 +13,14 @@ data directory, make a private backup, and upgrade all writers to a version that
 supports the operation journal. Do not activate it in a directory used by older
 installations or a host integration that reads the old ledger JSON directly.
 
+Journal activation requires a filesystem that supports and permits hard links
+within the data directory. A denied or unsupported hard link raises an explicit
+error; repeating the same call cannot fix that filesystem requirement. Stop all
+writers before moving the complete data directory to a suitable filesystem and
+review any retained activation evidence before retrying with the same operation
+ID. Existing unkeyed accounting does not require hard links. Temporary files may
+remain after a failed activation; preserve them with the incident backup.
+
 ## Using an operation ID
 
 Generate and persist an ID in the caller's work record before attempting its debit.

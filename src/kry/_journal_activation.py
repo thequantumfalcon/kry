@@ -5,6 +5,7 @@ completion records cannot establish completeness after an arbitrary history roll
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -94,7 +95,14 @@ class _Activation:
         if replace:
             os.replace(temp, path)
         else:
-            os.link(temp, path)
+            try:
+                os.link(temp, path)
+            except OSError as exc:
+                if exc.errno in (errno.EPERM, errno.EOPNOTSUPP, errno.ENOTSUP):
+                    raise kt._JournalHardLinkError(
+                        "keyed debit activation requires hard-link support in the data directory; "
+                        "the filesystem may not support hard links or permission may be denied") from exc
+                raise
         self.sync()
         if not replace:
             temp.unlink()
@@ -281,6 +289,8 @@ class _Activation:
             else:
                 active = self.files(".pending.activation-*")
                 if not active:
+                    if read(self.backup) is not None:
+                        raise ValueError("retained activation backup requires restoring its exact intent")
                     raw = validated_ledger(read(self.legacy), 1)
                     if raw.get("recovery", {}).get("incidents") != self.incidents():
                         raise ValueError("unbound recovery evidence")
