@@ -1,6 +1,7 @@
 # Recovering interrupted journal activation
 
-This procedure applies to the operation journal introduced in v0.1.15.
+This procedure applies to the operation journal introduced in the v0.1.15 source
+tag. Use v0.1.16 or newer to preserve current recovery metadata across stale handles.
 Read [ledger recovery](KRY_LEDGER_RECOVERY.md) and
 [operation identity](KRY_OPERATION_IDENTITY.md) first.
 

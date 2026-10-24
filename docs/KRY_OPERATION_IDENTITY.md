@@ -1,6 +1,8 @@
 # Retrying internal debits
 
-This opt-in API is available starting with v0.1.15.
+Use v0.1.16 or newer for this opt-in API. The v0.1.15 source tag introduced it,
+but a stale ledger handle could remove activation identity or overwrite newer
+recovery metadata. That version was not published to PyPI.
 
 The keyed debit API records an operation ID and its result in the same atomic
 ledger replacement as the balance change. Retrying the same ID with the same
