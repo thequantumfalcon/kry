@@ -87,9 +87,10 @@ def test_s4_reconcile_restores_deleted_and_polluted_ledger():
     kt._LEDGER_PATH.unlink(missing_ok=True)            # deleted ledger
     kt._ledger_instance = None
     res = m.reconcile_ledger_from_chain()
-    assert res["reconciled"] and res["balance_kry"] > 0
-    assert json.loads(kt._LEDGER_PATH.read_text())["balance"] == res["balance_kry"]
-    assert kt.get_ledger().balance == res["balance_kry"]
+    assert not res["reconciled"]
+    assert "debit history" in res["reason"]
+    assert not kt._LEDGER_PATH.exists()
+    assert not kt.can_afford("paid", 1)
     kt._ledger_instance = None                          # polluted ledger -> chain total wins
     kt._LEDGER_PATH.write_text(json.dumps({"balance": 9999.0, "total_earned": 9999.0,
                                            "total_spent": 0.0, "cycle_count": 0}))

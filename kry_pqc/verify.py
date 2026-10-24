@@ -49,6 +49,44 @@ ALLOWED_ALGS = frozenset({"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"})
 _SCHEME_V2 = "kry-pqc/v2"
 _SCHEME_V1 = "kry-pqc/v1"
 _DOMAIN_SINGLE = b"kry-pqc/v2/single\x00"
+_RESERVED_V2_DOMAINS = (_DOMAIN_SINGLE, b"kry-pqc/v2/threshold\x00")
+_MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+_JSON_MAX_DEPTH = 64
+
+
+def _read_bounded(path) -> bytes:
+    with Path(path).open("rb") as source:
+        data = source.read(_MAX_DOCUMENT_BYTES + 1)
+    if len(data) > _MAX_DOCUMENT_BYTES:
+        raise ValueError("input exceeds the 16 MiB document limit")
+    return data
+
+
+def _read_json(path):
+    text = _read_bounded(path).decode("utf-8")
+    # Bound containers before parsing, independently of Python's recursion limit.
+    depth = 0
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > _JSON_MAX_DEPTH:
+                raise ValueError("JSON nesting limit exceeded (64)")
+        elif char in "]}":
+            depth -= 1
+    try:
+        return json.loads(text)
+    except RecursionError as exc:
+        raise ValueError("JSON nesting exceeds the parser limit") from exc
 
 
 def verify_signature(attestation_bytes: bytes, signature: bytes, public_key: bytes,
@@ -97,8 +135,8 @@ def main(argv=None) -> int:
     # guard so a malformed artifact (not JSON / not an object / missing alg|signature|public_key /
     # non-base64) yields the documented "RESULT: FAILED" + exit 1, not an uncaught traceback.
     try:
-        attestation_bytes = att_path.read_bytes()
-        artifact = json.loads(Path(args.signature).read_text())
+        attestation_bytes = _read_bounded(att_path)
+        artifact = _read_json(args.signature)
         if not isinstance(artifact, dict):
             raise ValueError("signature artifact is not a JSON object")
         alg = artifact["alg"]
@@ -107,9 +145,11 @@ def main(argv=None) -> int:
         scheme = artifact.get("scheme")
         if scheme not in (_SCHEME_V1, _SCHEME_V2):
             raise ValueError(f"unsupported scheme {scheme!r}; allowed: {_SCHEME_V1!r}/{_SCHEME_V2!r}")
+        if scheme == _SCHEME_V1 and attestation_bytes.startswith(_RESERVED_V2_DOMAINS):
+            raise ValueError("reserved v2 signing-domain bytes cannot be relabelled as a v1 attestation")
         signature = _unb64(artifact["signature"])
         if args.public_key:
-            public_key = _unb64(Path(args.public_key).read_text().strip())
+            public_key = _unb64(_read_bounded(args.public_key).decode("utf-8").strip())
             key_source = "out-of-band (--public-key)"
         else:
             public_key = _unb64(artifact["public_key"])

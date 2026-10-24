@@ -105,6 +105,9 @@ def test_mixed_v1_then_v3_chain_verifies(isolated):
                          receipt_id="KRY-00000001")
     km._CHAIN_TIP = tip
     km._RECEIPT_COUNTER = 1
+    # This synthetic legacy fixture also has retained debit state: no spends.
+    kt._LEDGER_PATH.write_text(json.dumps({"balance": 500.0, "total_earned": 500.0,
+                                         "total_spent": 0.0, "events": []}))
     r = km.mint("compression", 2000, "disp", evidence="x",
                 avoided_model="gh/claude-opus-4.8",
                 evidence_tier=km.TIER_PROVIDER_METERED,

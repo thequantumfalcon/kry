@@ -55,6 +55,8 @@ def _verified_report(*, measurement_id="meas-1", tokens_saved=300.0,
             m["served_model"] = served
     return {
         "verified": verified,
+        "mint_eligible": verified,  # synthetic output of the separate SNP policy gate
+        "statement_sha256": report_sha,
         "errors": [] if verified else ["report not verified (test)"],
         "parsed_measurement": m,
         "chip_id": chip_id,
@@ -317,8 +319,10 @@ def test_real_report_verifies_and_round_trips():
     assert att["verified"] is True, att["errors"]
     assert att["parsed_measurement"]["measurement_id"] == "meas-snp"
     assert att["measurement"] == ("33" * 48)
+    assert att["mint_eligible"] is False  # self-issued roots prove no AMD identity
     res = mod.run(att, **_KW)
-    assert res["minted"]["evidence_tier"] == "tee_attested"
+    assert res["verdict"] == "POLICY_REQUIRED"
+    assert not km._MINT_LOG_PATH.exists()
     assert km.verify_chain()[0]
 
 

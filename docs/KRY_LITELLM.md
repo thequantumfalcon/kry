@@ -65,6 +65,47 @@ Use the helper only for the declared ordinary-request scope.
 Keep `response.json` private. This does not fetch an account report,
 change a KRY receipt or upgrade its evidence tier.
 
+## Explicit model identities and unpriced events
+
+Model lookup uses exact supported names and explicit aliases. It does not remove
+arbitrary date suffixes or search for a family name inside an unknown identifier.
+These snapshots use the existing **2026-06-03 KRY benchmark** entries returned by
+`kry_token.price_provenance()`; this compatibility mapping does not refresh prices
+or assert a current provider invoice rate:
+
+| Explicit snapshot | KRY benchmark entry | Output benchmark per million tokens |
+|---|---|---:|
+| `claude-opus-4-1-20250805`, `claude-opus-4-5-20251101` | `opus` | $25.00 |
+| `gpt-4o-2024-08-06`, `gpt-4o-2024-11-20` | `gpt-4o` | $10.00 |
+| `gpt-4o-mini-2024-07-18` | `gpt-4o-mini` | $0.60 |
+
+Supported provider namespaces such as `anthropic/`, `openai/` and `or/openai/`
+resolve these same names. Snapshot identities were checked on 2026-10-23 against
+[Anthropic's model lifecycle table](https://platform.claude.com/docs/en/about-claude/model-deprecations)
+and the official [GPT-4o](https://developers.openai.com/api/docs/models/gpt-4o) and
+[GPT-4o mini](https://developers.openai.com/api/docs/models/gpt-4o-mini) model pages.
+Identity support does not establish present API access: the Opus 4.1 snapshot is
+retired, while the listed GPT snapshots are deprecated. An invented date or name
+remains unpriced even when it resembles a supported family.
+
+`deepseek-chat` and `deepseek-reasoner` remain unpriced. DeepSeek's
+[retirement announcement](https://api-docs.deepseek.com/news/news260424/) says these
+names routed to V4 Flash before becoming inaccessible after July 24, 2026.
+Their names alone do not select a stable model and request-era price; assigning
+the generic `deepseek` benchmark would assume that missing information.
+`deepseek-flash` is also unpriced. No current rate is inferred from a similar name.
+Already issued receipts keep their historical verification semantics.
+
+The `kry.litellm` logger emits WARNING reasons `unpriced_avoided_model` or
+`unpriced_served_model`. An unpriced response-cache event retains its zero-value
+receipt; an unpriced route produces no receipt because unknown served cost cannot
+be counted as free. DEBUG reasons `known_free_avoided_model` and
+`no_positive_benchmark_difference` distinguish the existing free-route policy and
+known non-cheaper routes. These messages contain fixed reason text only, without
+model strings, prompts, call IDs or account metadata. Check the private gateway
+configuration to resolve an unpriced model; do not rename it to a priced family
+without establishing the intended benchmark mapping.
+
 ## Setup
 
 LiteLLM proxy (`litellm_config.yaml`), with the script on `PYTHONPATH`:

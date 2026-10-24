@@ -282,7 +282,10 @@ def request_id_digest(record: dict, *, receipt: bool = False) -> str | None:
     if any(not isinstance(value, str) or not value or value.strip() != value
            for value in values):
         return None
-    digests = {hashlib.sha256(value.encode("utf-8")).hexdigest() for value in values}
+    try:
+        digests = {hashlib.sha256(value.encode("utf-8")).hexdigest() for value in values}
+    except UnicodeEncodeError:
+        return None
     if receipt and "provider_request_id_sha256" in record:
         digest = record["provider_request_id_sha256"]
         if not isinstance(digest, str) or not _REQUEST_DIGEST.fullmatch(digest):
@@ -355,8 +358,32 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
             legacy_matches += legacy
             matched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc]})
         else:
-            unmatched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc]})
+            reason = "TOKEN_MISMATCH"
+            if by_identity:
+                if not _has_request_id(rcpt, receipt=True):
+                    reason = "MISSING_RECEIPT_ID"
+                elif identity is None:
+                    reason = "INVALID_RECEIPT_ID"
+                elif receipt_counts[identity] > 1 or len(identified) > 1:
+                    reason = "DUPLICATE_ID"
+                elif not identified:
+                    reason = ("MISSING_PROVIDER_ID" if any(not _has_request_id(r) for r in provider_records)
+                              else "INVALID_PROVIDER_ID" if any(i is None for i in provider_ids)
+                              else "NO_MATCHING_PROVIDER_ID")
+            unmatched.append({"receipt_id": rcpt.get("receipt_id"), "metered": [rp, rc],
+                              "reason": reason})
     total = len(t1_receipts)
+    # A separate one-to-one count check explains missing identity without earning
+    # an identity match. Never substitute its result into the verdict or grade.
+    token_consistency = None
+    if by_identity and unmatched:
+        stripped_receipts = [{"receipt_id": r.get("receipt_id"), "metered_tokens": r.get("metered_tokens")}
+                             for r in t1_receipts]
+        stripped_provider = [{k: v for k, v in r.items() if k not in ("id", "request_id")}
+                             for r in provider_records]
+        counts = reconcile(stripped_receipts, stripped_provider, tolerance=tolerance)
+        token_consistency = {"matched": counts["matched"], "total": total,
+                             "establishes_request_identity": False}
     return {
         "matching_basis": "request_id" if by_identity else "token_counts_only",
         "t1_receipts": total,
@@ -364,13 +391,15 @@ def reconcile(t1_receipts: list[dict], provider_records: list[dict],
         "matched": len(matched),
         "matched_legacy_uncached_prompt": legacy_matches,
         "unmatched_receipts": unmatched,
+        "token_consistency": token_consistency,
         # 0/0 is UNDEFINED, never "perfect agreement" — an empty reconciliation must not read as 1.0
         # for any caller (the grade driver guards this too, but the helper must not lie at the source).
         "reconciled_fraction": round(len(matched) / total, 4) if total else None,
         "verdict": ("NO_T1_RECEIPTS" if not total
                     else "RECONCILED" if not unmatched else "DISCREPANCY"),
-        "note": ("unmatched T1 receipts = a provider_metered claim with NO "
-                 "corresponding provider usage record; request_id matching joins supplied "
+        "note": ("unmatched T1 receipts lack a unique matching supplied ID and token pair; "
+                 "inspect each reason before concluding a provider record is absent. "
+                 "request_id matching joins supplied "
                  "identifiers before checking counts. token_counts_only matching does "
                  "not establish request identity. Neither mode authenticates the export "
                  "or establishes charges, receipt-ID binding, or savings veracity"),
@@ -541,9 +570,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if result["unmatched_receipts"]:
         print(f"  VERDICT: DISCREPANCY — {len(result['unmatched_receipts'])} "
-              f"T1 receipt(s) with no provider record:")
+              f"T1 receipt(s) without a unique matching ID and token pair:")
         for u in result["unmatched_receipts"]:
-            print(f"    - {u['receipt_id']} metered={u['metered']}")
+            print(f"    - {u['receipt_id']} metered={u['metered']} reason={u['reason']}")
+        if result["token_consistency"] is not None:
+            counts = result["token_consistency"]
+            print(f"  count-only diagnostic: {counts['matched']}/{counts['total']}; "
+                  "does not establish request identity or change the verdict.")
         return 1
     print(f"  matching basis:                 {result['matching_basis']}")
     if result["matching_basis"] == "token_counts_only":

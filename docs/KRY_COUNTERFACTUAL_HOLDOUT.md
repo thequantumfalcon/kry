@@ -84,6 +84,24 @@ kry_mint.mint("cache_hit", adj, evidence_tier=kry_mint.TIER_HOLDOUT_VALIDATED, .
 is **reported on its own tier line**, so a verifier sees precisely how much of the
 balance rests on holdout-statistics vs per-event metering — no overclaiming.
 
+### Retained baseline state
+
+`kry_baseline.json` is measurement history, not a disposable cache. An unreadable
+or malformed existing store raises `BaselineStoreCorrupt`; reads and new observations
+remain blocked, and the original bytes stay in place for recovery. Do not delete the
+file to resume operation: doing so loses the historical sample and can inflate the
+next estimate. Restore a verified retained copy or start a separately identified
+experiment; the software cannot reconstruct lost observations or repair old receipts.
+
+Counts must be non-negative integers no larger than `2**53 - 1`, and paid outcomes
+cannot exceed holdout observations. Updates flush and synchronize their temporary
+file before replacement; failed writes raise instead of acknowledging an observation.
+An exception after replacement can mean the observation was already recorded;
+inspect the retained state before retrying an uncertain write.
+The reported lower bound is rounded down to four decimals and that same bound scales
+the adjusted tokens. These checks protect retained accounting, not the truth or
+representativeness of the observations supplied by the operator.
+
 ## Falsifiers (Galileo round — attacks survived)
 
 | Attack | Answer |
@@ -138,18 +156,16 @@ what was hardened, and what is a structural boundary:
  legal published price). **But that balance reads `veracity_floor = 0.0`** — the
  honest label: 100% self-reported, anchored by nothing. The system never *claims*
  a fabricated number is trustworthy; it *labels* it unanchored.
-- The only way to raise the floor is **≥ 30 real holdout samples whose forced calls
- left provider receipts** — and those receipts are reconcilable against the
- provider's own usage export (`scripts/kry_reconcile.py`, `scripts/kry_or_fetch.py`).
- So fabrication is not *prevented*, but gaining *trust* requires real, externally
- reconcilable calls. That is the honest ceiling: the holdout moves veracity from
- "the operator's word" to "a randomized experiment with receipts" — not to zero
- trust, and not to cryptographic certainty (that needs the unbuilt TEE/T2 tier).
+- A defensible holdout claim requires real samples, retained provider records,
+ randomization and an appropriate population. The baseline store validates counts;
+ it does not authenticate observations or enforce that evidence collection happened.
+ Reconciliation can compare supplied records, but a tier label or a higher floor
+ cannot itself prove the experiment or its claimed saving.
 
-The takeaway: the trust surface is **layered**. Integrity (the chain) is absolute;
-magnitude (the price) is publicly recomputable; veracity (did it happen) is
-*disclosed* as a floor and *raised* only by reconcilable holdout measurement. A
-verifier is never asked to trust more than the floor says.
+Chain checks detect edits relative to retained evidence and an independently trusted
+anchor. Benchmark arithmetic is recomputable; source truth and experimental validity
+require separate evidence. The floor summarizes declared evidence tiers, not a
+cryptographic proof that the underlying events happened.
 
 ---
 

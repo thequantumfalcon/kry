@@ -230,6 +230,15 @@ provides the core library, `kry-try` and `kry-verify`. Additional scripts for ev
 assessment, row commitments, Anthropic usage/projection and reconciliation require
 this checkout or the full GitHub source archive; they are not installed by pip.
 
+The unreleased checkout also hardens ledger accounting, baseline-history handling,
+model-name resolution and optional cryptographic importers. See [Unreleased](CHANGELOG.md#unreleased)
+for the recovery requirements and supported SNP policy. These changes do not expand
+what receipts prove about actual charges, settlement or savings veracity.
+Before upgrading an existing data directory, read [ledger recovery](docs/KRY_LEDGER_RECOVERY.md).
+Missing debit history and unresolved writes require explicit recovery; a valid mint
+chain alone cannot establish the remaining spendable balance. Supported model
+snapshots and unpriced-event diagnostics are listed in the [LiteLLM guide](docs/KRY_LITELLM.md#explicit-model-identities-and-unpriced-events).
+
 ```bash
 # 0) Create a virtual environment (Python 3.11 or newer), then install this checkout with the test tools
 python3 -m venv .venv && . .venv/bin/activate

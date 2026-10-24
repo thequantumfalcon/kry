@@ -256,7 +256,7 @@ def _avoided_from_routing(gen_id: str) -> str | None:
         with open(p, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or gen_id not in line:   # cheap pre-filter only
+                if not line:
                     continue
                 rec = _json_loads(line)
                 # HOLE #27: exact, delimiter-bounded gen-id match (not a substring), so 'gen-1' does
@@ -293,6 +293,10 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
     server = pres.get("server_name")
     notary = pres.get("notary_key") or ""
     gen_id = extras.get("id")
+    if gen_id is not None and (not isinstance(gen_id, str)
+                               or re.fullmatch(r"[^/\s]+", gen_id) is None):
+        return {"verdict": "REJECTED", "errors": [
+            "generation_id must be a nonempty string without '/' or whitespace"]}
 
     # Resolve the displacement legs from GENUINE sources, not a declaration:
     #  - served = the model the provider actually ran, cryptographically attested in the
@@ -444,7 +448,8 @@ def run(pres: dict, *, expect_server: str | None, event_type: str,
         metered_tokens=[prompt, completion],
         # MINT-1: re-check fresh-T2 gen_id uniqueness UNDER the mint lock (the check above is a pre-lock
         # fast path; this closes the concurrent-presentation double-mint race the evidence decay can't).
-        dedup_check=lambda: kry_mint._find_fresh_t2_receipt_for_gen(gen_id) is not None,
+        dedup_check=(lambda: kry_mint._find_fresh_t2_receipt_for_gen(gen_id) is not None)
+        if gen_id is not None else None,
     )
     if receipt is None:
         result["verdict"] = "NOT_MINTED"

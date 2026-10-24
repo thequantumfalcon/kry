@@ -41,6 +41,10 @@ def fail_at(monkeypatch, boundary):
     def replace(source, target):
         selected = km._mint_tip_path() if boundary == "checkpoint_replace" else kt._LEDGER_PATH
         if Path(target) == selected:
+            # The fault under test is the balance update AFTER receipt append.
+            # Initial empty-ledger persistence has its own regression coverage.
+            if boundary.startswith("ledger_replace") and not km._MINT_LOG_PATH.exists():
+                return original_replace(source, target)
             if boundary == "ledger_replace_after":
                 original_replace(source, target)
             raise OSError(FAILURE)
@@ -95,8 +99,8 @@ print(json.dumps({'returned_receipt': receipt is not None, 'rows': len(rows),
     ("checkpoint_replace", True, 1, 1000, "tip checkpoint did not advance"),
     ("earn_before_update", True, 1, 0, "balance update was not acknowledged"),
     ("earn_after_update", True, 1, 1000, "balance update was not acknowledged"),
-    ("ledger_replace_before", True, 1, 0, "KRY earn: ledger persistence unconfirmed"),
-    ("ledger_replace_after", True, 1, 1000, "KRY earn: ledger persistence unconfirmed"),
+    ("ledger_replace_before", True, 1, 0, "KRY earn: ledger write failed; no credit recorded"),
+    ("ledger_replace_after", True, 1, 1000, None),
 ])
 def test_fault_outcome_and_restart(monkeypatch, caplog, boundary, returned, rows, balance, diagnostic):
     caplog.set_level(logging.WARNING)
@@ -112,7 +116,10 @@ def test_fault_outcome_and_restart(monkeypatch, caplog, boundary, returned, rows
     # Strict duplicate retries never re-earn or repair a missing balance.
     assert restart() == {"returned_receipt": False, "rows": 1,
                          "balance": 1000 if rows == 0 else balance, "valid_chain": True}
-    assert diagnostic in caplog.text
+    if diagnostic is None:
+        assert not caplog.records
+    else:
+        assert diagnostic in caplog.text
     assert DETAIL not in caplog.text and "private-exception-sentinel" not in caplog.text
     if boundary.startswith("ledger_replace"):
         assert not any(record.name == "kry.mint" for record in caplog.records)
@@ -126,12 +133,15 @@ def test_spend_failure_does_not_claim_mint_chain_recovers_debit(monkeypatch, cap
     with monkeypatch.context() as patch:
         fail_at(patch, boundary)
         spent = kt.spend("or/anthropic/claude-opus-4.8", 1000, detail=DETAIL)
-    assert spent > 0
+    assert (spent > 0) is (boundary == "ledger_replace_after")
     retained, balance = persisted()
     assert len(retained) == 1
     assert kt.get_ledger().balance == 1000 - spent
     assert balance == (1000 if boundary == "ledger_replace_before" else 1000 - spent)
-    assert "KRY spend: ledger persistence unconfirmed" in caplog.text
+    if boundary == "ledger_replace_before":
+        assert "KRY spend: ledger write failed; no debit recorded" in caplog.text
+    else:
+        assert not caplog.records
     assert DETAIL not in caplog.text and "private-exception-sentinel" not in caplog.text
     assert "recovers" not in caplog.text
 

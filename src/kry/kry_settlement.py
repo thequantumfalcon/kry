@@ -872,6 +872,16 @@ def verify_and_accept(
     return grant, "accepted"
 
 
+def _forward_conserved(a_before: float, a_after: float, b_before: float,
+                       b_after: float, amount: float) -> bool:
+    """Recognize exact forward rounding only within an absolute micro-KRY bound."""
+    a_lost, b_gained = a_before - a_after, b_after - b_before
+    return (a_lost > 0 and b_gained > 0
+            and a_after == a_before - amount and b_after == b_before + amount
+            and max(abs(a_lost - amount), abs(b_gained - amount),
+                    abs(a_lost - b_gained)) <= 1e-6)
+
+
 def settle(
     offer: SettlementOffer,
     grant: RoutingGrant,
@@ -920,6 +930,10 @@ def settle(
     _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with _REGISTRY_LOCK, cross_process_lock(_REGISTRY_PATH):
         try:
+            projected_b = _finite_number(b_before + amount, "b_received_after", nonnegative=True)
+            if not _forward_conserved(a_balance_before, a_balance_before - amount,
+                                      b_before, projected_b, amount):
+                raise SettlementPersistenceError("insufficient balance precision for this transfer; no debit made")
             # accept-time reservations are PER-PROCESS (in-memory), so two processes can both pass the
             # accept guard for one attested balance. The AUTHORITATIVE double-spend check is HERE,
             # against the COMMITTED registry total under the cross-process lock — the second committer
@@ -992,7 +1006,10 @@ def settle(
     if a_balance_after_fn is not None:
         # Independent observation of A's ledger — the only thing that catches a lying debit.
         a_after = _finite_number(a_balance_after_fn(), "a_balance_after", nonnegative=True)
-        conserved = abs((a_balance_before - a_after) - debited) < 1e-9  # A's REAL move == B's credit
+        conserved = (a_after < a_balance_before and b_after > b_before
+                     and (abs((a_balance_before - a_after) - debited) < 1e-9
+                          or _forward_conserved(a_balance_before, a_after,
+                                                b_before, b_after, debited)))
         conservation_basis = "measured"
     else:
         # No independent read: B is credited exactly what the debit REPORTS moving, so the
@@ -1026,4 +1043,8 @@ def verify_conservation(receipt: SettlementReceipt) -> bool:
     """An auditor's check: confirm the settlement moved KRY without creating it."""
     a_lost = receipt.a_balance_before - receipt.a_balance_after
     b_gained = receipt.b_received_after - receipt.b_received_before
-    return abs(a_lost - b_gained) < 1e-9 and receipt.conserved
+    return (receipt.conserved and a_lost > 0 and b_gained > 0
+            and (abs(a_lost - b_gained) < 1e-9
+                 or _forward_conserved(receipt.a_balance_before, receipt.a_balance_after,
+                                       receipt.b_received_before, receipt.b_received_after,
+                                       receipt.grant["accepted_kry"])))

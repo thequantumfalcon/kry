@@ -22,11 +22,13 @@ ALGORITHMS = {"ML-DSA-44", "ML-DSA-65", "ML-DSA-87"}
 # In the pinned wrapper this invalid version is rejected before its fallback clone.
 NO_AUTO_INSTALL = "disabled-by-kry-ci"
 # Reviewed existing suite size; growth is allowed, reductions require a collection review.
-MINIMUM_CASES = 173
+MINIMUM_CASES = 220
 REQUIRED_MODULES = {
     "tests/test_tee_verify.py", "tests/test_snp_verify.py", "tests/test_audit_lows.py",
     "tests/test_tee_review_oct22.py",
+    "tests/test_snp_security_policy.py",
     "kry_pqc/test_kry_pqc.py", "kry_pqc/test_pqc_review_regressions.py",
+    "kry_pqc/test_pqc_input_boundaries.py",
 }
 
 
@@ -91,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         "-o", "junit_family=xunit1", "--junitxml", str(args.junit.resolve()),
         "tests/test_tee_verify.py", "tests/test_snp_verify.py", "tests/test_audit_lows.py",
         "tests/test_tee_review_oct22.py",
+        "tests/test_snp_security_policy.py",
         "kry_pqc/",
     ], cwd=ROOT)
     if result.returncode:

@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import math
 import os
 import tempfile
@@ -55,9 +54,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from kry._locks import cross_process_lock
-
-logger = logging.getLogger("kry.baseline")
-
 
 # Strict JSON boundary — the same convention every other KRY persistence module uses
 # (kry_settlement/_mint/_pending/_token/_referee/_sanctions): reject NaN/Infinity on the
@@ -78,7 +74,10 @@ def _json_dumps(value, **kwargs) -> str:
 def _finite_number(value, field: str, *, nonnegative: bool = False) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{field} must be a finite JSON number")
-    value = float(value)
+    try:
+        value = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
     if not math.isfinite(value):
         raise ValueError(f"{field} must be finite")
     if nonnegative and value < 0:
@@ -98,6 +97,35 @@ def _kry_data_dir() -> Path:
 
 _BASELINE_PATH = _kry_data_dir() / "kry_baseline.json"
 _LOCK = threading.RLock()
+
+# Counts feed binary64 Wilson arithmetic; larger integers cannot be represented exactly.
+_MAX_COUNT = 2**53 - 1
+
+
+class BaselineStoreCorrupt(RuntimeError):
+    """Retained baseline history is unreadable or invalid; explicit recovery is required."""
+
+
+def _count(value, field: str) -> int:
+    if type(value) is not int or not 0 <= value <= _MAX_COUNT:
+        raise ValueError(f"{field} must be an integer in [0, {_MAX_COUNT}]")
+    return value
+
+
+def _validate_state(state: object) -> dict:
+    if not isinstance(state, dict):
+        raise ValueError("baseline must be an object")
+    for bucket in state.values():
+        if not isinstance(bucket, dict):
+            raise ValueError("baseline class must be an object")
+        n = _count(bucket.get("holdout_n"), "holdout_n")
+        k = _count(bucket.get("holdout_paid_n"), "holdout_paid_n")
+        _count(bucket.get("treated_n"), "treated_n")
+        if k > n:
+            raise ValueError("holdout_paid_n must not exceed holdout_n")
+        if "updated" in bucket:
+            _finite_number(bucket["updated"], "updated", nonnegative=True)
+    return state
 
 # Fraction of cache-eligible requests forced to the real call to measure the
 # counterfactual. The honest price of veracity = this × avoided value.
@@ -184,22 +212,32 @@ class ClassStats:
 
 def _load() -> dict:
     try:
-        if _BASELINE_PATH.exists():
-            return _json_loads(_BASELINE_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning("kry_baseline: could not load %s (%s) — treating as empty", _BASELINE_PATH, exc)
-    return {}
+        raw = _BASELINE_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except (OSError, UnicodeError) as exc:
+        raise BaselineStoreCorrupt("baseline unreadable; retain and recover the existing file") from exc
+    try:
+        return _validate_state(_json_loads(raw))
+    except (ValueError, RecursionError) as exc:
+        # Keep the original in place: moving it away would make a later load mistake corrupt
+        # history for a new store and allow one fresh observation to replace the whole baseline.
+        raise BaselineStoreCorrupt("baseline invalid; retain and recover the existing file") from exc
 
 
 def _save(state: dict) -> None:
+    _validate_state(state)
+    _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=_BASELINE_PATH.parent, prefix=".baseline_")
     try:
-        _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=_BASELINE_PATH.parent, prefix=".baseline_")
         with os.fdopen(fd, "w") as f:
             f.write(_json_dumps(state, indent=2))
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, _BASELINE_PATH)
-    except Exception as exc:
-        logger.warning("kry_baseline: could not persist holdout state (%s) — measurement may be LOST", exc)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def _bucket(state: dict, request_class: str) -> dict:
@@ -214,6 +252,8 @@ def observe_holdout(request_class: str, hit_paid: bool) -> None:
     Cross-process safe: _LOCK serializes threads and the file lock serializes
     processes/nodes (the same fix kry_sanctions has), so concurrent holdout writers
     don't lose each other's counts — _load() re-reads fresh under the lock."""
+    if type(hit_paid) is not bool:
+        raise ValueError("hit_paid must be a boolean")
     _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _LOCK, cross_process_lock(_BASELINE_PATH):
         state = _load()
@@ -228,14 +268,12 @@ def observe_holdout(request_class: str, hit_paid: bool) -> None:
 def observe_treated(request_class: str, n: int = 1) -> None:
     """Record optimized (cache-served) requests in `request_class` — the population
     whose avoided value is estimated from the holdout-measured rate."""
+    n = _count(n, "observe_treated.n")
     _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)   # before the lock: it opens <path>.lock here
     with _LOCK, cross_process_lock(_BASELINE_PATH):
         state = _load()
         b = _bucket(state, request_class)
-        # treated_n is a cumulative population count — reject NaN/inf and negative n at the boundary
-        # (a negative n would decrement the treated population; the same _finite_number guard every
-        # other module applies to its numeric inputs).
-        b["treated_n"] += int(_finite_number(n, "observe_treated.n", nonnegative=True))
+        b["treated_n"] += n
         b["updated"] = time.time()
         _save(state)
 
@@ -255,7 +293,7 @@ def avoidance_estimate(request_class: str) -> dict:
     return {
         "request_class": request_class,
         "p_hat": round(k / n, 4) if n else None,    # point estimate (None = unmeasured)
-        "ci_lo": round(lo, 4),                        # conservative rate (value at this)
+        "ci_lo": math.floor(lo * 10000) / 10000,     # never round the lower bound upward
         "ci_hi": round(hi, 4),
         "holdout_n": n,
         "holdout_paid_n": k,

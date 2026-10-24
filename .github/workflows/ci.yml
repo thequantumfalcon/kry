@@ -129,6 +129,10 @@ jobs:
   optional-crypto:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
     env:
       # The pinned wrapper rejects this before its fallback clone; missing native code must fail.
       PYOQS_VERSION: disabled-by-kry-ci
@@ -143,7 +147,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
       - name: Set temporary crypto paths
         run: |
           printf '%s\n' "OQS_INSTALL_PATH=$RUNNER_TEMP/kry-oqs" "KRY_DATA_DIR=$RUNNER_TEMP/kry-crypto-data" >> "$GITHUB_ENV"
@@ -177,7 +181,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
-          name: optional-crypto-tests
+          name: optional-crypto-tests-${{ matrix.python }}
           path: ${{ runner.temp }}/optional-crypto.xml
 
   release-gate:

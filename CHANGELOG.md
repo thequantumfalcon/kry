@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- An empty-ledger loader could read a first writer's temporary intent without
+  holding its lock, terminating a concurrent worker when that intent disappeared.
+  Startup now checks absence and incidents under the writer's lock. The concurrency
+  lab also checks every worker's exit and returned credits and retains failure output.
+- Failed ledger writes could leave pending debits or credits that were applied
+  after another process spent or reconciled the same value. Public earning and
+  spending now return a positive amount only for a confirmed ledger write, discard
+  known-failed operation changes, and retain unresolved write markers across restart.
+  A completed write with a lost acknowledgement is recognized without reapplying it.
+- Transient ledger read errors could quarantine valid debit history and display an
+  empty balance. Read errors now preserve the file; unavailable status is explicit.
+  Successfully read malformed contents still require recovery.
+- Upgrades could accept a blank replacement left by an older corrupt-ledger recovery,
+  restoring already-spent credit. Retained incidents now require an explicit recovery
+  acknowledgement bound to their hashes. Legacy zero-credit histories also have a
+  documented migration procedure; absent debit records are never inferred as zero.
+- A fully drained ledger could refuse reconciliation because of floating-point
+  roundoff. The comparison now bounds representational drift with an absolute cap,
+  preserves recorded debits, and rejects material deficits.
+- Unit-rate spending could round a large settlement debit during an unnecessary
+  divide/multiply conversion, leaving the payer debited and the receiver uncredited.
+  Rates are normalized before multiplication; settlement shortfall checks are unchanged.
+- Large balance subtraction could also falsely report failed conservation. An exact
+  forward-arithmetic check now handles bounded rounding differences; transfers too
+  small to represent at the supplied balances, or exceeding the absolute error
+  bound, refuse before debit. Receiver overflow is rejected before value moves.
+- Explicit model lookup omitted supported dated snapshots, silently removing route
+  credit. Named snapshot aliases now use the existing dated KRY benchmarks, and
+  unpriced callback events report a reason without logging private metadata.
+  Unknown names and unsupported DeepSeek aliases remain unpriced.
+- SNP dry-run output could imply hardware eligibility after signature-only inspection.
+  The final result now distinguishes signature consistency from hardware policy;
+  custom-root minting remains rejected.
+- PQC JSON rejection depended on Python's recursion behavior. Optional envelope and
+  policy readers now enforce a documented 64-container limit before parsing, with
+  boundary tests that preserve normal v1/v2 verification. Native CI covers Python
+  3.11 and 3.13.
+- Ledger reconciliation could restore another process's spends, and concurrent
+  spend calls could debit the same capacity twice. Spending and reconciliation now
+  read current state and write under the same lock. Mint/reconcile lock ordering
+  prevents a receipt from being counted twice during its balance update.
+- Missing or corrupt ledgers could be rebuilt as lifetime earnings without debit
+  history. Recovery now refuses that reconstruction; corrupt bytes are retained,
+  and a new ledger is persisted before its first receipt. Cached empty state cannot
+  authorize a reset after history is lost.
+- Finite inputs could overflow cumulative balances, huge integers could crash
+  numeric entry points, and four-decimal persistence lost small credits. Running
+  totals are checked before mutation, scalar precision is retained, and a lost
+  write acknowledgement cannot silently apply the same delta twice on retry.
+- Corrupt holdout history could be replaced by a fresh, more favorable sample.
+  Readers and writers now refuse invalid retained history; counts are validated,
+  lower bounds round down, and writes flush and synchronize before replacement.
+  Invalid pending TTL configuration now raises a controlled operation error.
+- Substring pricing could assign an unrelated model's benchmark to an unknown
+  name. New issuance uses explicit names and aliases; unpriced avoided or served
+  models earn no net credit. Historical multipliers and verdicts remain valid.
+- TLSN generation IDs containing delimiters could evade prior-receipt checks;
+  escaped IDs could disappear in raw JSON lookups. The importer and lookup helpers
+  now enforce marker-compatible IDs and compare decoded fields. TEE lookup helpers
+  also reject malformed IDs rather than treating them as a missing receipt.
+- Reconciliation described missing receipt IDs as missing provider usage. It now
+  reports the actual matching failure and a separate count-consistency diagnostic
+  without relaxing identity grading. Hosts can retain an explicit provider ID as
+  private, unbound join metadata; public manifests retain only the existing digest.
+- SNP signature inspection under a supplied root could authorize hardware-backed
+  minting without AMD identity or guest policy. Mint eligibility now requires a
+  recognized Milan/Genoa AMD root and an explicit version-2 image/TCB policy, with
+  DEBUG, curve and VCEK bindings checked. Custom roots remain inspection-only.
+- SNP replay evidence included unsigned signature padding. Padding is now rejected
+  and replay identity binds the signed statement. Retained legacy SNP history
+  requires migration review before further SNP minting; it is not silently reset.
+- Malformed or oversized optional SNP/PQC inputs could cause uncontrolled errors.
+  Parsers now bound input and reject deep JSON and bad PEM. PQC v1 verification
+  refuses reserved v2 protocol messages relabeled as v1 while preserving ordinary
+  legacy signatures. The native crypto gate requires the new regressions with no skips.
+
 ## [0.1.12] - 2026-10-22
 
 ### Fixed
