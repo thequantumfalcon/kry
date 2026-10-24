@@ -12,11 +12,29 @@ delta; a caller can retry without an old delta merging over a competing writer.
 A replace whose acknowledgement was lost still counts as successful when the
 exact written bytes are proven under the lock. An uncertain outcome raises
 `LedgerPersistenceError` and blocks accounting until explicit recovery; do not
-retry it as a new operation. `can_afford()` refreshes its snapshot but
-does not reserve capacity. Reconciliation
+retry it as a new operation. Interrupts propagate to the caller. Public earn,
+spend and reconciliation roll back uncommitted in-memory changes on cancellation
+and block accounting if that cleanup fails. An interrupted cache refresh also
+blocks that process before its partially updated cache can be reused. A raised
+interrupt does not prove that no write occurred. Preserve and review retained
+state before retrying the logical operation. `can_afford()` reads a durable
+snapshot without committing pending edits or reserving capacity. Reconciliation
 holds the mint lock through the chain snapshot and preserves current ledger
 debits. Mints retain that lock until their balance update finishes. A failed
 credit leaves no pending delta that could replay after another process reconciles.
+
+Settlement records its obligation before invoking the debit callback. An exception,
+interrupt or unusable callback return leaves the debit outcome unknown: the grant
+stays consumed and the receiver is not credited. Review both sides and the retained
+obligation; ledger recovery acknowledgement alone does not authorize retrying that
+grant. Confirmed zero-debit shortfalls retain the registry rollback path; successful
+rollback leaves the grant retriable. The registry and balance ledger remain
+separate records.
+A reported finite partial debit replaces the existing obligation with the reported
+amount while retaining its consumed grant. If that adjustment fails, the full
+obligation, an updated partial obligation, or a registry/checkpoint mismatch can
+remain; all prevent retrying that grant. The receiver receives no credit. Review
+the retained records before resolving the outstanding debit.
 
 If a ledger is missing while mint history remains, or its contents cannot be
 parsed and validated, automatic recovery refuses to create spendable value.
@@ -56,7 +74,12 @@ Before recovery:
    debit records through the incident. The bounded event list is not a complete
    historical debit journal. Do not infer zero spending from absent records.
 3. Restore a reviewed ledger containing its known `balance`, `total_earned`,
-   `total_spent`, and `events`. Keep the incident evidence. If the debit total
+   `total_spent`, and `events`. Recovery acknowledgement refuses a negative
+   restored balance before writing anything; it does not clamp that balance or
+   reduce the debit total. Establish the complete accounting basis before
+   acknowledgement, including any earnings missing from a stale snapshot.
+   Do not erase spending or invent credits to make the balance nonnegative.
+   Keep the incident evidence. If the debit total
    cannot be established, leave accounting blocked; the earn-only chain cannot
    supply the missing fact. A legacy blank replacement beside a quarantine is
    ambiguous and remains blocked even though that replacement parses correctly.
@@ -65,7 +88,14 @@ Before recovery:
    hashes of retained quarantine and pending-write files in the restored ledger.
    It does not reconstruct or authenticate any totals. The incident files stay in
    place; a new or changed incident requires another review. Preserve this
-   recovery metadata with subsequent backups.
+   recovery metadata with subsequent backups. A normal return means the ledger
+   was readable and available under the lock when acknowledgement completed.
+   If acknowledgement raises, do not assume nothing was written or retry blindly:
+   its metadata can have committed while cleanup of its own pending intent failed.
+   Keep writers stopped, preserve the new evidence, and review the retained ledger
+   and incidents before another explicit acknowledgement. Accounting remains
+   blocked when an unacknowledged intent remains. A lost replace acknowledgement
+   resolved by exact bytes and the durability check can still complete normally.
 5. Reopen the ledger and run `reconcile_ledger_from_chain()`. It verifies the chain
    and aligns earnings while retaining supplied debit totals. Debits exceeding
    chain earnings cause refusal, rather than being erased. Review the result

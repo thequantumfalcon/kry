@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-23
+
+### Fixed
+
+- Settlement could debit the same grant twice after an uncertain debit and ledger
+  recovery. Raised or unusable callback outcomes now retain the recorded obligation;
+  only a confirmed zero allows that grant to retry. Partial debits now replace the
+  obligation without temporarily reopening the grant; a failed adjustment cannot
+  authorize another debit. Successful partial-debit totals are unchanged.
+- Recovery acknowledgement could erase restored spending by clamping a negative
+  balance. It now refuses negative restored balances before writing, preserving
+  the supplied ledger and incident evidence for review.
+- Interruptions could leave an uncommitted debit or credit in memory for a later
+  operation to persist. Public accounting operations now discard uncommitted changes
+  while propagating cancellation; uncertain writes retain recovery protection.
+  Interrupted cache refreshes block further writes instead of replaying another
+  process's debit as a local change.
+  Capacity queries read durable state without flushing pending changes.
+- Recovery acknowledgement could return normally after its own intent cleanup
+  failed, while accounting remained blocked. It now checks that the recovered
+  ledger is available before reporting completion.
+
 ## [0.1.13] - 2026-10-23
+
+Publication was cancelled before GitHub release assets or PyPI distributions were
+published. The signed tag is retained; the fixes below are included in 0.1.14.
 
 ### Fixed
 
@@ -1269,7 +1294,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.14...HEAD
+[0.1.14]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/thequantumfalcon/kry/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/thequantumfalcon/kry/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/thequantumfalcon/kry/compare/v0.1.10...v0.1.11
