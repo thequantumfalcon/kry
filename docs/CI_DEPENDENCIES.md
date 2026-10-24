@@ -19,7 +19,7 @@ code is safe, so the test gate retains read-only permissions and no signing iden
   LiteLLM dependency policy or a runtime requirement of KRY.
 - `.github/crypto-requirements.in` selects the tested optional cryptography and
   liboqs wrapper versions. Its complete `.txt` lock is used by the separate
-  Ubuntu/Python 3.11 `optional-crypto` job; core dependencies remain empty.
+  Ubuntu/Python 3.11 and 3.13 `optional-crypto` jobs; core dependencies remain empty.
 - `.github/build-requirements.txt` is the separate existing release-build lock.
   The publishing job installs only that lock and builds with isolation disabled.
 
@@ -70,7 +70,8 @@ and [uv lock compilation](https://docs.astral.sh/uv/pip/compile/).
 
 ## Optional crypto job
 
-The `optional-crypto` job builds liboqs 0.16.0 from the
+The `optional-crypto` matrix covers Python 3.11 and 3.13, including their different
+JSON parser recursion behavior. Each job builds liboqs 0.16.0 from the
 [official release archive](https://codeload.github.com/open-quantum-safe/liboqs/tar.gz/refs/tags/0.16.0),
 checking SHA-256
 `162d5b510518ee5f285f82fa1f16402a885176e818bf1b1a4c3c91c9a2f01eae`
@@ -91,7 +92,7 @@ The job performs real sign/verify and altered-message rejection for all three
 parameter sets, then runs both TEE verifier test modules, the low-severity audit
 regressions and the entire `kry_pqc/` suite. A JUnit report containing cases from every required module with zero skips,
 failures or errors is required; dependency absence or an omitted module cannot
-turn the job green. The reviewed minimum is 126 cases, rather than an exact count;
+turn the job green. The reviewed minimum is 220 cases, rather than an exact count;
 additional tests may grow the suite. Lowering that minimum requires reviewing an
 intentional collection change.
 It uploads only the test report. Keys are temporary test data; no provider credentials,

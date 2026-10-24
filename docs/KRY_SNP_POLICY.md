@@ -37,7 +37,11 @@ python3 scripts/kry_snp_verify.py report.bin \
 ```
 
 `--dry-run` allows signature inspection without minting. Its output explicitly
-states when hardware policy is unsatisfied. `--ark-sha256` is an additional file
+states whether hardware policy is satisfied, including on the final line. Exit 0
+means the supplied-root signature inspection and measurement parsing succeeded;
+it does not mean the report satisfies AMD hardware policy or is eligible to mint.
+Custom-root inspection can succeed with hardware policy unsatisfied.
+`--ark-sha256` is an additional file
 pin, not a way to replace the recognized vendor roots. No network request is made
 by verification. Root rotation requires a reviewed code update. Revocation feeds
 are not fetched or checked by this prototype; enrollment must review current AMD

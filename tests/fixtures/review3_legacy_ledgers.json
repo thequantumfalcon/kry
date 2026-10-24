@@ -1,0 +1,22 @@
+{
+  "source_commit": "8d236bfae9ac32ab87cbe859b88d8c46f2c7d381",
+  "cases": {
+    "blank_after_quarantine": {
+      "kry_mint_tip.json": "{\"count\": 1, \"tip\": \"25a8d5f434aaef3284e0cf99326bd2b3da6bdca7607f1cd6248b4537166bd720\"}",
+      "kry_mint_log.jsonl": "{\"receipt_id\": \"KRY-00000001\", \"event_type\": \"cache_hit\", \"tokens_saved\": 100.0, \"kry_minted\": 100.0, \"earn_rate\": 1.0, \"ts\": 1792802417.2320662, \"detail\": \"\", \"evidence_hash\": \"7a9dc95ee0c2f274ec28f13fbbe2bf9cc8f641763ed6ed82c9e694165713166f\", \"receipt_hash\": \"51d3591b67daf15e53f83321c9f75207d894cdeda3f236d22c5bdb4b54f1f085\", \"chain_hash\": \"25a8d5f434aaef3284e0cf99326bd2b3da6bdca7607f1cd6248b4537166bd720\", \"usd_equivalent\": 0.0025, \"avoided_model\": null, \"evidence_tier\": \"self_reported\", \"hash_version\": 7, \"metered_tokens\": null, \"supersedes\": null}\n",
+      "kry_evidence_decay.json": "{\"7a9dc95ee0c2f274ec28f13fbbe2bf9cc8f641763ed6ed82c9e694165713166f\": [1, 1792802417.231767]}",
+      "kry_ledger.json": "{\n  \"balance\": 0.0,\n  \"total_earned\": 0.0,\n  \"total_spent\": 0.0,\n  \"cycle_count\": 0,\n  \"usd_equivalent_saved\": 0.0,\n  \"efficiency_ratio\": 0.0,\n  \"events\": [\n    {\n      \"ts\": 1792802417.233081,\n      \"kind\": \"spend\",\n      \"source\": \"paid\",\n      \"amount\": -0.0,\n      \"detail\": \"1 output tokens\",\n      \"tx_id\": \"6f8b12fc850c448dac5941cffd1c073c\"\n    }\n  ]\n}",
+      "kry_ledger.json.corrupt": "{synthetic damage"
+    },
+    "zero_only": {
+      "kry_mint_tip.json": "{\"count\": 1, \"tip\": \"5d384f31f2c557f26687823f91ae3a732faab1e1bb1286832bbe4afad64b80ab\"}",
+      "kry_mint_log.jsonl": "{\"receipt_id\": \"KRY-00000001\", \"event_type\": \"cache_creation\", \"tokens_saved\": 100.0, \"kry_minted\": 0.0, \"earn_rate\": 0.0, \"ts\": 1792802417.264342, \"detail\": \"\", \"evidence_hash\": \"7202d102918bf4cbe26429d7f1f4616ffede95204cc1250f04c3dcd9e9bc1572\", \"receipt_hash\": \"ac8b2ff9bede6e264f8dcfd541a77f3fae47cd7d8acd2a7fedf21f41ccdbfdc2\", \"chain_hash\": \"5d384f31f2c557f26687823f91ae3a732faab1e1bb1286832bbe4afad64b80ab\", \"usd_equivalent\": 0.0, \"avoided_model\": null, \"evidence_tier\": \"self_reported\", \"hash_version\": 7, \"metered_tokens\": null, \"supersedes\": null}\n",
+      "kry_evidence_decay.json": "{\"7202d102918bf4cbe26429d7f1f4616ffede95204cc1250f04c3dcd9e9bc1572\": [1, 1792802417.2640052]}"
+    },
+    "zero_with_lost_debits": {
+      "kry_mint_tip.json": "{\"count\": 1, \"tip\": \"308009bfc551a8379ab89ebd64e9096f7eb043276f6510712e889f2ae6259d3c\"}",
+      "kry_mint_log.jsonl": "{\"receipt_id\": \"KRY-00000001\", \"event_type\": \"cache_creation\", \"tokens_saved\": 100.0, \"kry_minted\": 0.0, \"earn_rate\": 0.0, \"ts\": 1792802417.296395, \"detail\": \"\", \"evidence_hash\": \"7202d102918bf4cbe26429d7f1f4616ffede95204cc1250f04c3dcd9e9bc1572\", \"receipt_hash\": \"cc691aafd0bad9ca751ccf6f1bcfbd0ca5666aa1d024282fcdbb6bbab43eec70\", \"chain_hash\": \"308009bfc551a8379ab89ebd64e9096f7eb043276f6510712e889f2ae6259d3c\", \"usd_equivalent\": 0.0, \"avoided_model\": null, \"evidence_tier\": \"self_reported\", \"hash_version\": 7, \"metered_tokens\": null, \"supersedes\": null}\n",
+      "kry_evidence_decay.json": "{\"7202d102918bf4cbe26429d7f1f4616ffede95204cc1250f04c3dcd9e9bc1572\": [1, 1792802417.296038]}"
+    }
+  }
+}

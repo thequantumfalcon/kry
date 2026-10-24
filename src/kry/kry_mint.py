@@ -1601,11 +1601,17 @@ def reconcile_ledger_from_chain() -> dict:
                     if n and not _kt._LEDGER_PATH.exists():
                         return {"reconciled": False, "reason": "debit history unavailable; restore the ledger"}
                     ledger._refresh_locked()
-                    if ledger.total_spent > total:
+                    deficit = ledger.total_spent - total
+                    # Permit only representation-scale drift, never a broad
+                    # relative allowance that forgives material large debits.
+                    tolerance = min(8 * max(math.ulp(total), math.ulp(ledger.total_spent)), 1e-9)
+                    if deficit > tolerance:
                         return {"reconciled": False, "reason": "recorded debits exceed chain earnings"}
+                    before = ledger._operation_snapshot()
                     ledger.total_earned = total
-                    ledger.balance = total - ledger.total_spent
-                    ledger._save_locked()
+                    ledger.balance = max(0.0, total - ledger.total_spent)
+                    if not ledger._commit_operation_locked(before):
+                        return {"reconciled": False, "reason": "ledger write failed; no reconciliation recorded"}
         except Exception as exc:
             return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
     return {"reconciled": True, "receipts": n, "balance_kry": round(ledger.balance, 4),

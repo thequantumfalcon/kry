@@ -115,6 +115,7 @@ def test_kry_ledger_does_not_preserve_nonstandard_numbers_on_save():
     # restores its explicitly known empty state; an earn-only chain cannot do so.
     kt._LEDGER_PATH.write_text(json.dumps({"balance": 0.0, "total_earned": 0.0,
                                          "total_spent": 0.0, "events": []}))
+    kt.acknowledge_ledger_recovery(reason="fixture restores its independently known empty accounting")
     ledger = kt.KRYLedger.load_or_create()
     ledger.balance = ledger.total_earned = 10.0
     ledger.save()

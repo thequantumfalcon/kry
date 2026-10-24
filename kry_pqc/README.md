@@ -80,7 +80,13 @@ with a warning; `--require-v2` rejects them. V1 cannot relabel messages beginnin
 with KRY's reserved v2 single-signer or threshold signing domains. Standalone
 signature checks authenticate bytes, not a valid KRY chain: use `--require-chain`
 with KRY installed when both checks are required. Verifier documents are bounded
-to 16 MiB, and malformed or excessively nested JSON returns a controlled failure.
+to 16 MiB. JSON signature artifacts, council policies and contributions allow at
+most 64 simultaneously nested objects or arrays, counting the root container as
+one and ignoring brackets inside strings. This bound is checked before parsing
+on every supported Python version. Malformed or over-limit JSON returns a
+controlled failure. The explicit depth limit tightens acceptance of previously
+accepted deep metadata; ordinary v1 and v2 signatures remain supported under
+their existing scheme rules.
 
 ### 2. m-of-n multi-signature quorum (`threshold.py`)
 Require M distinct registered keys from a council of N to sign. **M/N is a quorum

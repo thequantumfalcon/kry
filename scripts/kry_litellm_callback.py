@@ -67,6 +67,7 @@ verifier) offline. Publish a chain anchor to make re-mints/truncation evident.
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from threading import Lock
 from typing import Any, Optional
@@ -77,6 +78,7 @@ _SEEN_MAX = 4096
 _seen_ids: set = set()
 _seen_order: deque = deque()
 _seen_lock = Lock()
+logger = logging.getLogger("kry.litellm")
 
 
 def _usage_counts(response_obj: Any) -> Optional[tuple[Optional[int], Optional[int], Optional[int]]]:
@@ -177,6 +179,13 @@ def receipt_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dic
     tokens = _usage_total_tokens(response_obj)
     if tokens is None:
         return None
+    from kry.kry_token import _priced_multiplier
+    multiplier = _priced_multiplier(model)
+    if multiplier is None:
+        # Fixed reasons only: model names and callback metadata can contain private data.
+        logger.warning("KRY LiteLLM cache: unpriced_avoided_model; zero benchmark credit")
+    elif multiplier == 0:
+        logger.debug("KRY LiteLLM cache: known_free_avoided_model; zero benchmark credit")
     cost = _finite(kwargs.get("response_cost"))
     cost_note = f" litellm_cost_estimate={cost:.6f}" if cost is not None else ""
     saved = _standard_logging_number(kwargs, "saved_cache_cost")
@@ -211,13 +220,19 @@ def route_fields_from_litellm(kwargs: dict, response_obj: Any) -> Optional[dict]
     call_id = kwargs.get("litellm_call_id")
     if not all(isinstance(value, str) and value for value in (baseline, served, call_id)):
         return None
-    if _bare_model(baseline) == _bare_model(served):
-        return None
     tokens = _completion_tokens(response_obj)
     if tokens is None:
         return None
-    from kry.kry_token import net_value_multiplier
-    if net_value_multiplier(baseline, served) <= 0:
+    from kry.kry_token import _priced_multiplier, net_value_multiplier
+    avoided_price, served_price = _priced_multiplier(baseline), _priced_multiplier(served)
+    if avoided_price is None:
+        logger.warning("KRY LiteLLM route: unpriced_avoided_model; no receipt")
+    if served_price is None:
+        logger.warning("KRY LiteLLM route: unpriced_served_model; no receipt")
+    if avoided_price is None or served_price is None:
+        return None
+    if _bare_model(baseline) == _bare_model(served) or net_value_multiplier(baseline, served) <= 0:
+        logger.debug("KRY LiteLLM route: no_positive_benchmark_difference; no receipt")
         return None   # not cheaper at kry's published prices: nothing to credit
     savings = _standard_logging_number(kwargs, "autorouter_savings")
     savings_note = f" litellm_autorouter_savings={savings:.6f}" if savings is not None else ""

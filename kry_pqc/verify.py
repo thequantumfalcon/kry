@@ -51,6 +51,7 @@ _SCHEME_V1 = "kry-pqc/v1"
 _DOMAIN_SINGLE = b"kry-pqc/v2/single\x00"
 _RESERVED_V2_DOMAINS = (_DOMAIN_SINGLE, b"kry-pqc/v2/threshold\x00")
 _MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
+_JSON_MAX_DEPTH = 64
 
 
 def _read_bounded(path) -> bytes:
@@ -62,8 +63,28 @@ def _read_bounded(path) -> bytes:
 
 
 def _read_json(path):
+    text = _read_bounded(path).decode("utf-8")
+    # Bound containers before parsing, independently of Python's recursion limit.
+    depth = 0
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > _JSON_MAX_DEPTH:
+                raise ValueError("JSON nesting limit exceeded (64)")
+        elif char in "]}":
+            depth -= 1
     try:
-        return json.loads(_read_bounded(path).decode("utf-8"))
+        return json.loads(text)
     except RecursionError as exc:
         raise ValueError("JSON nesting exceeds the parser limit") from exc
 

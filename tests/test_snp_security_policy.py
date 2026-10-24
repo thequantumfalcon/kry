@@ -252,3 +252,46 @@ def test_unbound_statement_marker_does_not_bypass_legacy_guard(snp, tmp_path):
     history.write_text(json.dumps({"detail": "tee_attested(snp) /snp-statement:" + "a" * 64,
                                   "evidence_hash": "old-evidence"}) + "\n")
     assert snp._has_legacy_snp_history(history) is True
+
+
+@pytest.mark.parametrize("pinned", [False, True])
+@pytest.mark.parametrize("with_policy", [False, True])
+def test_cli_inspection_names_the_unsatisfied_hardware_policy(
+        snp, signed_report, tmp_path, capsys, pinned, with_policy):
+    from kry import kry_mint
+    report, inputs = signed_report()
+    report_path = tmp_path / "report.bin"
+    report_path.write_bytes(report)
+    argv = [str(report_path)]
+    for flag, key in [("--vcek", "vcek_der"), ("--ask", "ask_der"),
+                      ("--ark", "ark_der"), ("--measurement-json", "measurement_json")]:
+        path = tmp_path / key
+        path.write_bytes(inputs[key])
+        argv.extend([flag, str(path)])
+    if pinned:
+        argv.extend(["--ark-sha256", hashlib.sha256(inputs["ark_der"]).hexdigest()])
+    if with_policy:
+        policy = tmp_path / "policy.json"
+        policy.write_text(json.dumps(_policy()))
+        argv.extend(["--policy", str(policy)])
+
+    assert snp.main(argv + ["--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert "SIGNATURE INSPECTION ONLY" in output
+    assert "KRY SNP signature inspection" in output
+    assert output.splitlines()[-1].strip() == (
+        "-> dry-run: signature consistent under supplied root; "
+        "hardware policy not satisfied; no receipt minted")
+    assert snp.main(argv) == 1
+    assert "POLICY_REQUIRED" in capsys.readouterr().out
+    assert not kry_mint._MINT_LOG_PATH.exists()
+
+
+def test_dry_run_names_a_preverified_hardware_policy_result(snp, signed_report):
+    # Formatting unit only: the synthetic chain does not satisfy hardware policy.
+    report, inputs = signed_report()
+    att = dict(snp.verify_report(report, **inputs), mint_eligible=True)
+    result = snp.run(att, **dict(_KW, dry_run=True))
+    assert result["note"] == ("dry-run: signature consistent under supplied root; "
+                              "hardware policy satisfied; no receipt minted")
+    assert result["minted"] is None

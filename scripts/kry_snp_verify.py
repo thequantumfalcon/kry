@@ -477,7 +477,9 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
 
     if dry_run:
         result["minted"] = None
-        result["note"] = "dry-run: verified + parsed, no receipt minted"
+        policy_status = "satisfied" if att.get("mint_eligible") is True else "not satisfied"
+        result["note"] = ("dry-run: signature consistent under supplied root; "
+                          f"hardware policy {policy_status}; no receipt minted")
         return result
 
     if att.get("mint_eligible") is not True or not att.get("statement_sha256"):
@@ -641,7 +643,7 @@ def main(argv: list[str] | None = None) -> int:
         for error in att.get("policy_errors", []):
             print(f"  - {error}")
 
-    print("KRY T2 TEE (SEV-SNP) verification")
+    print("KRY SNP signature inspection" if args.dry_run else "KRY T2 TEE (SEV-SNP) verification")
     print(f"  chip id:          {(result.get('chip_id') or '')[:24]}…")
     print(f"  measurement:      {(result.get('measurement') or '')[:24]}…")
     print(f"  measurement id:   {result.get('measurement_id')}")

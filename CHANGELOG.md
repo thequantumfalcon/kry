@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Failed ledger writes could leave pending debits or credits that were applied
+  after another process spent or reconciled the same value. Public earning and
+  spending now return a positive amount only for a confirmed ledger write, discard
+  known-failed operation changes, and retain unresolved write markers across restart.
+  A completed write with a lost acknowledgement is recognized without reapplying it.
+- Transient ledger read errors could quarantine valid debit history and display an
+  empty balance. Read errors now preserve the file; unavailable status is explicit.
+  Successfully read malformed contents still require recovery.
+- Upgrades could accept a blank replacement left by an older corrupt-ledger recovery,
+  restoring already-spent credit. Retained incidents now require an explicit recovery
+  acknowledgement bound to their hashes. Legacy zero-credit histories also have a
+  documented migration procedure; absent debit records are never inferred as zero.
+- A fully drained ledger could refuse reconciliation because of floating-point
+  roundoff. The comparison now bounds representational drift with an absolute cap,
+  preserves recorded debits, and rejects material deficits.
+- Unit-rate spending could round a large settlement debit during an unnecessary
+  divide/multiply conversion, leaving the payer debited and the receiver uncredited.
+  Rates are normalized before multiplication; settlement shortfall checks are unchanged.
+- Large balance subtraction could also falsely report failed conservation. An exact
+  forward-arithmetic check now handles bounded rounding differences; transfers too
+  small to represent at the supplied balances, or exceeding the absolute error
+  bound, refuse before debit. Receiver overflow is rejected before value moves.
+- Explicit model lookup omitted supported dated snapshots, silently removing route
+  credit. Named snapshot aliases now use the existing dated KRY benchmarks, and
+  unpriced callback events report a reason without logging private metadata.
+  Unknown names and unsupported DeepSeek aliases remain unpriced.
+- SNP dry-run output could imply hardware eligibility after signature-only inspection.
+  The final result now distinguishes signature consistency from hardware policy;
+  custom-root minting remains rejected.
+- PQC JSON rejection depended on Python's recursion behavior. Optional envelope and
+  policy readers now enforce a documented 64-container limit before parsing, with
+  boundary tests that preserve normal v1/v2 verification. Native CI covers Python
+  3.11 and 3.13.
 - Ledger reconciliation could restore another process's spends, and concurrent
   spend calls could debit the same capacity twice. Spending and reconciliation now
   read current state and write under the same lock. Mint/reconcile lock ordering

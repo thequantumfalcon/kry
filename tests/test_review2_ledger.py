@@ -141,7 +141,7 @@ def test_small_valid_receipts_conserve_balance():
 
 
 @pytest.mark.parametrize("after_replace", [False, True])
-def test_unconfirmed_spend_is_not_reapplied_or_discarded(monkeypatch, after_replace):
+def test_failed_spend_returns_only_a_confirmed_debit(monkeypatch, after_replace):
     assert km.mint("cache_hit", 1000, evidence="seed") is not None
     original = os.replace
 
@@ -154,15 +154,15 @@ def test_unconfirmed_spend_is_not_reapplied_or_discarded(monkeypatch, after_repl
 
     with monkeypatch.context() as patch:
         patch.setattr(os, "replace", fail)
-        assert kt.spend("paid", 600) == 600
-    assert kt.spend("paid", 1000) == 400
+        assert kt.spend("paid", 600) == (600 if after_replace else 0)
+    assert kt.spend("paid", 1000) == (400 if after_replace else 1000)
     disk = _disk()
     assert (disk["balance"], disk["total_spent"]) == (0, 1000)
-    assert sorted(-e["amount"] for e in disk["events"] if e["kind"] == "spend") == [400, 600]
+    assert sorted(-e["amount"] for e in disk["events"] if e["kind"] == "spend") == ([400, 600] if after_replace else [1000])
 
 
 @pytest.mark.parametrize("after_replace", [False, True])
-def test_reconcile_preserves_unconfirmed_local_spend(monkeypatch, after_replace):
+def test_reconcile_preserves_only_confirmed_local_spend(monkeypatch, after_replace):
     assert km.mint("cache_hit", 1000, evidence="seed") is not None
     original = os.replace
 
@@ -175,11 +175,12 @@ def test_reconcile_preserves_unconfirmed_local_spend(monkeypatch, after_replace)
 
     with monkeypatch.context() as patch:
         patch.setattr(os, "replace", fail)
-        assert kt.spend("paid", 600) == 600
+        assert kt.spend("paid", 600) == (600 if after_replace else 0)
     assert km.reconcile_ledger_from_chain()["reconciled"]
     disk = _disk()
-    assert (disk["balance"], disk["total_spent"]) == (400, 600)
-    assert sum(-e["amount"] for e in disk["events"] if e["kind"] == "spend") == 600
+    expected = 600 if after_replace else 0
+    assert (disk["balance"], disk["total_spent"]) == (1000 - expected, expected)
+    assert sum(-e["amount"] for e in disk["events"] if e["kind"] == "spend") == expected
 
 
 def test_reconcile_does_not_race_mint_balance_update(monkeypatch):
