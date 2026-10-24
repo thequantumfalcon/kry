@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from kry import kry_mint as km, kry_token as kt
+from journal_activation_faults import ACTIVATION_POINTS, LEGACY_POINTS
 
 
 def journal():
@@ -185,89 +186,20 @@ MIGRATION_BOUNDARIES = [
 ]
 
 
+MIGRATION_BOUNDARIES += [point for point in ACTIVATION_POINTS if point not in LEGACY_POINTS.values()]
+
+
 def migration_fault(patch, boundary, error):
-    import os
-    import tempfile
-    create, fdopen, sync = tempfile.mkstemp, os.fdopen, os.fsync
-    opening, replace, unlink = Path.open, os.replace, Path.unlink
-    directory, adopt = kt._sync_ledger_directory, kt.KRYLedger._adopt
+    from journal_activation_faults import install
     fired = False
-    creates = directories = 0
-    in_directory = False
-    roles = {}
 
     def stop(stage):
         nonlocal fired
-        if stage == boundary and not fired:
+        if stage == LEGACY_POINTS.get(boundary, boundary) and not fired:
             fired = True
             raise error
 
-    def mkstemp(*args, **kwargs):
-        nonlocal creates
-        creates += 1
-        stop("payload_temp" if creates == 1 else "marker_temp")
-        return create(*args, **kwargs)
-
-    def fd_open(fd, mode, *args, **kwargs):
-        roles[fd] = "marker" if mode == "wb" else "payload"
-        return fdopen(fd, mode, *args, **kwargs)
-
-    def path_open(path, *args, **kwargs):
-        role = "backup" if path.name.endswith(".pre-v2") else (
-            "intent" if ".pending." in path.name else None)
-        if role and args and args[0] in ("x", "xb"):
-            stop(role + "_open")
-            result = opening(path, *args, **kwargs)
-            roles[result.fileno()] = role
-            return result
-        return opening(path, *args, **kwargs)
-
-    def fsync(fd):
-        if not in_directory and fd in roles:
-            stop(roles[fd] + "_fsync")
-        return sync(fd)
-
-    def sync_directory():
-        nonlocal directories, in_directory
-        directories += 1
-        role = ["backup", "intent", "journal", "marker"][directories - 1]
-        stop(role + "_dir_before")
-        in_directory = True
-        try:
-            directory()
-        finally:
-            in_directory = False
-        stop(role + "_dir_after")
-
-    def replacing(source, target):
-        role = "journal" if Path(target) == journal() else "marker"
-        stop(role + "_replace_before")
-        replace(source, target)
-        stop(role + "_replace_after")
-
-    def adopting(self, raw):
-        if "first" in raw.get("ops", {}):
-            stop("adopt_before")
-        adopt(self, raw)
-        if "first" in raw.get("ops", {}):
-            stop("adopt_after")
-
-    def unlinking(path, *args, **kwargs):
-        if ".pending." in path.name:
-            stop("unlink_before")
-        result = unlink(path, *args, **kwargs)
-        if ".pending." in path.name:
-            stop("unlink_after")
-        return result
-
-    patch.setattr(tempfile, "mkstemp", mkstemp)
-    patch.setattr(os, "fdopen", fd_open)
-    patch.setattr(Path, "open", path_open)
-    patch.setattr(os, "fsync", fsync)
-    patch.setattr(kt, "_sync_ledger_directory", sync_directory)
-    patch.setattr(os, "replace", replacing)
-    patch.setattr(kt.KRYLedger, "_adopt", adopting)
-    patch.setattr(Path, "unlink", unlinking)
+    install(patch, stop)
     return lambda: fired
 
 
@@ -277,7 +209,8 @@ def test_activation_fault_matrix(monkeypatch, boundary, error_type):
     assert kt.earn(300, "cache_hit") == 300
     legacy = kt._LEDGER_PATH.read_bytes()
     error = error_type(boundary)
-    durable_boundaries = ["adopt_before", "adopt_after", "unlink_before", "unlink_after"]
+    durable_boundaries = ["adopt_before", "adopt_after", "unlink_before", "unlink_after",
+                          "intent_remove.dir_before", "intent_remove.dir_after"]
     with monkeypatch.context() as patch:
         fired = migration_fault(patch, boundary, error)
         try:
@@ -292,7 +225,7 @@ def test_activation_fault_matrix(monkeypatch, boundary, error_type):
             assert result == 100
         assert fired(), boundary
     kt._ledger_instance = None
-    if boundary in ["payload_temp", "payload_fsync", "backup_open"]:
+    if not journal().exists() and not kt._ledger_incidents():
         assert kt._LEDGER_PATH.read_bytes() == legacy
         assert not journal().exists() and not kt._ledger_incidents()
         assert not kt._LEDGER_PATH.with_name("kry_ledger.json.pre-v2").exists()
@@ -308,12 +241,13 @@ def test_activation_fault_matrix(monkeypatch, boundary, error_type):
         raw = json.loads(journal().read_bytes())
         assert raw["accounting"]["total_spent"] == 100
         assert raw["ops"]["first"]["amount"] == 100
-        if boundary not in durable_boundaries or kt._ledger_incidents():
+        if kt._ledger_incidents():
             assert_blocked()
             # In this constructed case the full committed record is retained.
-            # Restore only its known marker; acknowledgement still binds incidents.
-            kt._LEDGER_PATH.write_bytes(kt._ledger_tombstone())
-            kt.acknowledge_ledger_recovery(reason="synthetic retained debit and exact marker reviewed")
+            # Generic acknowledgement cannot consume an active activation attempt.
+            with pytest.raises(ValueError, match="activation"):
+                kt.acknowledge_ledger_recovery(reason="generic recovery is not activation completion")
+            kt.complete_journal_activation()
     assert kt.debit_kry(100, op_id="first") == 100
     assert json.loads(journal().read_bytes())["accounting"]["total_spent"] == 100
     assert kt._LEDGER_PATH.with_name("kry_ledger.json.pre-v2").read_bytes() == legacy

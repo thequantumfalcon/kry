@@ -141,8 +141,13 @@ def _ledger_tombstone() -> bytes:
 
 def _ledger_storage_path() -> Path:
     """Resolve storage under the unchanged legacy coordination lock, never by fallback."""
+    from ._journal_activation import _Activation
+    activation = _Activation()
+    if activation.files(".pending.activation-*") or activation.files(".pending.abandon-*"):
+        raise ValueError("active journal activation requires explicit completion or abandonment")
     journal = _journal_path()
     evidence = (journal.exists() or journal.is_symlink() or
+                activation.sentinel.exists() or activation.sentinel.is_symlink() or
                 _legacy_backup_path().exists() or _legacy_backup_path().is_symlink() or
                 any(journal.parent.glob(journal.name + ".pending.*")) or
                 any(journal.parent.glob(journal.name + ".corrupt*")))
@@ -150,6 +155,7 @@ def _ledger_storage_path() -> Path:
     if evidence or marker == _ledger_tombstone():
         if marker != _ledger_tombstone() or not journal.is_file():
             raise ValueError("ledger fence incomplete or changed; restore the marker and complete v2 journal")
+        activation.check_fence()
         return journal
     return _LEDGER_PATH
 
@@ -646,11 +652,12 @@ class KRYLedger:
         encoded = _json_dumps(data, indent=2)
         target = _journal_path() if "ledger_format" in data else _LEDGER_PATH
         activating = target == _journal_path() and storage == _LEDGER_PATH
-        original = _LEDGER_PATH.read_bytes() if activating and _LEDGER_PATH.exists() else None
+        if activating:
+            from ._journal_activation import _Activation
+            _Activation().activate(self, data)
+            return
         fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
-        intent_base = _LEDGER_PATH if activating else target
-        intent = intent_base.with_name(intent_base.name + ".pending." + uuid.uuid4().hex)
-        marker_tmp = None
+        intent = target.with_name(target.name + ".pending." + uuid.uuid4().hex)
         replace_returned = False
         durable = False
         try:
@@ -658,14 +665,6 @@ class KRYLedger:
                 f.write(encoded)
                 f.flush()
                 os.fsync(f.fileno())   # durability: the ledger must survive power loss, not tear
-            if activating and original is not None:
-                # Retain the exact old bytes before either live path changes.
-                # An incomplete activation is never retried over this backup.
-                with _legacy_backup_path().open("xb") as f:
-                    f.write(original)
-                    f.flush()
-                    os.fsync(f.fileno())
-                _sync_ledger_directory()
             # A crash or unreadable post-replace state leaves a durable incident
             # marker. Another process must not assume that this operation failed.
             with intent.open("x", encoding="utf-8") as f:
@@ -677,14 +676,6 @@ class KRYLedger:
             os.replace(tmp, target)
             replace_returned = True
             _sync_ledger_directory()
-            if activating:
-                marker_fd, marker_tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
-                with os.fdopen(marker_fd, "wb") as f:
-                    f.write(_ledger_tombstone())
-                    f.flush()
-                    os.fsync(f.fileno())
-                os.replace(marker_tmp, _LEDGER_PATH)
-                _sync_ledger_directory()
             durable = True
             self._adopt(data)
             self._last_write_committed = True
@@ -696,15 +687,6 @@ class KRYLedger:
                 # Retrying the latter delta would credit/debit the same event twice.
                 if self._last_write_committed:
                     pass
-                elif activating and not durable and (
-                        _legacy_backup_path().exists() or intent.exists() or target.exists()):
-                    # A visible journal without a proven durable marker is not
-                    # a completed activation, even if its exact bytes are readable.
-                    self._recovery_required = True
-                    if os.path.exists(tmp):
-                        os.unlink(tmp)
-                    if marker_tmp is not None and os.path.exists(marker_tmp):
-                        os.unlink(marker_tmp)
                 elif not os.path.exists(tmp):
                     self._recovery_required = True
                     committed = durable
@@ -834,7 +816,10 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
         ledger._adopt(raw)
         if ledger.balance < 0:
             raise ValueError("restored ledger balance is negative; establish consistent accounting first")
+        activation = ledger._recovery.get("journal_activation")
         ledger._recovery = {"reason": reason, "ts": time.time(), "incidents": _ledger_incidents()}
+        if activation is not None:
+            ledger._recovery["journal_activation"] = activation
         try:
             ledger._save_locked(raw)
         except Exception:
@@ -846,6 +831,36 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
             raise LedgerPersistenceError("ledger recovery acknowledgement incomplete; inspect retained state") from exc
         global _ledger_instance
         _ledger_instance = ledger
+
+
+def complete_journal_activation() -> None:
+    """Finish an exact retained activation candidate under the existing ledger lock.
+
+    Stop all writers first. This refuses changed accounting or missing/conflicting
+    evidence; it cannot reconstruct history or prove an external debit outcome.
+    """
+    from ._journal_activation import _Activation
+    global _ledger_instance
+    try:
+        _Activation().complete()
+    finally:
+        _ledger_instance = None
+
+
+def abandon_incomplete_journal_activation(*, reason: str) -> dict:
+    """Retain reviewed legacy accounting and archive a pre-journal activation.
+
+    Stop all writers first. The reason asserts that retained accounting omits no
+    committed journal debit. Local absence cannot prove that assertion. Completion
+    evidence refuses abandonment; this does not resolve a settlement obligation.
+    A repeated call resumes the frozen review or returns its retained receipt.
+    """
+    from ._journal_activation import _Activation
+    global _ledger_instance
+    try:
+        return _Activation().abandon(reason)
+    finally:
+        _ledger_instance = None
 
 
 # ── Edge-weighting: provider-value multiplier (edge-semantics) ────────

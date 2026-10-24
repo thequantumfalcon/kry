@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Explicit `complete_journal_activation()` and
+  `abandon_incomplete_journal_activation(reason=...)` recovery paths. Abandonment
+  retains reviewed legacy accounting and archives a restartable operator assertion;
+  it refuses retained journal/completion evidence and does not resolve settlements.
 - Optional durable operation IDs for internal debits: `spend(..., op_id=...)`,
   direct-amount `debit_kry(amount, op_id=...)`, and `ledger_operation(op_id)`.
   A same-parameter retry returns the recorded result without another debit,
@@ -24,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Journal activation now publishes a versioned intent before its backup and
+  publishes the final backup complete or absent. New activations retain a completion
+  sentinel and identity through later writes. Generic recovery cannot silently
+  clear an active activation or abandonment attempt. Existing journals without
+  the new activation metadata remain supported under their previous contract.
 - Recovery documentation omitted activation crashes that leave an empty, partial
   or complete migration backup before any journal is written. The recovery guide
   now specifies the versioned envelope and a reviewed restoration procedure;

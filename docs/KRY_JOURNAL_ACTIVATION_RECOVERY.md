@@ -4,18 +4,111 @@ This procedure applies to the unreleased operation journal. It is not part of
 the v0.1.14 package. Read [ledger recovery](KRY_LEDGER_RECOVERY.md) and
 [operation identity](KRY_OPERATION_IDENTITY.md) first.
 
-Activation writes its backup before replacing the journal and legacy marker.
-A crash can leave an intact `kry_ledger.json`, an empty, partial or complete
-`kry_ledger.json.pre-v2`, and no `kry_ledger.v2.json`. Accounting and
-`acknowledge_ledger_recovery()` correctly refuse that incomplete fence.
-The backup is opened exclusively before its contents are written; an empty
-backup is therefore a possible interrupted write, not evidence of an empty ledger.
+New activations publish a versioned attempt record before the backup, journal,
+legacy tombstone and completion sentinel. An interrupted attempt blocks ordinary
+accounting and generic `acknowledge_ledger_recovery()`. Two explicit APIs handle
+the supported recovery states under the original ledger lock. Neither API proves
+historical completeness or an external debit outcome.
 
-The procedure below completes a reviewed restoration into the journal format.
-There is no automatic rollback to legacy mode. Equal legacy and backup bytes,
-or an absent journal, cannot distinguish an early activation failure from a
-later journal that was lost while old files were restored. Do not use those
-observations alone to conclude that a debit never committed.
+## New activation protocol
+
+Stop all writers and preserve the entire directory before recovery. Keep the
+ledger, journal, `.pre-v2`, `.v2-activated`, pending and quarantine incidents, and
+`.kry_activation_*` temporary files. Do not delete evidence to satisfy a guard.
+
+| Retained state | Supported action |
+| --- | --- |
+| No published activation intent or completion evidence | Ordinary retry with the same operation ID; unpublished temporary files alone do not change accounting. |
+| Valid `kry_ledger.json.pending.activation-<id>`, no completion evidence | Operator-reviewed abandonment may preserve complete current legacy accounting. |
+| Exact attempted journal plus a valid activation intent | Explicit completion can finish the tombstone and sentinel. |
+| Journal, journal incident, tombstone or completion sentinel present | Abandonment refuses, even if another file is missing. |
+| `kry_ledger.json.pending.abandon-<id>` | Resume the same frozen abandonment review; changed accounting or evidence refuses. |
+| Malformed, conflicting, unreadable or symlinked required evidence | Preserve the bytes and establish a reviewed restoration; neither helper guesses. |
+
+The activation intent binds a 128-bit attempt ID, the exact original legacy hash
+(or explicit original absence), and the intended journal hash. Each new immutable
+file is written to a temporary file, flushed, verified and published without
+replacing existing evidence. The final `.pre-v2` is complete or absent; a temporary
+file may be partial. A directory synchronization barrier follows publication on
+POSIX. Windows retains the existing limits of portable file flush/replacement;
+there is no portable stdlib directory-fsync guarantee.
+
+To finish a retained candidate:
+
+```python
+from kry.kry_token import complete_journal_activation, ledger_operation
+
+# All writers are stopped; the complete retained attempt has been reviewed.
+complete_journal_activation()
+record = ledger_operation(original_operation_id)
+```
+
+Completion requires the exact candidate envelope and backup bound by the intent,
+the original legacy bytes or exact tombstone, and the expected incident set. It
+refuses if an intervening legacy writer changed accounting. It writes the missing
+completion pieces and removes the active intent after their durability barriers.
+Retrying the original keyed debit then returns its recorded result. If completion
+is interrupted, preserve the state and resume it while the intent remains. If the
+intent was already removed and the complete fence is healthy, inspect the recorded
+operation and use normal same-ID replay; completion does not require a second call.
+
+For a pre-journal attempt, only when independent retained records establish that
+the current legacy accounting omits no committed journal debit:
+
+```python
+from kry.kry_token import abandon_incomplete_journal_activation
+
+receipt = abandon_incomplete_journal_activation(
+    reason="Incident reference and basis establishing complete retained accounting",
+)
+assert receipt["basis"] == "operator_asserted"
+```
+
+Abandonment does not subtract or restore a guessed amount. It preserves the current
+accounting values and events, including reviewed intervening legacy changes. It
+records original and observed hashes and whether they differ. A changed digest
+does not authenticate the change: the operator must establish its legitimacy.
+
+The helper first publishes a durable abandonment plan. It archives the observed
+legacy bytes, activation intent, complete backup when present, and the assertion
+under uniquely named `kry_ledger.json.corrupt.activation.<id>.*` incident files.
+Here `corrupt` is the existing retained-incident namespace, not a claim that every
+archived byte was corrupt. Their hashes are bound in recovery metadata before
+the active plan is removed. Unpublished temporary files remain preserved but are
+not authoritative incident records; retain them in the private incident backup.
+
+If interrupted, calling abandonment again resumes the original frozen review.
+Changing the reason argument does not replace that review. Any subsequent change
+to the reviewed accounting or incident files blocks resumption. An immediate
+repeat after success returns the retained receipt without changing accounting.
+A later generic acknowledgement may replace that convenience receipt field, but
+the archived assertion and incident bindings remain. Normal keyed activation can
+then proceed using the caller's independently established retry decision.
+
+The sentinel `kry_ledger.json.v2-activated` binds the attempt ID and initial journal
+hash. New journals retain that identity in `accounting.recovery.journal_activation`.
+Ordinary writes and generic recovery preserve it. The healthy reader checks the
+completion identity. After the intent is removed, the initial hash is retained
+for review and is not revalidated against historical journal bytes or later states.
+Missing or malformed completion evidence, or a mismatched attempt identity, blocks
+new accounting. Restore the reviewed evidence; do not fabricate a new sentinel.
+Previously created journals without this metadata and sentinel remain supported
+under their original recovery contract; they are not silently relabeled.
+
+**Local absence cannot prove nonmovement.** Deleting or replacing every completion
+record together can make a completed activation indistinguishable from an early
+attempt. Abandonment is an operator assertion, not a historical rollback detector.
+It does not release a settlement obligation or authorize a receiver credit. Keep
+accounting blocked when the required completeness or operation outcome is unknown.
+
+## Earlier activation protocol and reviewed restoration
+
+The earlier unreleased writer opened its final backup before writing the intent.
+Its interrupted `.pre-v2` can be empty, partial or complete. Such a directory has
+no versioned activation intent for the new helpers to resolve. The procedure below
+documents explicit restoration for that older protocol and its envelope format.
+Do not remove a new-protocol intent or sentinel to force this older recovery path.
+There is no automatic fallback from missing journal history to a legacy backup.
 
 ## Establish the recovery basis
 
