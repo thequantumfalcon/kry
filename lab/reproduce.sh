@@ -13,8 +13,13 @@
 set -u
 cd "$(dirname "$0")/.."
 export PYTHONPATH=src
+unset PYTEST_ADDOPTS
 PYTHON="${PYTHON:-python3}"
-ROUNDS="${1:-10}"
+ROUNDS="${1-10}"
+if [[ ! "$ROUNDS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Round count must be a positive integer." >&2
+  exit 2
+fi
 fail=0
 
 echo "== KRY reproducibility — $ROUNDS rounds ($PYTHON) =="
@@ -31,7 +36,9 @@ done
 
 echo "-- [2/4] lab/run_local.py (lab Tests 1,2,3,5,6) --"
 for r in $(seq 1 "$ROUNDS"); do
-  if "$PYTHON" lab/run_local.py 2>&1 | grep -q "All local tests pass"; then
+  out=$("$PYTHON" lab/run_local.py 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ] && printf "%s\n" "$out" | grep -q "All local tests pass"; then
     echo "  round $r: ALL PASS"
   else echo "  round $r: *** FAIL"; fail=1; fi
 done
@@ -51,7 +58,9 @@ done
 
 echo "-- [4/4] HOLE D cross-node double-spend + lease --"
 for r in $(seq 1 "$ROUNDS"); do
-  if "$PYTHON" lab/hole_d_double_spend.py 2>&1 | grep -q "hole demonstrated=True  fix holds=True  lease atomic=True"; then
+  out=$("$PYTHON" lab/hole_d_double_spend.py 2>&1)
+  rc=$?
+  if [ "$rc" -eq 0 ] && printf "%s\n" "$out" | grep -q "hole demonstrated=True  fix holds=True  lease atomic=True"; then
     echo "  round $r: demonstrated + fixed + atomic"
   else echo "  round $r: *** FAIL"; fail=1; fi
 done

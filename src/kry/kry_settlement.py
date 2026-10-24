@@ -524,11 +524,12 @@ def _record_settled(party: str, amount: float, grant_id: str) -> None:
 
 
 def _rollback_registry(reg_text: str, tip: Optional[dict]) -> None:
-    """HOLE #7: restore the registry file + tip to the pre-commit snapshot, used when a debit FAILS
-    after its obligation was committed (commit-first preserves F4 — a registry-write failure never
-    debits A; this rollback then removes the phantom obligation and keeps the grant retriable when the
-    debit, not the commit, is what failed). Runs under the caller's registry lock. A restore failure is
-    logged loudly rather than masking the original debit error / silently leaving a phantom obligation."""
+    """HOLE #7: restore the registry + tip after a confirmed zero-debit shortfall.
+
+    A successful restore keeps the grant retriable. Raised or unclassifiable callback
+    outcomes cannot authorize rollback. Runs under the caller's registry lock.
+    A restore failure is logged for manual reconciliation.
+    """
     try:
         fd, tmp = tempfile.mkstemp(dir=_REGISTRY_PATH.parent, prefix=".regrb_")
         with os.fdopen(fd, "w") as f:
@@ -549,6 +550,37 @@ def _rollback_registry(reg_text: str, tip: Optional[dict]) -> None:
     except Exception as exc:
         logger.error("settlement registry rollback failed after a failed debit "
                      "(manual reconciliation may be needed): %s", exc)
+
+
+def _record_partial_debit(reg_before: str, amount: float) -> None:
+    """Replace the just-committed obligation under the caller's registry lock.
+
+    The grant stays present throughout. Before replacement the full obligation
+    remains; until the new tip is written, a tip mismatch blocks settlement.
+    Never undo this write: the debit has already moved value.
+    """
+    try:
+        entries = _registry_entries()
+        rec = {**entries[-1], "amount": amount}
+        rec["entry_hash"] = hashlib.sha256(
+            f"{rec['prev_hash']}:{rec['party']}:{amount}:{rec['grant_id']}".encode()).hexdigest()
+        fd, tmp = tempfile.mkstemp(dir=_REGISTRY_PATH.parent, prefix=".regpartial_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(reg_before + _json_dumps(rec) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, _REGISTRY_PATH)
+            _write_tip(len(entries), rec["entry_hash"])
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass   # unused temporary-file cleanup cannot undo or mask the debit outcome
+    except Exception as exc:
+        raise SettlementPersistenceError(
+            f"partial debit registry adjustment failed; grant remains blocked: {exc}"
+        ) from exc
 
 
 # ── HOLE D fix: cross-node lease/nonce/TTL authority (real-time federation guard) ─
@@ -895,6 +927,16 @@ def settle(
 
     debit_a_fn debits A's real KRY ledger and returns the amount it REPORTS moving;
     receiver is B's ReceiverLedger, credited by exactly that amount.
+    A clean refusal that moved nothing must return 0; raising signals an unknown
+    outcome, not proof that no debit occurred.
+    A confirmed zero-debit shortfall leaves the grant retriable if rollback succeeds. An
+    exception, interrupt or unusable return leaves the outcome unknown: the recorded
+    obligation consumes the grant and prevents that grant from debiting again. The original error
+    propagates; B is not credited. Review both sides before resolving that obligation;
+    acknowledging ledger recovery alone does not permit retrying the same grant.
+    A finite partial debit replaces the obligation with the actual amount without
+    releasing the grant. Failure can leave the full obligation, a blocked checkpoint
+    mismatch, or the updated partial obligation; the grant stays consumed and B uncredited.
 
     Conservation honesty: if a_balance_after_fn is given, A's real post-debit balance
     is read INDEPENDENTLY and conservation is checked against the real ledger movement
@@ -923,8 +965,8 @@ def settle(
     # obligation + clear the in-process reservation, under the lock, BEFORE any real KRY moves. The
     # previous order debited A (debit_a_fn) and only THEN wrote the registry, so a ceiling rejection
     # OR a registry-write failure left A debited with B never credited — value destroyed. Reserving
-    # the agreed `amount` first makes settlement transactional: if this block raises, NOTHING was
-    # debited. (Recording the agreed amount, not the post-hoc reported `debited`, is also strictly
+    # the agreed `amount` first ensures a registry-commit failure occurs before the debit callback.
+    # (Recording the agreed amount, not the post-hoc reported `debited`, is also strictly
     # safer against a lying debit_fn that under-reports to dodge its ceiling.)
     from kry._locks import cross_process_lock
     _REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -952,7 +994,7 @@ def settle(
             # F4: COMMIT the obligation FIRST. A registry-write failure (or a double-settle of this
             # grant) raises HERE, BEFORE the debit, so a commit failure never debits A — and we can roll
             # the registry back, but we CANNOT un-debit A's opaque ledger, which is why the reversible
-            # side must come first. Snapshot the registry + tip so the debit step can undo this commit.
+            # side must come first. Snapshot the registry + tip for a confirmed shortfall.
             reg_before = _REGISTRY_PATH.read_text(encoding="utf-8") if _REGISTRY_PATH.exists() else ""
             try:
                 tip_before = _read_tip()
@@ -960,32 +1002,26 @@ def settle(
                 raise SettlementPersistenceError(
                     f"settlement tip checkpoint unreadable: {exc}") from exc
             _record_settled(offer.from_party, amount, grant.grant_id)
-            # HOLE #7: now move A's KRY and confirm it moved EXACTLY the agreed amount. If the debit
-            # fails / under-reports (e.g. A's balance dropped between accept and settle), ROLL BACK the
-            # just-committed obligation so no PHANTOM obligation remains and the grant stays retriable —
-            # the previous order left A's available balance permanently reduced with B credited nothing.
-            try:
-                debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
-            except Exception:
-                # The debit raised (moved nothing it could account for) — undo the obligation so no
-                # phantom remains and the grant stays retriable.
-                _rollback_registry(reg_before, tip_before)
-                raise
+            # A raised or unclassifiable outcome may follow a committed debit. Keep
+            # the obligation and propagate the error so this grant cannot debit again.
+            # Only a finite returned amount can authorize the adjustment below.
+            debited = _finite_number(debit_a_fn(amount), "debited_kry", nonnegative=True)
             if abs(debited - amount) > 1e-9:
                 # Fail closed — B is never partially credited (the agreed routing did not happen). But
                 # a non-atomic debit on a balance that DROPPED between accept and settle moves
                 # min(amount, balance) and returns that partial amount; that value is gone from A's
                 # real ledger and we have no reverse callback to un-move it. So the registry must
-                # reflect what A ACTUALLY spent: roll back the agreed-`amount` obligation and, if any
-                # value moved, record THAT amount. Recording the real movement (not a clean 0) keeps A's
+                # reflect what A ACTUALLY spent: replace the agreed-`amount` obligation without ever
+                # releasing the grant. Recording the real movement (not a clean 0) keeps A's
                 # cumulative-settled honest so it cannot over-spend across counterparties — the exact
                 # thing the registry prevents — and consumes the grant so the partial can't be retried
                 # into a second debit. A debit that truly moved nothing (debited == 0) rolls back clean
                 # and leaves the grant retriable. (debit_a_fn MUST report what it moved; a lying debit
                 # is out of scope — A is debiting its own ledger.)
-                _rollback_registry(reg_before, tip_before)
                 if debited > 0:
-                    _record_settled(offer.from_party, debited, grant.grant_id)
+                    _record_partial_debit(reg_before, debited)
+                else:
+                    _rollback_registry(reg_before, tip_before)
                 raise SettlementPersistenceError(
                     f"debit moved {debited:.4f} but the committed obligation is {amount:.4f} — "
                     f"settlement failed closed (B credited nothing; A's actual {debited:.4f} "

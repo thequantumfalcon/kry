@@ -471,7 +471,12 @@ function magnitudeErrors(link) {
     if (declares && km > 0) out.push("magnitude: kry from zero inputs");
     return out;
   }
-  const implied = km / (ts * rate);
+  const basis = ts * rate;
+  if (basis === 0) {
+    out.push("magnitude: basis is zero");
+    return out;
+  }
+  const implied = Number.isFinite(basis) ? km / basis : (km / ts) / rate;
   if (!multiplierLegal(implied)) out.push("illegal multiplier");
   return out;
 }

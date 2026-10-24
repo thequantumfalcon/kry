@@ -1,12 +1,13 @@
 # KRY four-node lab
 
-What a real home lab proves that synthetic tests and a single machine cannot:
-an **independent oracle** (you control the router, so you know the true outcome),
-**real non-synthetic traffic + energy**, and **multi-machine** behaviour — including
-the one disclosed architectural limit, **HOLE D** (cross-node double-spend).
+This lab exercises routing, supplied wall-energy measurements and multi-machine
+behaviour, including **HOLE D** (cross-node double-spend). Generated prompts remain
+synthetic even when served by real models. An operator-controlled router or judge
+is not automatically an independent oracle.
 
-Maps to the readiness ladder (`docs/KRY_READINESS.md`): the lab can supply the
-`independent_agreement` and `real_corpus` evidence that no code round can.
+The results can inform the readiness ladder (`docs/KRY_READINESS.md`), but lab
+completion alone does not supply independent real-corpus validation or authorize
+a `production_ready` claim.
 
 ## Node roles
 
@@ -34,13 +35,14 @@ weakest = coordination authority). One worked example (adjust to your exact gear
 Notes: a discrete-GPU node + an Apple-Silicon node cannot share one GPU pool (different
 stacks) — this is a heterogeneous **routing** pool (KRY's actual use case), not unified
 VRAM. Older Pascal cards run small quantized models only (Ollama/llama.cpp); fine as
-free-tier/draft/coordination nodes. Local models cost ~$0/token, so the **dollar** leg
-needs one real paid-provider key; **energy** and **distributed-correctness** are real
-without it.
+free-tier/draft/coordination nodes. Local inference still consumes energy and hardware.
+A paid-provider call can supply usage and incurred-charge evidence; it does not prove
+that a different call was avoided or that money was saved. Energy and distributed
+experiments need no paid API.
 
 ## Test 3 — cross-node double-spend (HOLE D) — RUNNABLE NOW
 
-The killer test; only multiple nodes can run it. Demonstrated locally (4 dirs):
+This local exercise simulates four participants using separate directories:
 
 ```bash
 PYTHONPATH=src python3 lab/hole_d_double_spend.py
@@ -60,27 +62,30 @@ PYTHONPATH=src python3 -c "import kry.kry_mint as m,kry.kry_attest as a; \
 # Node B and Node C: lease from D FIRST, then verify_and_accept against the local registry
 ```
 
-**Pass:** Phase 1 shows the double-spend (confirming the disclosure is honest); Phase 2
-prevents it. This empirically closes the biggest open limitation, on real machines.
+**Pass:** Phase 1 shows the double-spend; Phase 2 denies the conflicting lease in
+the tested setup. This does not establish a universal cross-node guarantee:
+every participant must use the authority, and shared-storage lock semantics matter.
 
 ## The other experiments (specs — each a falsifier)
 
 | # | What | How | Pass / Fail |
 |---|---|---|---|
 | **1** | holdout recovers REAL truth | run the router with a 2–5% randomized holdout; compare KRY's Wilson CI to the true per-class paid-rate from your full-stream log | CI brackets the true rate for ≥80% of classes |
-| **2** | measured energy → carbon | power-meter served vs avoided model; set `KRY_JOULES_PER_TOKEN` to your measured J/token | measured avoided kWh ≈ KRY's reported avoided energy → carbon is MEASURED not ESTIMATE |
-| **4** | stranger verify across machines + F1 | Node A mints (Node D serves as the metered provider); Node B (fresh checkout, stdlib) runs `scripts/kry_verify.py`; reconcile vs D's own usage export | B verifies VALID over the network; ≥80% of T1 receipts reconcile |
+| **2** | wall-energy comparison | meter the same batch on both nodes; retain readings and token counts | compare measured energy per token; the hypothetical routing delta and CO₂ conversion remain conditional estimates |
+| **4** | stranger verify across machines + F1 | Node A mints; Node B verifies; compare retained records with the declared provider source | current per-request research grading requires every supplied request ID and token pair to match and verdict RECONCILED; operator-controlled Node D is not independently authenticated evidence |
 | **5** | sanctions across real identities | 3 honest nodes + 1 cheater whose claims fail reconciliation vs D | cheater reputation collapses, audit → ~100%; honest nodes at the 2% floor |
-| **6** | concurrency correctness | all 4 nodes hammer a shared ledger (NFS) with parallel earn/spend | final balance == Σ deltas (no lost updates) |
+| **6** | concurrency correctness | parallel processes share a local-filesystem ledger on one host | final balance == Σ deltas for the tested workload; network filesystems are outside the lock guarantee |
 
 ## Honest boundary
 
-- This harness **simulates** four nodes locally (separate data dirs); the double-spend
- it shows is real given unmerged registries, and the lease is a **prototype** of the
- lease/nonce/TTL fix ranked in `docs/KRY_VERACITY_BINDING.md` — not a production
- consensus system.
-- Local models cost ~$0/token, so the **dollar** value is only real on the leg where the
- avoided/displaced call would have hit a **paid** provider. Wire one real provider key
- for the dollar number; energy/efficiency/distributed-correctness are real without it.
-- Lab traffic is real but it is **your** traffic. The lab removes the technical doubt;
- an external user's corpus is the remaining flavour of unqualified `production_ready`.
+- This harness **simulates** four nodes locally (separate data dirs). Unmerged
+ registries each accept the same attested capacity; the local shared counter checks
+ a cumulative ceiling and a two-thread race. It has no nonce/TTL lifecycle or crash
+ recovery. The separate settlement lease implementation is described in
+ `docs/KRY_VERACITY_BINDING.md`; this demonstration does not qualify its deployment.
+- Provider usage, dated price estimates and observed account charges are separate
+ records. A paid key does not establish the counterfactual, customer benefit or cash
+ savings. Keep those claims pending independently obtained evidence.
+- Generated lab requests are synthetic and operator-controlled. Hardware execution
+ and passing arithmetic checks do not establish an independent corpus, source truth,
+ customer savings or production readiness. See `docs/CLAIMS_BOUNDARY.md`.

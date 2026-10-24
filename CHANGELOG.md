@@ -7,7 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional durable operation IDs for internal debits: `spend(..., op_id=...)`,
+  direct-amount `debit_kry(amount, op_id=...)`, and `ledger_operation(op_id)`.
+  A same-parameter retry returns the recorded result without another debit,
+  including after a committed write was interrupted before returning. IDs are
+  stored atomically with the balance and retained beyond the bounded event list.
+  The journal lives at `kry_ledger.v2.json`, with a checked tombstone at the legacy
+  path and the original shared lock. Old writers cannot overwrite the journal
+  through the legacy filename; marker interference blocks new accounting.
+  Activation retains the original ledger and fails closed on uncertain migration.
+  The first keyed write opts into this local ledger format; upgrade every writer
+  before activation and preserve the full journal through recovery. Unkeyed
+  calls and the existing settlement registry keep their previous contracts.
+
+### Fixed
+
+- Recovery documentation omitted activation crashes that leave an empty, partial
+  or complete migration backup before any journal is written. The recovery guide
+  now specifies the versioned envelope and a reviewed restoration procedure;
+  ordinary acknowledgement still refuses an incomplete fence and never infers
+  missing debit history from the legacy backup.
+- Python savings verifiers now reject a finite positive token/rate product that
+  underflows to zero with a normal invalid verdict, matching the JavaScript
+  verifier, instead of raising a division-by-zero exception.
+- All three public savings verifiers and the internal mint-chain verifier now
+  use stable division when a token/rate product overflows, rejecting an illegal
+  multiplier while preserving legal ratios near the floating-point limit.
+- Generic mint and action writers now refuse to append after an unterminated
+  retained record, preserving the existing log and accounting state instead of
+  joining two JSON receipts on one line.
+- The optional PQC verifier now rejects invalid UTF-8 during its chain check
+  instead of checking replacement-decoded bytes. Signature-only verification
+  when the core package is absent retains its existing byte-signature behavior.
+- Reproducibility checks now reject failed child processes even when they print a
+  success marker, reject incomplete lease races, and reject zero or malformed
+  round counts. Release checks and direct reproducibility runs ignore inherited
+  pytest options that could select only part of the required test suite.
+- Keep the local proof runner's synthetic reputation updates in its temporary
+  data directory, preserving the caller's accounting data.
+- Restore the caller's lease configuration after lab node verification and keep
+  the no-authority demonstration from using or altering an inherited authority.
+- Allow the 501-write ledger regression more time on slower runners, retaining
+  every write and accounting assertion and the existing timeout for other cases.
+- Correct current recovery and request-ID reconciliation guidance, and remove
+  unsupported lab-readiness, carbon, holdout, notary-import and sanctions claims.
+- Label LiteLLM shadow-call costs as pricing-table estimates rather than provider
+  receipts; document the extra call and the raw rows' limited evidence scope.
+
+## [0.1.14] - 2026-10-23
+
+### Fixed
+
+- Settlement could debit the same grant twice after an uncertain debit and ledger
+  recovery. Raised or unusable callback outcomes now retain the recorded obligation;
+  only a confirmed zero allows that grant to retry. Partial debits now replace the
+  obligation without temporarily reopening the grant; a failed adjustment cannot
+  authorize another debit. Successful partial-debit totals are unchanged.
+- Recovery acknowledgement could erase restored spending by clamping a negative
+  balance. It now refuses negative restored balances before writing, preserving
+  the supplied ledger and incident evidence for review.
+- Interruptions could leave an uncommitted debit or credit in memory for a later
+  operation to persist. Public accounting operations now discard uncommitted changes
+  while propagating cancellation; uncertain writes retain recovery protection.
+  Interrupted cache refreshes block further writes instead of replaying another
+  process's debit as a local change.
+  Capacity queries read durable state without flushing pending changes.
+- Recovery acknowledgement could return normally after its own intent cleanup
+  failed, while accounting remained blocked. It now checks that the recovered
+  ledger is available before reporting completion.
+
 ## [0.1.13] - 2026-10-23
+
+Publication was cancelled before GitHub release assets or PyPI distributions were
+published. The signed tag is retained; the fixes below are included in 0.1.14.
 
 ### Fixed
 
@@ -1269,7 +1343,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.14...HEAD
+[0.1.14]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...v0.1.14
 [0.1.13]: https://github.com/thequantumfalcon/kry/compare/v0.1.12...v0.1.13
 [0.1.12]: https://github.com/thequantumfalcon/kry/compare/v0.1.11...v0.1.12
 [0.1.11]: https://github.com/thequantumfalcon/kry/compare/v0.1.10...v0.1.11

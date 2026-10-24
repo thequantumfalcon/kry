@@ -16,9 +16,11 @@ relevant surface is:
 - the **stranger verifier** (`scripts/kry_verify.py`) and the attestation format,
 - the optional **audited crypto** tiers (TEE / PQC) behind the `tee` / `pqc` extras.
 
-By design, **integrity ≠ veracity**: the chain proves *untampered + conserved*, not that an event
-happened. A balance with no external anchor honestly reports `veracity_floor = 0.0`. That is the
-**honest label, not a defect** — do not report it as a vulnerability.
+By design, **integrity ≠ veracity**: chain and conservation checks do not prove that an event
+happened. Detecting a complete re-mint or tail removal requires an independently retained
+prior chain anchor. `veracity_floor` summarizes declared evidence tiers; the verifier does
+not authenticate their underlying witnesses. A purely self-reported balance reads `0.0`.
+These are disclosed limits, not defects — do not report them as vulnerabilities.
 
 ## Advisory (non-enforcing) controls
 
@@ -36,8 +38,8 @@ treat the advisory default as a vulnerability — it is a labeled limit, like `v
 
 | Version | Supported |
 |---|---|
-| 0.1.13 (current) | ✅ |
-| < 0.1.13 | ❌ |
+| 0.1.14 (current) | ✅ |
+| < 0.1.14 | ❌ |
 
 ## Reporting a vulnerability
 

@@ -4,6 +4,13 @@ The mint chain records earnings, not spending. A valid chain cannot reconstruct
 missing debit history or prove real savings. The internal balance ledger and the
 separate settlement registry have different responsibilities.
 
+For opt-in keyed debits, see [operation identity](KRY_OPERATION_IDENTITY.md).
+Those calls record their result with the balance and require the complete
+versioned journal during recovery. Activated directories use `kry_ledger.v2.json`
+and an exact tombstone at `kry_ledger.json`, with the original legacy lock.
+The unkeyed return behavior below remains
+unchanged; keyed calls raise on unrecorded failure rather than returning zero.
+
 `spend()` reads current state and records its decision under the ledger's process
 lock. It records internal accounting; it is not transactional authorization for an
 external action. A positive `spend()` or `earn()` return confirms its ledger write.
@@ -12,17 +19,36 @@ delta; a caller can retry without an old delta merging over a competing writer.
 A replace whose acknowledgement was lost still counts as successful when the
 exact written bytes are proven under the lock. An uncertain outcome raises
 `LedgerPersistenceError` and blocks accounting until explicit recovery; do not
-retry it as a new operation. `can_afford()` refreshes its snapshot but
-does not reserve capacity. Reconciliation
+retry it as a new operation. Interrupts propagate to the caller. Public earn,
+spend and reconciliation roll back uncommitted in-memory changes on cancellation
+and block accounting if that cleanup fails. An interrupted cache refresh also
+blocks that process before its partially updated cache can be reused. A raised
+interrupt does not prove that no write occurred. Preserve and review retained
+state before retrying the logical operation. `can_afford()` reads a durable
+snapshot without committing pending edits or reserving capacity. Reconciliation
 holds the mint lock through the chain snapshot and preserves current ledger
 debits. Mints retain that lock until their balance update finishes. A failed
 credit leaves no pending delta that could replay after another process reconciles.
+
+Settlement records its obligation before invoking the debit callback. An exception,
+interrupt or unusable callback return leaves the debit outcome unknown: the grant
+stays consumed and the receiver is not credited. Review both sides and the retained
+obligation; ledger recovery acknowledgement alone does not authorize retrying that
+grant. Confirmed zero-debit shortfalls retain the registry rollback path; successful
+rollback leaves the grant retriable. The registry and balance ledger remain
+separate records.
+A reported finite partial debit replaces the existing obligation with the reported
+amount while retaining its consumed grant. If that adjustment fails, the full
+obligation, an updated partial obligation, or a registry/checkpoint mismatch can
+remain; all prevent retrying that grant. The receiver receives no credit. Review
+the retained records before resolving the outstanding debit.
 
 If a ledger is missing while mint history remains, or its contents cannot be
 parsed and validated, automatic recovery refuses to create spendable value.
 An initial empty ledger must persist before the first receipt is appended. A
 cached empty object does not override missing history created by another process.
-Corrupt bytes are retained as `kry_ledger.json.corrupt`; another damaged file is
+Corrupt bytes are retained beside the active ledger as `kry_ledger.json.corrupt`
+or `kry_ledger.v2.json.corrupt`; another damaged file is
 retained under a unique suffix. An existing quarantine is not replaced. A blank
 object returned after quarantine is not permission to save a fresh balance.
 Read I/O failures do not quarantine bytes: accounting reports unavailable and
@@ -31,7 +57,8 @@ and null totals while the ledger is unavailable, rather than a fabricated zero.
 Invalid JSON or UTF-8 still requires recovery.
 
 Before replacing the ledger, a writer flushes a uniquely named
-`kry_ledger.json.pending.<id>` intent containing the target hash. A confirmed
+`kry_ledger.json.pending.<id>` or `kry_ledger.v2.json.pending.<id>` intent
+containing the target hash. A confirmed
 write or known pre-replace failure removes its intent. A crash, uncertain outcome,
 or intent-cleanup failure retains it and blocks other writers and restarts.
 Cleanup failure does not turn a proven committed debit into a zero return.
@@ -56,7 +83,25 @@ Before recovery:
    debit records through the incident. The bounded event list is not a complete
    historical debit journal. Do not infer zero spending from absent records.
 3. Restore a reviewed ledger containing its known `balance`, `total_earned`,
-   `total_spent`, and `events`. Keep the incident evidence. If the debit total
+   `total_spent`, and `events`. Recovery acknowledgement refuses a negative
+   restored balance before writing anything; it does not clamp that balance or
+   reduce the debit total. Establish the complete accounting basis before
+   acknowledgement, including any earnings missing from a stale snapshot.
+   Do not erase spending or invent credits to make the balance nonnegative.
+   If keyed debits have been activated, restore the entire versioned envelope
+   at `kry_ledger.v2.json` and its exact legacy-path tombstone, not just these
+   scalars. Preserve changed tombstone bytes as a uniquely named
+   `kry_ledger.json.corrupt.<id>` incident before restoring the marker.
+   Acknowledgement refuses an absent or altered marker and never falls back to
+   the retained `kry_ledger.json.pre-v2` migration backup. Interrupted activation
+   also requires review of both files and the retained intent; do not infer
+   whether the keyed debit committed from the marker alone.
+   If activation stopped before the journal was written, follow
+   [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md), including
+   its empty/partial backup case and complete reviewed envelope format.
+   Missing IDs cannot be reconstructed
+   from the bounded event list, and a valid old snapshot is not proof of completeness.
+   Keep the incident evidence. If the debit total
    cannot be established, leave accounting blocked; the earn-only chain cannot
    supply the missing fact. A legacy blank replacement beside a quarantine is
    ambiguous and remains blocked even though that replacement parses correctly.
@@ -65,7 +110,14 @@ Before recovery:
    hashes of retained quarantine and pending-write files in the restored ledger.
    It does not reconstruct or authenticate any totals. The incident files stay in
    place; a new or changed incident requires another review. Preserve this
-   recovery metadata with subsequent backups.
+   recovery metadata with subsequent backups. A normal return means the ledger
+   was readable and available under the lock when acknowledgement completed.
+   If acknowledgement raises, do not assume nothing was written or retry blindly:
+   its metadata can have committed while cleanup of its own pending intent failed.
+   Keep writers stopped, preserve the new evidence, and review the retained ledger
+   and incidents before another explicit acknowledgement. Accounting remains
+   blocked when an unacknowledged intent remains. A lost replace acknowledgement
+   resolved by exact bytes and the durability check can still complete normally.
 5. Reopen the ledger and run `reconcile_ledger_from_chain()`. It verifies the chain
    and aligns earnings while retaining supplied debit totals. Debits exceeding
    chain earnings cause refusal, rather than being erased. Review the result

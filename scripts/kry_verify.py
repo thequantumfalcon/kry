@@ -348,7 +348,12 @@ def _magnitude_errors(link: dict) -> list[str]:
             errors.append(f"seq {link.get('seq')}: kry_minted {kry_minted} with tokens_saved={ts} "
                           f"/ earn_rate={rate} — magnitude not derivable from declared inputs")
         return errors
-    implied = kry_minted / (ts * rate)
+    basis = ts * rate
+    if basis == 0:
+        errors.append(f"seq {link.get('seq')}: magnitude basis underflowed to zero")
+        return errors
+    implied = (kry_minted / basis if math.isfinite(basis)
+               else (kry_minted / ts) / rate)
     if not any(abs(implied - m) <= 1e-3 for m in legal_multipliers()):
         errors.append(
             f"seq {link.get('seq')}: implied price multiplier {implied:.4f} is "

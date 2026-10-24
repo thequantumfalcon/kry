@@ -2,8 +2,9 @@
 
 **Status:** primitive shipped (`src/kry/kry_baseline.py`, tier
 `holdout_validated` in `kry_mint.py`, `tests/test_baseline.py`).
-**What it fixes:** the load-bearing weakness in `KRY_VERACITY_BINDING.md` — the
-counterfactual at the heart of every cache-hit credit.
+**Scope:** estimates a population rate from operator-supplied observations. The
+primitive does not make provider calls, authenticate observations or prove a
+counterfactual; the host must implement and justify the experiment.
 
 ---
 
@@ -48,7 +49,8 @@ For each cache-eligible request, deterministically assign a small random fractio
 2. They **measure `p_hat`** = the fraction of a request-class that genuinely hits
  the **paid** model absent optimization.
 3. A **Wilson 95% confidence interval** is computed, and the cached ("treated")
- population is valued at the **CI lower bound** — never overclaiming.
+ population is valued at the **CI lower bound**. This is a conservative estimate
+ under the sampling assumptions, not a guarantee against sampling error or biased data.
 
 The claim becomes:
 
@@ -56,9 +58,8 @@ The claim becomes:
 > hits avoided a real paid call (point 71%, 95% CI [62%, 79%]), measured by a
 > randomized 2% holdout with retained provider receipts."*
 
-That is a documented, auditable baseline — the artifact IPMVP and carbon
-**additionality** require. **One mechanism raises veracity *and* carbon
-credibility at once.**
+That claim requires retained evidence of the described experiment. The primitive
+alone does not meet an external measurement standard or establish carbon additionality.
 
 ## How it lands in the ledger
 
@@ -69,7 +70,7 @@ A new tier sits between self-report and per-event metering:
 | `self_reported` (T0) | operator runtime | a raw cache hit, no baseline |
 | **`holdout_validated` (T1\*)** | **a randomized holdout w/ real receipts** | **a cache hit valued at the measured-conservative counterfactual** |
 | `provider_metered` (T1) | the provider, per call | displacement's metered leg |
-| `tee_attested` (T2) | hardware/TEE | not built |
+| `tee_attested` (T2) | signed enclave document | optional Nitro verifier and demonstration PoC shipped; trusted measurement and input binding remain separate requirements |
 
 Usage pattern (`kry_baseline.holdout_adjusted_tokens` scales the avoided tokens by
 the CI lower bound — honest for *both* the dollar basis and the carbon basis,
@@ -107,19 +108,19 @@ representativeness of the observations supplied by the operator.
 | Attack | Answer |
 |---|---|
 | "Holdout costs money." | Yes: cost = `holdout_rate × avoided value`. At 1–2% it is the quantified **price of veracity**, surfaced in `holdout_report()`, not hidden. |
-| "Operator grinds request-ids to dodge holdout." | Assignment = `SHA-256(published_seed : request_id)`. Auditable; grinding leaves a record. **Commit the seed publicly** — that is the unbiasedness guarantee. |
-| "Classes are gamed to inflate p̂." | Classes declared before measurement; holdout is per-request, so requests can't be reclassified post-hoc without breaking the hash assignment. |
+| "Operator grinds request-ids to dodge holdout." | Assignment = `SHA-256(published_seed : request_id)` is reproducible. A fixed public seed alone does not prevent choosing IDs or omitting requests. Retain an independently collected request inventory and precommit the sampling policy. |
+| "Classes are gamed to inflate p̂." | Declare classes before measurement and retain their assignments. The hash binds the seed and request ID, not the class; the primitive does not detect later reclassification. |
 | "It's a population estimate, not per-event proof." | **Correct — and not overclaimed.** Own tier line; valued at the CI floor; an unmeasured class earns **0** (fail-closed). |
 | "Small `n` breaks the normal approximation." | Wilson score interval (not naive normal) — valid for small `n` and `p` near 0/1; `n=0 → [0,1] → lo=0 → no credit`. |
 
 ## Honest ceiling
 
-This **measures** the counterfactual rate; it does not **prove** any single event's
-counterfactual. It moves cache-hit veracity from "the operator's word" to "a
-randomized experiment with real receipts and a stated confidence interval" — the
-strongest honest claim available short of a TEE (T2). That is the bar incrementality
-and IPMVP hold, and it is enough for a counterparty, an auditor, or a carbon
-verifier to rely on a *bounded* number instead of an asserted one.
+This estimates a population rate from the supplied observations; it does not
+prove any single event's counterfactual. A randomized experiment with retained
+provider records can support a statistical claim when its collection and sampling
+assumptions are independently justified. The tier label and confidence interval
+alone do not establish those conditions, certify carbon savings or authorize
+counterparty reliance under the [claims boundary](CLAIMS_BOUNDARY.md).
 
 ---
 

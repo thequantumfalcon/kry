@@ -17,8 +17,15 @@ include operator data. The fixed messages distinguish these outcomes:
 | `mint receipt acknowledgement failed; stage=receipt_persisted` | An exception followed the receipt write. | Later operations and the caller's acknowledgement are incomplete. |
 | `tip checkpoint did not advance or was not acknowledged` | Receipt persistence completed; checkpoint update raised. | The checkpoint may be stale; an exceptional acknowledgement does not establish the exact file outcome. |
 | `balance update was not acknowledged` | The receipt was retained; the balance call raised. | The balance may be unchanged or already updated. |
-| `KRY earn: ledger persistence unconfirmed` | The balance save raised inside `earn()`. | The credit may be only in memory or already on disk. This warning does not propagate as a mint failure. |
-| `KRY spend: ledger persistence unconfirmed` | The debit save raised inside `spend()`. | The debit may be only in memory or already on disk. The mint chain cannot reconstruct an unrecorded debit. |
+| `KRY earn: ledger write failed; no credit recorded` | A known pre-commit failure returned zero and rolled back this public operation's pending credit. | The retained mint receipt may still need balance reconciliation. |
+| `KRY spend: ledger write failed; no debit recorded` | A known pre-commit failure returned zero and rolled back this public operation's pending debit. | This does not describe an uncertain replacement or an external action. |
+
+An uncertain ledger replacement raises `LedgerPersistenceError` and blocks accounting;
+it is not reported as a confirmed zero debit. An interrupted operation propagates the
+interrupt, which does not establish whether its write committed. A lost replacement
+acknowledgement can still return the committed amount when the ledger proves the write.
+See [ledger recovery](KRY_LEDGER_RECOVERY.md) for these outcomes and the separate
+lower-level direct-save contract.
 
 These messages report exceptions observed by the process. They cannot report a
 process killed before logging, certify survival of a power loss, or establish
@@ -31,7 +38,9 @@ that an external saving happened.
    procedure. Work from a retained copy; do not delete or rewrite malformed rows.
 2. Confirm the exact `KRY_DATA_DIR` used by the affected process. Preserve
    `kry_mint_log.jsonl`, `kry_mint_tip.json`, `kry_evidence_decay.json` and
-   `kry_ledger.json`, including which files were absent. Keep this material private.
+   `kry_ledger.json`, `kry_ledger.v2.json`, `kry_ledger.json.pre-v2`, and all ledger
+   `.pending.*` and `.corrupt*` files, including which files were absent.
+   Keep this material private.
 3. From the checkout, inspect a retained copy with the command below. Replace the
    path explicitly. It reports file hashes, sizes and chain-verification status,
    without printing receipt contents or verifier error strings. It writes no KRY
@@ -46,8 +55,11 @@ from pathlib import Path
 from kry.kry_mint import verify_chain
 
 directory = Path(os.environ["KRY_DATA_DIR"]).expanduser()
-for name in ("kry_mint_log.jsonl", "kry_mint_tip.json",
-             "kry_evidence_decay.json", "kry_ledger.json"):
+names = {"kry_mint_log.jsonl", "kry_mint_tip.json", "kry_evidence_decay.json",
+         "kry_ledger.json", "kry_ledger.v2.json", "kry_ledger.json.pre-v2"}
+for pattern in ("kry_ledger*.json.pending.*", "kry_ledger*.json.corrupt*"):
+    names.update(path.name for path in directory.glob(pattern))
+for name in sorted(names):
     path = directory / name
     if not path.exists():
         print(json.dumps({"file": name, "present": False}))
@@ -68,9 +80,15 @@ PY
 4. Review receipt presence, newline completeness and checkpoint count/tip on the
    retained copy. Chain verification alone does not reconcile the balance or
    establish a missing log is legitimate. Compare the persisted ledger's
-   `total_earned`, `total_spent` and `balance` with the verified receipt totals and
+   `total_earned`, `total_spent` and `balance` (inside `accounting` for the v2
+   journal) with the verified receipt totals and
    independently retained spend records. A valid chain proves recorded integrity,
    not the truth of the underlying efficiency events.
+   Mint and action writers refuse a nonempty log whose last record has no final
+   newline. A parser may still accept that record, but appending would join two
+   JSON objects. Preserve the original bytes and establish the complete intended
+   history before restoring a newline-terminated JSONL copy; do not discard or
+   guess at a partial record. This refusal does not reconcile earlier writes.
 5. Record the discrepancy and choose a recovery procedure before resuming writes.
    Do not blindly retry or mint a replacement receipt. With
    `idempotent_evidence=True`, a complete retained receipt blocks the same evidence

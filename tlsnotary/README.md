@@ -1,9 +1,10 @@
 # TLSNotary T2 prototype — provider-attested veracity for KRY
 
 This directory holds the **T2 (TLS-notary attested) prototype** for KRY's veracity ladder.
-T2 is the only honest external anchor for counterfactual/efficiency claims: a third party
-cryptographically verifies what a provider's API returned over a real TLS session, without
-trusting the operator.
+TLSNotary can authenticate what a provider returned in an incurred TLS session when
+the original proof is verified against a trusted notary key. It cannot witness an
+avoided call or prove a counterfactual saving. The historical prototype below used
+an operator-run notary, not a neutral third party.
 
 ## Status — proven LIVE end-to-end, authed + minted (2026-06-04)
 
@@ -91,9 +92,11 @@ python3 scripts/kry_tlsn_verify.py presentation.json --server openrouter.ai \
 ```
 
 `kry_tlsn_adapter.py` parses the `Successfully verified … session with <server>` line
-(the proof signal) + the revealed `Data received:` transcript; `kry_tlsn_verify.py`
-validates it fail-closed and mints a `tlsn_attested` (T2) receipt that folds into
-`veracity_floor`. A per-request token anchor needs `URI=/api/v1/generation?id=<id>`
+and the revealed `Data received:` transcript; it does not verify a cryptographic proof.
+`kry_tlsn_verify.py` trusts that supplied verifier output and checks its fields before
+minting a `tlsn_attested` (T2) receipt. Independently run Rust `attestation_verify`
+on the original proof against a trusted notary key before relying on this import.
+A per-request token anchor needs `URI=/api/v1/generation?id=<id>`
 (a 200 carrying `native_tokens_*`); `/api/v1/credits` attests dollars, not tokens.
 
 Note: `/api/v1/models` (412 KB) exceeds the example's `MAX_RECV_DATA` (16 KB) and MPC-TLS is

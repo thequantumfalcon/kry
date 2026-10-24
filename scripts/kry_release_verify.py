@@ -57,6 +57,8 @@ def _clean_python_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
+    # An inherited selection or collection-only flag cannot narrow the release suite.
+    env.pop("PYTEST_ADDOPTS", None)
     if extra:
         env.update(extra)
     return env

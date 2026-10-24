@@ -16,29 +16,30 @@ you?
 It helps to notice that most cost tooling blurs three different questions into one green number. Pulling
 them apart is the whole game.
 
-1. **Integrity — was the ledger edited after the fact?** Solvable. Hash-chain every entry; any edit,
-   reorder, insertion, or deletion breaks the chain, and a stranger can recompute it to catch tampering
-   without trusting you.
+1. **Integrity — is the supplied history consistent with its retained commitments?** Hash-chain
+   every entry so a stranger can recompute the links and totals. Detecting a complete re-mint or
+   tail deletion also requires an independently retained prior chain anchor; a self-consistent
+   chain alone does not prove that the operator supplied the original, complete history.
 
-2. **Magnitude — does the dollar figure actually follow from the events and public prices?** Also
-   solvable. Recompute every figure from the published price tables. This catches an inflated number
-   *even when the ledger is internally consistent* — you can't quietly multiply by a model you didn't use.
+2. **Magnitude — does the amount follow the published benchmark arithmetic?** Recompute amounts
+   where receipts contain the required inputs and check the implied multiplier against the
+   published set. Legacy receipts can lack those inputs. This does not establish which model was
+   actually avoided or whether its benchmark equals a provider charge.
 
 3. **Veracity — did the saving actually happen?** This one a hash chain **cannot** prove, and pretending
    otherwise is the central mistake. A cache hit is a call that never reached a provider. By construction,
    nothing outside your own runtime witnessed the counterfactual — the expensive thing you *didn't* do. No
    amount of cryptography conjures an external witness for an event that left no external trace.
 
-That's the line worth keeping: **a hash chain can prove a log wasn't edited; it cannot prove the thing it
-records happened.** "Untampered" and "true" are different properties, and a checkmark that conflates them
-is quietly claiming more than it can know.
+That's the line worth keeping: **checking a chain's integrity does not prove the thing it
+records happened.** Retained commitments and source evidence answer different questions.
 
 The honest move isn't to fake the third property — it's to separate the three and make the leftover trust
 *explicit*. Prove integrity and magnitude to a stranger offline. Then, for veracity, don't bury the gap
 under a green tick: put a number on it. What fraction of this balance is backed by something stronger than
 your own word — a provider's metered record, a hardware attestation, a notarized response — versus pure
-self-report? Print that fraction on the receipt. Now the reader knows *exactly* how much trust they're
-still extending, instead of being asked to extend all of it, unlabeled.
+self-report? Print the fraction assigned to those declared tiers on the receipt. The verifier
+checks that classification's arithmetic; the underlying evidence still needs separate verification.
 
 A cache hit will score low on that scale — there's no external witness, and saying so plainly is more
 credible than faking certainty. A provider-metered displacement scores higher. The goal was never to claim
@@ -64,5 +65,7 @@ internal trust enough in practice? That answer decides whether any of this matte
 ---
 
 *KRY is one open-source, stdlib-only take on this: a tamper-evident receipt a stranger can recompute
-offline, with the trust gap exposed as an explicit `veracity_floor`. Research-grade, Apache-2.0 —
+offline, with declared evidence tiers exposed as an explicit `veracity_floor`. Its historical
+research-grade run recorded 0 KRY and $0 free-tier self-traffic; external savings validation
+remains blocked. Apache-2.0 —
 <https://github.com/thequantumfalcon/kry>.*
