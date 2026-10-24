@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Reproducibility checks now reject failed child processes even when they print a
+  success marker, reject incomplete lease races, and reject zero or malformed
+  round counts. Release checks and
+  direct reproducibility runs ignore inherited pytest options that could select
+  only part of the required test suite.
+- Keep the local proof runner's synthetic reputation updates in its temporary
+  data directory, preserving the caller's accounting data.
+- Allow the 501-write ledger regression more time on slower runners, retaining
+  every write and accounting assertion and the existing timeout for other cases.
+
 ### Added
 
 - Optional durable operation IDs for internal debits: `spend(..., op_id=...)`,

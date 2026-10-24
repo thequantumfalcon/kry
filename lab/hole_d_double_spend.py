@@ -192,12 +192,13 @@ def main() -> int:
     for t in threads:
         t.join()
     granted = sum(results)
-    print(f"   2 nodes race to lease 7,000 each (10,000 ceiling): granted={granted}, denied={2 - granted}")
-    print(f"   VERDICT: {'ATOMIC — exactly one wins, no double grant' if granted == 1 else '*** race not atomic'}\n")
+    atomic = len(results) == 2 and granted == 1
+    print(f"   2 nodes race to lease 7,000 each (10,000 ceiling): granted={granted}, denied={len(results) - granted}")
+    print(f"   VERDICT: {'ATOMIC — exactly one wins, no double grant' if atomic else '*** race not atomic'}\n")
 
     print("=" * 72)
-    ok = vulnerable and protected and granted == 1
-    print(f"RESULT: hole demonstrated={vulnerable}  fix holds={protected}  lease atomic={granted == 1}")
+    ok = vulnerable and protected and atomic
+    print(f"RESULT: hole demonstrated={vulnerable}  fix holds={protected}  lease atomic={atomic}")
     print("  On real hardware: A/B/C are three machines, Node D is a shared lease")
     print("  service (HTTP or a leased file on shared storage). This prototype proves")
     print("  the lease/nonce/TTL approach ranked best in docs/KRY_VERACITY_BINDING.md.")

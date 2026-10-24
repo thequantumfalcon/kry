@@ -27,12 +27,13 @@ _ENV = {"PYTHONPATH": str(_ROOT / "src")}
 
 def _run(cmd, **kw):
     import os
-    return subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, **_ENV}, **kw)
+    return subprocess.run(cmd, capture_output=True, text=True, check=True, env={**os.environ, **_ENV}, **kw)
 
 
 def main() -> int:
     argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     d = Path(tempfile.mkdtemp(prefix="kry_runlocal_"))
+    _ENV["KRY_DATA_DIR"] = str(d / "kry_data")
     results = []
 
     # Phase 1: corpus -> router (dry-run) -> truth + report
