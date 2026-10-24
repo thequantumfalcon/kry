@@ -1,19 +1,19 @@
 # KRY Lab Playbook — the complete plan (all phases, all tests, everything you need)
 
-Goal: take KRY from `internally_consistent` (synthetic) to **`production_ready
-(lab-validated)`** — every disclosed capability tested on **real distributed hardware**,
-energy **measured**, the counterfactual **recovered against real truth**, double-spend
-**fixed** — so you can hand it to a client and stand behind every number.
+Goal: exercise KRY on distributed hardware, compare supplied wall-energy readings,
+and test routing and settlement under declared lab assumptions. These results do
+not by themselves establish independent real-corpus validation, customer savings
+or production readiness.
 
 This is a lab-validation playbook, not the default release gate. The current
 release checklist is `docs/RELEASE_CHECKLIST.md`; do not treat this playbook as
 evidence until the result template is filled with real node artifacts.
 
-**Honest ceiling (read first).** A lab gets you ~95%. It cannot prove (a) per-event
-counterfactual veracity — impossible for any software; `veracity_floor` is the honest
-label — or (b) that an *external party relies* on the number / dollar value at real
-scale. Those need a real client. The lab makes you **credible to** a client; it isn't a
-substitute for one. Label the result `production_ready (lab-validated)`, never bare `production_ready`.
+**Evidence ceiling (read first).** There is no measured percentage of readiness
+assigned to this lab. Generated prompts remain synthetic when real models serve
+them, and an operator-run judge is not automatically an independent oracle.
+Report the observed checks and their limits; do not label lab completion
+`production_ready`, with or without a qualifier.
 
 Everything is **stdlib + Ollama** (one-line install) **+ two smart plugs**. The router's
 logic is unit-tested; only the live Ollama HTTP call needs validating on your box (run
@@ -28,7 +28,7 @@ logic is unit-tested; only the live Ollama HTTP call needs validating on your bo
 - [ ] **Node C** — ≈GTX 1080 (~8GB) → small free-tier model + 2nd settlement party
 - [ ] **Node D** — ≈GTX 1060 (3–6GB) → registry/lease authority + metered "provider" log
 - [ ] All four on one LAN, SSH between them, known hostnames/IPs
-- [ ] **One shared folder** `SHARE/` reachable by all (NFS/SMB/Syncthing) — holds attestations, the lease file, the shared ledger
+- [ ] **One shared folder** `SHARE/` reachable by all — exchanges attestations and holds the optional lease authority; confirm its exclusive-create semantics. Keep each mutable ledger on its own host's local filesystem. A sync folder is not a distributed lock service.
 - [ ] **Smart plug** on A and on B (any plug with a Wh readout)
 - [ ] *(Optional, makes the dollar leg real)* one **OpenRouter** key on A
 
@@ -36,7 +36,8 @@ logic is unit-tested; only the live Ollama HTTP call needs validating on your bo
 
 ```bash
 git clone <your KRY repo> && cd kry
-python3 -m venv .venv && . .venv/bin/activate && pip install pytest ruff
+python3 -m venv .venv && . .venv/bin/activate
+python3 -m pip install -e ".[dev]" # pinned test tools and the checkout
 python3 -m pytest tests/ -q # current suite output -> the package is healthy on this node
 # Nodes A, B, C also:
 curl -fsSL https://ollama.com/install.sh | sh
@@ -65,17 +66,17 @@ bash lab/reproduce.sh 10 # -> "ALL PROOFS REPRODUCIBLE across 10 rounds ✅"
 
 ---
 
-## Phase 1 — Generate the REAL corpus (Node A)
+## Phase 1 — Generate a synthetic exercise corpus (Node A)
 
 1. Copy `lab/routes.example.json` → `routes.json`; set `nodes` to your hostnames and
  `frontier_node`/`frontier_model` (a paid-API gateway if you have the key).
  Keep local Ollama routes prefixed as `local/...` for KRY accounting; the router
  strips that prefix before calling Ollama.
-2. **Make the corpus** (handles the repeats + the ≥30-holdouts/class volume rule for you):
+2. **Make the synthetic corpus** (repeated generated prompts, sized for the expected ≥30 holdouts/class):
 ```bash
 PYTHONPATH=src python3 lab/make_prompts.py --n 20000 --out prompts.jsonl
 ```
-3. Prove with no models, then run live **with the real judge**:
+3. Exercise with no models, then optionally run live with the heuristic judge:
 ```bash
 PYTHONPATH=src python3 lab/router.py --config routes.json --corpus prompts.jsonl \
  --out usage_real.jsonl --truth-out truth_full.jsonl --dry-run # no Ollama
@@ -84,19 +85,20 @@ PYTHONPATH=src python3 lab/router.py --config routes.json --corpus prompts.jsonl
 ```
 
 Outputs: **`usage_real.jsonl`** (KRY's view — no ground truth leaks in) and
-**`truth_full.jsonl`** (your independent ground truth from the 25% audit sample).
+**`truth_full.jsonl`** (the operator-run judge's outcomes from the 25% audit sample).
+The historical filenames do not make these generated requests real customer data.
 
 > **The judge.** `--judge frontier-compare` is a real (heuristic) judge: it serves each
 > judged request on BOTH the cheap route and the frontier and marks "needed the frontier"
 > when the answers diverge beyond `judge_threshold` (token overlap). It costs 2 calls per
-> judged request — the honest price of ground truth. Tune `judge_threshold` and spot-check
+> judged request. Token overlap is not a correctness oracle. Tune `judge_threshold` and spot-check
 > it; for a stronger oracle swap in a semantic grader. Test 1 then checks KRY's 2% holdout
 > *adequately estimates the rate your judge measures* — it does **not** validate the judge
 > itself (that's yours to verify). `--judge prob` is the dry-run/CI stand-in only.
 
 ---
 
-## Phase 2 — Test 1: holdout recovers REAL truth → `research_grade` oracle
+## Phase 2 — Test 1: compare the holdout estimate to the supplied judge
 
 ```bash
 PYTHONPATH=src python3 lab/compute_truth.py truth_full.jsonl --out truth.json
@@ -104,18 +106,24 @@ PYTHONPATH=src python3 scripts/kry_savings_report.py usage_real.jsonl --json > r
 PYTHONPATH=src python3 lab/holdout_truth_check.py --report report.json --truth truth.json
 ```
 **PASS:** `agreement ≥ 0.80` (≥80% of classes' holdout CI brackets the true rate). This
-is an oracle independent of KRY's math → it supplies `independent_agreement`.
+is agreement with the supplied judge. Using it as `independent_agreement` additionally
+requires evidence that the oracle is independent and valid for the evaluated claim.
 *(Proven in dry-run: agreement 1.0, all 4 classes' CIs bracket truth.)*
 
-## Phase 3 — Test 2: MEASURED energy → carbon
+## Phase 3 — Test 2: wall-energy readings and conditional carbon estimates
 
 Serve the **same batch** on A (5080) and B (M4); read each smart plug's Wh; record tokens.
 ```bash
 # measurements.json: {"grid_co2_g_per_kwh":400,"nodes":{"rtx5080":{"tokens":N,"energy_wh":E},"mac_m4":{...}}}
 PYTHONPATH=src python3 lab/energy_report.py measurements.json
-export KRY_JOULES_PER_TOKEN=<greenest measured J/token> # kry_carbon now MEASURED
+# Optional calibration for a matching workload; replace the placeholder with a number:
+export KRY_JOULES_PER_TOKEN=<reviewed joules per avoided token>
+# kry_carbon still reports ESTIMATE; this setting does not authenticate a measurement.
 ```
-**PASS:** measured J/token per node + a real avoided-kWh/CO₂ for routing to the M4.
+**PASS:** the report reproduces the supplied readings and the difference between
+nodes. The routing comparison assumes equivalent work and a valid avoided baseline;
+CO₂ additionally depends on the supplied grid intensity. The greenest node's own
+J/token is not the baseline-minus-chosen energy difference.
 **Fairness:** use the **wall plug** on both (`powermetrics`/`nvidia-smi` are component-level
 and not cross-comparable).
 
@@ -182,14 +190,16 @@ PYTHONPATH=src python3 -c "
 import kry.kry_capabilities as cap
 r = cap.readiness_label(
  replay_pass_rate=1.0, # suite green on every node
- independent_agreement=0.85, # <- Phase 2 agreement (and/or Phase 5 reconcile)
- real_corpus_validated=True, # <- Phase 1 real traffic + Phases 3-7 passed
+ independent_agreement=None, # replace only with an independently justified measured result
+ real_corpus_validated=False, # generated lab traffic is not an independent real-world corpus
  audit_clean=True)
 print(r.label)
 "
 ```
-With the lab evidence in, this prints **`production_ready`**. Record it as
-**`production_ready (lab-validated)`** and fill in `lab/RESULTS_TEMPLATE.md` with the
+The function grades the inputs supplied by the caller; it does not authenticate
+them. With the defaults above and no independent evidence, the label is
+`internally_consistent`.
+Fill in `lab/RESULTS_TEMPLATE.md` with actual results and the
 artifacts: `report.json`, the energy report, the HOLE-D run, the cross-machine VALID, the
 reconcile result, and the sanctions/concurrency logs.
 
@@ -198,8 +208,8 @@ reconcile result, and the sanctions/concurrency logs.
 ## Order of operations (the easy path)
 
 ```
-0. setup (≈1h) -> 0c. run_local.py (prove it all on ONE machine, no models)
--> install models -> 1. make_prompts + live router (real corpus) -> 2. Test 1
+0. setup (≈1h) -> 0c. run_local.py (exercise it on ONE machine, no models)
+-> install models -> 1. make_prompts + live router (synthetic corpus) -> 2. Test 1
 -> 3. Test 2 (energy, wall meter) -> 4. Test 3 (HOLE D, node.py)
 -> 5. Test 4 (verify+reconcile) -> 6. Test 5 -> 7. Test 6 (concurrency_check)
 -> 8. compute grade + fill RESULTS_TEMPLATE.md
@@ -219,10 +229,9 @@ reconcile result, and the sanctions/concurrency logs.
 
 ## What you can then honestly tell a client
 
-> "Every capability we claim is tested on a real four-node cluster: the savings
-> counterfactual is measured against ground truth (2% holdout, 95% CI, checked vs a 25%
-> audit), energy is measured at the wall, cross-node double-spend is demonstrated and
-> fixed, and any stranger verifies our attestations with ~200 lines of standard-library
-> Python. Here are the artifacts. What we do **not** claim: that a self-reported cache hit
-> can be proven to a third party (we label that `veracity_floor` and disclose it), or
-> dollar value at a scale we haven't run — that's what a pilot with you would establish."
+Report only completed checks, with their retained inputs, commands and outputs.
+Distinguish generated requests, observed hardware execution, supplied meter readings
+and hypothetical routing deltas. A passed lease experiment is bounded by its storage
+and participation assumptions. Receipt verification checks integrity and benchmark
+arithmetic; independent source evidence, customer benefit and production readiness
+remain separate requirements under `docs/CLAIMS_BOUNDARY.md`.

@@ -1,27 +1,32 @@
 #!/usr/bin/env python3
-"""KRY drop-in shadow shim for LiteLLM — measure cheap-vs-frontier savings on YOUR real traffic, read-only.
+"""KRY shadow-logging template for LiteLLM — compare a served call with an extra candidate call.
 
 DEPLOYMENT TEMPLATE (runs in YOUR infra). Requires `pip install litellm`. The KRY core it imports
-(`kry_shadow_emitter`) is pure stdlib. This is MEASURE-ONLY: it fires AFTER your response is served, never changes
-or delays it, and writes DIGEST-ONLY rows (no prompts/responses leave your boundary).
+(`kry_shadow_emitter`) is pure stdlib. It does not change the selected serving response, but the callback
+makes a synchronous extra model call that can cost money and delay callback processing. It writes
+rows without raw prompts or responses; those inputs are still sent to the configured shadow provider.
 
 WHAT IT DOES, per request on your checkable slice (you decide via `is_checkable`):
-  1. read the real served call's model / tokens / cost (LiteLLM gives `response_cost`),
+  1. read the served call's model / tokens / estimated cost (LiteLLM gives `response_cost`),
   2. run a cheap-shadow model on the same prompt (via your already-configured LiteLLM),
   3. run YOUR deterministic check on the cheap output (your unit tests / SQL-exec / JSON-schema — NOT a model judge),
-  4. if the cheap output PASSES, record retained dollars (frontier_cost − cheap_cost) as a digest-only row, net-not-gross.
-Output: `kry_shadow_rows.jsonl` → hand to `scripts/kry_verify` for a stranger-verifiable savings receipt.
+  4. if the cheap output PASSES, record the estimated cost difference as a private comparison row.
+The original served call already happened, so a positive difference is a hypothetical routing opportunity,
+not cash retained by this shadow run. Output `kry_shadow_rows.jsonl` is not a KRY attestation and is not
+accepted by `scripts/kry_verify.py`. This template does not mint or convert those rows into receipts.
 
 SETUP (~5 min):
   1. `pip install litellm`; put `scripts/kry_shadow_emitter.py` on PYTHONPATH.
   2. Fill in the three CONFIG hooks below: CHEAP_MODEL, `is_checkable(...)`, `deterministic_check(...)`.
   3. Register: `litellm.callbacks = [KryShadowLogger()]` (SDK) or add it in your LiteLLM proxy config.
-  4. Run your traffic. Rows land in `kry_shadow_rows.jsonl`. Verify them with `scripts/kry_verify`.
+  4. Set explicit shadow-call cost and execution limits before enabling traffic. Rows land in
+     `kry_shadow_rows.jsonl`; retain and review them privately. No delivery or completeness guarantee is provided.
 
   python3 examples/kry_litellm_shim.py --selftest   # mock — no litellm, no network — proves the emit flow
 
-PRIVACY: only digests + counts + costs are written. Raw prompt/response never persist (the emitter's privacy gate
-rejects them). DELIVERABLE, not a claim: it measures; it does not assert savings until your check confirms them.
+PRIVACY: the row omits raw prompts/responses but includes caller IDs, model labels and check metadata;
+review those fields before sharing. The emitter rejects specified raw-content fields, not every possible
+secret-bearing string. A deterministic check addresses output acceptance, not source authenticity or savings.
 """
 from __future__ import annotations
 import argparse
@@ -84,7 +89,7 @@ def _process(kwargs, response_obj, *, cheap_fn=_cheap_shadow):
         cheap_fast_correct=cpass, deployable_validator_pass=cpass,
         cheap_fast_cost_usd=ccost, frontier_holdout_cost_usd=served_cost,
         cheap_fast_output_tokens=cot, frontier_holdout_output_tokens=u.get("completion_tokens"),
-        response_cost_usd=served_cost, provider_cost_source="provider_receipt",
+        response_cost_usd=served_cost, provider_cost_source="pricing_table",
         checkable_slice=slice_tag, deterministic_check_kind="customer_deterministic",
         deterministic_check_receipt=f"{slice_tag}:{'pass' if cpass else 'fail'}",
         latency_class="background")

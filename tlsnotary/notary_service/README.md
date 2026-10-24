@@ -41,16 +41,17 @@ URI="/api/v1/generation?id=<gen-id>" AUTH_HEADER="Bearer $OPENROUTER_API_KEY" \
 cargo run --release --example attestation_present
 cargo run --release --example attestation_verify | python3 scripts/kry_tlsn_adapter.py - --out pres.json
 
-# verifier: PIN the notary's published key — a presentation from any OTHER notary is refused
+# importer: compare the supplied presentation's key field with the independently obtained pin
 python3 scripts/kry_tlsn_verify.py pres.json --server openrouter.ai \
  --notary-key <the notary public key printed at install>
 ```
 
-The `--notary-key` pin (shipped 2026-06-06, `scripts/kry_tlsn_verify.py`) is what makes
-running an independent notary *meaningful*: without it a verifier would accept a
-presentation from any notary, including one the prover stood up. With the service +
-the pin, a stranger can demand "notarized by THIS key, durably operated" — the honest
-remaining gap is only (c), who holds the key.
+The Python `--notary-key` option compares a key field in supplied verifier output;
+it does not verify a signature or authenticate that output. Before importing it,
+independently run Rust `attestation_verify` on the original proof against a trusted
+notary key obtained out of band. Operating this service does not establish that
+the notary is neutral, that the declared efficiency event occurred or that money
+was saved. Key custody, proof verification and source truth remain distinct.
 
 ## Teardown
 ```bash
