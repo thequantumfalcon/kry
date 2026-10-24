@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pytest options that could select only part of the required test suite.
 - Keep the local proof runner's synthetic reputation updates in its temporary
   data directory, preserving the caller's accounting data.
+- Restore the caller's lease configuration after lab node verification and keep
+  the no-authority demonstration from using or altering an inherited authority.
 - Allow the 501-write ledger regression more time on slower runners, retaining
   every write and accounting assertion and the existing timeout for other cases.
 - Correct current recovery and request-ID reconciliation guidance, and remove
