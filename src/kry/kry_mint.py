@@ -1607,11 +1607,11 @@ def reconcile_ledger_from_chain() -> dict:
                     tolerance = min(8 * max(math.ulp(total), math.ulp(ledger.total_spent)), 1e-9)
                     if deficit > tolerance:
                         return {"reconciled": False, "reason": "recorded debits exceed chain earnings"}
-                    before = ledger._operation_snapshot()
-                    ledger.total_earned = total
-                    ledger.balance = max(0.0, total - ledger.total_spent)
-                    if not ledger._commit_operation_locked(before):
-                        return {"reconciled": False, "reason": "ledger write failed; no reconciliation recorded"}
+                    with ledger._operation_locked() as before:
+                        ledger.total_earned = total
+                        ledger.balance = max(0.0, total - ledger.total_spent)
+                        if not ledger._commit_operation_locked(before):
+                            return {"reconciled": False, "reason": "ledger write failed; no reconciliation recorded"}
         except Exception as exc:
             return {"reconciled": False, "reason": f"ledger write failed: {exc}"}
     return {"reconciled": True, "receipts": n, "balance_kry": round(ledger.balance, 4),

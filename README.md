@@ -222,9 +222,10 @@ and step 4 uses them.
 [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
 The steps below use a checkout.
 
-Version 0.1.13 hardens ledger persistence and recovery, settlement arithmetic,
-model-name resolution and optional cryptographic importers. See the
-[changelog](https://github.com/thequantumfalcon/kry/blob/v0.1.13/CHANGELOG.md)
+Version 0.1.14 fixes uncertain settlement retries, interrupted accounting writes
+and recovery acknowledgement. It also includes the ledger, pricing and optional
+cryptographic importer fixes from the unpublished 0.1.13 tag. See the
+[changelog](https://github.com/thequantumfalcon/kry/blob/v0.1.14/CHANGELOG.md)
 for the full changes and migration requirements. The PyPI package
 provides the core library, `kry-try` and `kry-verify`. Additional scripts for evidence
 assessment, row commitments, Anthropic usage/projection and reconciliation require

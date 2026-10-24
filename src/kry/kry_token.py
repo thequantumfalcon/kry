@@ -90,6 +90,7 @@ cycle verification.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import hashlib
 import logging
@@ -406,14 +407,17 @@ class KRYLedger:
         recovery = raw.get("recovery", {})
         if not isinstance(recovery, dict):
             raise ValueError("recovery must be an object")
+        self._recovery_required = True
         for k, value in values.items():
             setattr(self, k, value)
         self.events, self.cycle_count = events, cycle
         self._baseline = values.copy()
-        self._recovery_required = False
         self._recovery = recovery
+        self._recovery_required = False
 
     def _read_locked(self) -> dict:
+        if self._recovery_required:
+            raise ValueError("debit history unavailable; explicit ledger recovery acknowledgement required")
         if not _LEDGER_PATH.exists():
             from kry.kry_mint import _MINT_LOG_PATH
             missing_history = any(self._baseline.values()) or _MINT_LOG_PATH.exists()
@@ -519,6 +523,7 @@ class KRYLedger:
         fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
         intent = _LEDGER_PATH.with_name(_LEDGER_PATH.name + ".pending." + uuid.uuid4().hex)
         replace_returned = False
+        durable = False
         try:
             with os.fdopen(fd, "w") as f:
                 f.write(encoded)
@@ -531,54 +536,88 @@ class KRYLedger:
                 f.flush()
                 os.fsync(f.fileno())
             _sync_ledger_directory()
+            self._recovery_required = True
             os.replace(tmp, _LEDGER_PATH)
             replace_returned = True
             _sync_ledger_directory()
-        except Exception:
-            # While the lock still excludes other writers, distinguish a failed
-            # write from a completed replace whose acknowledgement was lost.
-            # Retrying the latter delta would credit/debit the same event twice.
-            if not os.path.exists(tmp):
-                self._recovery_required = True
-                try:
-                    committed = _LEDGER_PATH.read_text(encoding="utf-8") == encoded
-                except (OSError, UnicodeError):
-                    committed = False
-                if committed and not replace_returned:
-                    # A lost replace acknowledgement can be resolved by exact
-                    # bytes plus the durability barrier while still locked.
-                    try:
-                        _sync_ledger_directory()
-                    except OSError:
-                        committed = False
-                else:
-                    # An explicitly failed post-replace durability barrier is
-                    # uncertain even if the current read returns the new bytes.
-                    committed = False
-                if committed:
-                    self._adopt(data)
-                    self._last_write_committed = True
-                else:
+            durable = True
+            self._adopt(data)
+            self._last_write_committed = True
+            intent.unlink()
+        except BaseException as exc:
+            try:
+                # While the lock still excludes other writers, distinguish a failed
+                # write from a completed replace whose acknowledgement was lost.
+                # Retrying the latter delta would credit/debit the same event twice.
+                if self._last_write_committed:
+                    pass
+                elif not os.path.exists(tmp):
                     self._recovery_required = True
-            else:
-                os.unlink(tmp)
-            if self._last_write_committed or not self._recovery_required:
-                intent.unlink(missing_ok=True)
+                    committed = durable
+                    if not durable and not replace_returned:
+                        try:
+                            committed = _LEDGER_PATH.read_text(encoding="utf-8") == encoded
+                        except (OSError, UnicodeError):
+                            committed = False
+                    if committed and not durable:
+                        # A lost replace acknowledgement can be resolved by exact
+                        # bytes plus the durability barrier while still locked.
+                        try:
+                            _sync_ledger_directory()
+                        except OSError:
+                            committed = False
+                    if committed:
+                        self._adopt(data)
+                        self._last_write_committed = True
+                    else:
+                        self._recovery_required = True
+                else:
+                    self._recovery_required = False
+                    os.unlink(tmp)
+                if ((self._last_write_committed and isinstance(exc, Exception)) or
+                        (not self._last_write_committed and not self._recovery_required)):
+                    intent.unlink(missing_ok=True)
+            except BaseException:
+                # A cleanup/readback error must not swallow the cancellation
+                # that brought us here or reopen an unresolved operation.
+                self._recovery_required = True
+                if not isinstance(exc, Exception):
+                    raise exc
+                raise
             raise
-        self._adopt(data)
-        self._last_write_committed = True
-        intent.unlink()
 
     def _operation_snapshot(self) -> dict:
         return {**{k: getattr(self, k) for k in _MERGE_FIELDS},
                 "events": [asdict(e) for e in self.events], "cycle_count": self.cycle_count,
                 "recovery": self._recovery}
 
+    @contextmanager
+    def _operation_locked(self):
+        """Roll back public mutations even when cancellation precedes the save."""
+        before = self._operation_snapshot()
+        self._last_write_committed = False
+        try:
+            yield before
+        except BaseException as exc:
+            if not self._last_write_committed:
+                uncertain = self._recovery_required
+                try:
+                    self._adopt(before)
+                except BaseException:
+                    self._recovery_required = True
+                    if not isinstance(exc, Exception):
+                        raise exc
+                    raise
+                self._recovery_required = uncertain
+            raise
+
     def _commit_operation_locked(self, before: dict) -> bool:
         """Public operations never leave an unconfirmed delta for another writer."""
         try:
             self._save_locked()
-        except Exception as exc:
+        except BaseException as exc:
+            if not isinstance(exc, Exception):
+                raise  # The operation guard restores state; cancellation must propagate.
             if self._last_write_committed:
                 return True
             uncertain = self._recovery_required
@@ -628,12 +667,18 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
         raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
         ledger = KRYLedger()
         ledger._adopt(raw)
+        if ledger.balance < 0:
+            raise ValueError("restored ledger balance is negative; establish consistent accounting first")
         ledger._recovery = {"reason": reason, "ts": time.time(), "incidents": _ledger_incidents()}
         try:
             ledger._save_locked(raw)
         except Exception:
             if not ledger._last_write_committed:
                 raise
+        try:
+            ledger._read_locked()
+        except Exception as exc:
+            raise LedgerPersistenceError("ledger recovery acknowledgement incomplete; inspect retained state") from exc
         global _ledger_instance
         _ledger_instance = ledger
 
@@ -841,16 +886,16 @@ def earn(tokens: float, event_type: str, detail: str = "",
                 earned = _finite_number(ledger.total_earned + kry, "total_earned", nonnegative=True)
             except ValueError:
                 return 0.0
-            before = ledger._operation_snapshot()
-            ledger.balance, ledger.total_earned = balance, earned
-            vmult = net_value_multiplier(avoided_model, served_model)
-            ledger.events.append(KRYEvent(
-                ts=time.time(), kind="earn", source=event_type,
-                amount=kry, detail=f"{detail} [avoided={avoided_model},x{vmult:.2f}]"
-                       if avoided_model else detail, tx_id=uuid.uuid4().hex))
-            if not ledger._commit_operation_locked(before):
-                logger.warning("KRY earn: ledger write failed; no credit recorded")
-                return 0.0
+            with ledger._operation_locked() as before:
+                ledger.balance, ledger.total_earned = balance, earned
+                vmult = net_value_multiplier(avoided_model, served_model)
+                ledger.events.append(KRYEvent(
+                    ts=time.time(), kind="earn", source=event_type,
+                    amount=kry, detail=f"{detail} [avoided={avoided_model},x{vmult:.2f}]"
+                           if avoided_model else detail, tx_id=uuid.uuid4().hex))
+                if not ledger._commit_operation_locked(before):
+                    logger.warning("KRY earn: ledger write failed; no credit recorded")
+                    return 0.0
     return kry
 
 
@@ -892,15 +937,10 @@ def can_afford(model: str, output_tokens: int = 1000) -> bool:
     cost = spend_cost(model, output_tokens)
     if cost == 0:
         return True
-    _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with _LEDGER_LOCK:
-        ledger = get_ledger()
-        with _cross_process_lock(_LEDGER_PATH):
-            try:
-                ledger._refresh_locked()
-            except Exception:
-                return False
-            return ledger.balance >= cost
+    try:
+        return _durable_snapshot().balance >= cost
+    except Exception:
+        return False
 
 
 def spend(model: str, output_tokens: int, detail: str = "") -> float:
@@ -924,16 +964,16 @@ def spend(model: str, output_tokens: int, detail: str = "") -> float:
                 spent = _finite_number(ledger.total_spent + actual, "total_spent", nonnegative=True)
             except ValueError:
                 return 0.0
-            before = ledger._operation_snapshot()
-            ledger.balance -= actual
-            ledger.total_spent = spent
-            ledger.events.append(KRYEvent(
-                ts=time.time(), kind="spend", source=model,
-                amount=-actual, detail=detail or f"{output_tokens} output tokens",
-                tx_id=uuid.uuid4().hex))
-            if not ledger._commit_operation_locked(before):
-                logger.warning("KRY spend: ledger write failed; no debit recorded")
-                return 0.0
+            with ledger._operation_locked() as before:
+                ledger.balance -= actual
+                ledger.total_spent = spent
+                ledger.events.append(KRYEvent(
+                    ts=time.time(), kind="spend", source=model,
+                    amount=-actual, detail=detail or f"{output_tokens} output tokens",
+                    tx_id=uuid.uuid4().hex))
+                if not ledger._commit_operation_locked(before):
+                    logger.warning("KRY spend: ledger write failed; no debit recorded")
+                    return 0.0
     return actual
 
 
