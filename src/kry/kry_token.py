@@ -180,6 +180,70 @@ def _event_from_raw(raw: dict) -> KRYEvent:
     )
 
 
+def _validate_op_id(op_id: str) -> str:
+    if (not isinstance(op_id, str) or not op_id.strip() or
+            ":" in op_id or "," in op_id):
+        raise ValueError("op_id must be a nonempty string without ':' or ','")
+    return op_id
+
+
+def _operation_number(value, name: str) -> float:
+    number = _finite_number(value, name, nonnegative=True)
+    if isinstance(value, int) and value != number:
+        raise ValueError(f"{name} is not exactly representable as a ledger number")
+    return number or 0.0
+
+
+def _ledger_json_loads(text: str) -> dict:
+    duplicates = False
+
+    def object_pairs(pairs):
+        nonlocal duplicates
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                duplicates = True
+            result[key] = value
+        return result
+
+    raw = json.loads(text, parse_constant=_reject_json_constant,
+                     object_pairs_hook=object_pairs)
+    if isinstance(raw, dict) and "ledger_format" in raw and duplicates:
+        raise ValueError("duplicate fields in versioned ledger")
+    return raw
+
+
+def _ledger_parts(raw: dict) -> tuple[dict, dict]:
+    """Validate the opt-in envelope before any reader or recovery can adopt it."""
+    if not isinstance(raw, dict):
+        raise ValueError("ledger must be an object")
+    if "ledger_format" not in raw:
+        return raw, {}
+    if (type(raw["ledger_format"]) is not int or raw["ledger_format"] != 2 or
+            set(raw) != {"ledger_format", "accounting", "ops"}):
+        raise ValueError("unsupported or malformed ledger format")
+    accounting, operations = raw["accounting"], raw["ops"]
+    if not isinstance(accounting, dict) or not isinstance(operations, dict):
+        raise ValueError("accounting and ops must be objects")
+    spent = accounting["total_spent"]
+    _finite_number(spent, "total_spent", nonnegative=True)
+    for op_id, record in operations.items():
+        _validate_op_id(op_id)
+        if not isinstance(record, dict) or set(record) != {"kind", "amount", "params_sha256", "ts"}:
+            raise ValueError("invalid operation record")
+        if record["kind"] not in ("spend", "debit_kry"):
+            raise ValueError("invalid operation kind")
+        amount = _operation_number(record["amount"], "operation.amount")
+        _finite_number(record["ts"], "operation.ts", nonnegative=True)
+        digest = record["params_sha256"]
+        if (not isinstance(digest, str) or len(digest) != 64 or
+                any(c not in "0123456789abcdef" for c in digest)):
+            raise ValueError("invalid operation parameter hash")
+        if amount > spent:
+            raise ValueError("operation amount exceeds total_spent")
+    return accounting, operations
+
+
 # ── Unit definition ───────────────────────────────────────────────────────────
 
 # Frontier baseline: or/anthropic/claude-opus-4.8 = $25.00 / 1M output tokens
@@ -268,6 +332,8 @@ class KRYLedger:
         self._recovery_required = False
         self._last_write_committed = False
         self._recovery: dict = {}
+        self._ledger_format = 1
+        self._ops: dict[str, dict] = {}
 
     def flow_balance(self, window_s: float = 3600.0, *, now: float | None = None) -> dict:
         """Toll-bridge solvency: is KRY flowing IN (savings) faster than OUT
@@ -400,6 +466,8 @@ class KRYLedger:
 
     def _adopt(self, raw: dict) -> None:
         # Validate into locals before replacing any cached state.
+        ledger_format = 2 if "ledger_format" in raw else 1
+        raw, operations = _ledger_parts(raw)
         values = {k: _finite_number(raw[k], k, nonnegative=(k != "balance"))
                   for k in _MERGE_FIELDS}
         events = [_event_from_raw(e) for e in raw.get("events", [])][-500:]
@@ -413,6 +481,8 @@ class KRYLedger:
         self.events, self.cycle_count = events, cycle
         self._baseline = values.copy()
         self._recovery = recovery
+        self._ledger_format = ledger_format
+        self._ops = {key: value.copy() for key, value in operations.items()}
         self._recovery_required = False
 
     def _read_locked(self) -> dict:
@@ -433,13 +503,14 @@ class KRYLedger:
             self._quarantine()
             raise ValueError("debit history unavailable; invalid ledger encoding") from exc
         try:
-            raw = _json_loads(text)
+            raw = _ledger_json_loads(text)
+            accounting, _ = _ledger_parts(raw)
             for k in _MERGE_FIELDS:
-                _finite_number(raw[k], k, nonnegative=(k != "balance"))
-            for event in raw.get("events", []):
+                _finite_number(accounting[k], k, nonnegative=(k != "balance"))
+            for event in accounting.get("events", []):
                 _event_from_raw(event)
-            int(raw.get("cycle_count", 0))
-            recovery = raw.get("recovery", {})
+            int(accounting.get("cycle_count", 0))
+            recovery = accounting.get("recovery", {})
             if not isinstance(recovery, dict):
                 raise ValueError("recovery must be an object")
         except (ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as exc:
@@ -475,6 +546,8 @@ class KRYLedger:
             raise ValueError("debit history unavailable; restore the ledger before further writes")
         if on_disk is None:
             on_disk = self._read_locked()
+        disk_format = 2 if "ledger_format" in on_disk else 1
+        on_disk, disk_ops = _ledger_parts(on_disk)
         merged = {}
         for k in _MERGE_FIELDS:
             disk_v = _finite_number(on_disk.get(k, 0.0), k)
@@ -519,6 +592,14 @@ class KRYLedger:
         }
         if self._recovery:
             data["recovery"] = self._recovery
+        if self._ledger_format == 2 or disk_format == 2:
+            operations = {key: value.copy() for key, value in disk_ops.items()}
+            for key, value in self._ops.items():
+                if key in operations and operations[key] != value:
+                    raise ValueError("conflicting durable operation records")
+                operations[key] = value.copy()
+            data = {"ledger_format": 2, "accounting": data, "ops": operations}
+            _ledger_parts(data)
         encoded = _json_dumps(data, indent=2)
         fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
         intent = _LEDGER_PATH.with_name(_LEDGER_PATH.name + ".pending." + uuid.uuid4().hex)
@@ -587,9 +668,13 @@ class KRYLedger:
             raise
 
     def _operation_snapshot(self) -> dict:
-        return {**{k: getattr(self, k) for k in _MERGE_FIELDS},
+        data = {**{k: getattr(self, k) for k in _MERGE_FIELDS},
                 "events": [asdict(e) for e in self.events], "cycle_count": self.cycle_count,
                 "recovery": self._recovery}
+        if self._ledger_format == 2:
+            return {"ledger_format": 2, "accounting": data,
+                    "ops": {key: value.copy() for key, value in self._ops.items()}}
+        return data
 
     @contextmanager
     def _operation_locked(self):
@@ -664,7 +749,7 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("a recovery reason is required")
     with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
-        raw = _json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
+        raw = _ledger_json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
         ledger = KRYLedger()
         ledger._adopt(raw)
         if ledger.balance < 0:
@@ -943,8 +1028,96 @@ def can_afford(model: str, output_tokens: int = 1000) -> bool:
         return False
 
 
-def spend(model: str, output_tokens: int, detail: str = "") -> float:
-    """Return only a confirmed durable debit; uncertain commitment raises."""
+def _keyed_debit(kind: str, parameters: dict, op_id: str) -> float:
+    _validate_op_id(op_id)
+    digest = hashlib.sha256(_json_dumps(
+        {"kind": kind, **parameters}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    _LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _LEDGER_LOCK:
+        ledger = get_ledger()
+        with _cross_process_lock(_LEDGER_PATH):
+            try:
+                raw = ledger._read_locked()
+            except Exception as exc:
+                raise LedgerPersistenceError("operation journal unavailable; recovery required") from exc
+            accounting, operations = _ledger_parts(raw)
+            if op_id in operations:
+                record = operations[op_id]
+                if record["kind"] != kind or record["params_sha256"] != digest:
+                    raise ValueError("op_id already records different parameters")
+                return record["amount"]
+            if accounting.get("balance", 0.0) < 0 or ledger.balance < 0:
+                raise ValueError("negative ledger balance requires reviewed recovery")
+            # A replay must not reprice or commit unrelated direct-save edits.
+            cost = (spend_cost(parameters["model"], parameters["output_tokens"])
+                    if kind == "spend" else parameters["amount"])
+            try:
+                ledger._refresh_locked()
+            except Exception as exc:
+                raise LedgerPersistenceError("operation journal unavailable; recovery required") from exc
+            actual = min(cost, max(0.0, ledger.balance))
+            balance = _finite_number(ledger.balance - actual, "balance")
+            spent = _finite_number(ledger.total_spent + actual, "total_spent", nonnegative=True)
+            if actual > 0 and (balance >= ledger.balance or spent <= ledger.total_spent):
+                raise ValueError("debit is not representable in both accounting totals")
+            with ledger._operation_locked() as before:
+                ledger.balance, ledger.total_spent = balance, spent
+                ledger._ledger_format = 2
+                ts = _finite_number(time.time(), "operation.ts", nonnegative=True)
+                ledger._ops[op_id] = {"kind": kind, "amount": actual,
+                                      "params_sha256": digest, "ts": ts}
+                if actual > 0:
+                    model = parameters["model"] if kind == "spend" else "debit_kry"
+                    detail = (parameters["detail"] or f"{parameters['output_tokens']} output tokens"
+                              if kind == "spend" else "direct KRY debit")
+                    ledger.events.append(KRYEvent(
+                        ts=ts, kind="spend", source=model, amount=-actual,
+                        detail=detail, tx_id=uuid.uuid4().hex))
+                if not ledger._commit_operation_locked(before):
+                    raise LedgerPersistenceError("operation was not committed; retry with the same op_id")
+    return actual
+
+
+def ledger_operation(op_id: str) -> dict | None:
+    """Read a durable local outcome; None means absent from this v2 snapshot only.
+
+    Legacy or unavailable history raises. Neither presence nor absence proves an
+    external debit, or completeness after restoring an older snapshot.
+    """
+    _validate_op_id(op_id)
+    try:
+        ledger = _durable_snapshot()
+    except Exception as exc:
+        raise LedgerPersistenceError("operation journal unavailable; recovery required") from exc
+    if ledger._ledger_format != 2:
+        raise ValueError("legacy ledger has no operation journal")
+    record = ledger._ops.get(op_id)
+    return record.copy() if record is not None else None
+
+
+def debit_kry(amount: float, *, op_id: str) -> float:
+    """Record a bounded KRY debit once per caller ID, returning its durable amount.
+
+    Use a stable, independently generated ID (for example secrets.token_hex(16)) for each logical
+    operation. Preserve the entire versioned ledger; operation records never expire.
+    This is local accounting, not transactional authorization for an external action.
+    """
+    amount = _operation_number(amount, "amount")
+    return _keyed_debit("debit_kry", {"amount": amount}, op_id)
+
+
+def spend(model: str, output_tokens: int, detail: str = "", *, op_id: str | None = None) -> float:
+    """Return a durable debit; optional caller identity makes recorded retries replayable.
+
+    Keyed calls persist zero outcomes too, and raise on unconfirmed writes. A retry
+    must use the same parameters and ID. Unkeyed calls retain their legacy contract.
+    """
+    if op_id is not None:
+        if not isinstance(model, str) or not isinstance(detail, str):
+            raise ValueError("model and detail must be strings")
+        tokens = _operation_number(output_tokens, "output_tokens")
+        return _keyed_debit("spend", {"model": model, "output_tokens": tokens,
+                                      "detail": detail}, op_id)
     cost = spend_cost(model, output_tokens)
     if cost == 0:
         return 0.0

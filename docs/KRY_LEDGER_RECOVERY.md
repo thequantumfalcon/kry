@@ -4,6 +4,11 @@ The mint chain records earnings, not spending. A valid chain cannot reconstruct
 missing debit history or prove real savings. The internal balance ledger and the
 separate settlement registry have different responsibilities.
 
+For opt-in keyed debits, see [operation identity](KRY_OPERATION_IDENTITY.md).
+Those calls record their result with the balance and require the complete
+versioned journal during recovery. The unkeyed return behavior below remains
+unchanged; keyed calls raise on unrecorded failure rather than returning zero.
+
 `spend()` reads current state and records its decision under the ledger's process
 lock. It records internal accounting; it is not transactional authorization for an
 external action. A positive `spend()` or `earn()` return confirms its ledger write.
@@ -79,6 +84,9 @@ Before recovery:
    reduce the debit total. Establish the complete accounting basis before
    acknowledgement, including any earnings missing from a stale snapshot.
    Do not erase spending or invent credits to make the balance nonnegative.
+   If keyed debits have been activated, restore the entire versioned envelope
+   and operation map, not just these scalars. Missing IDs cannot be reconstructed
+   from the bounded event list, and a valid old snapshot is not proof of completeness.
    Keep the incident evidence. If the debit total
    cannot be established, leave accounting blocked; the earn-only chain cannot
    supply the missing fact. A legacy blank replacement beside a quarantine is

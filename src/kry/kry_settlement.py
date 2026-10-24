@@ -927,6 +927,8 @@ def settle(
 
     debit_a_fn debits A's real KRY ledger and returns the amount it REPORTS moving;
     receiver is B's ReceiverLedger, credited by exactly that amount.
+    A clean refusal that moved nothing must return 0; raising signals an unknown
+    outcome, not proof that no debit occurred.
     A confirmed zero-debit shortfall leaves the grant retriable if rollback succeeds. An
     exception, interrupt or unusable return leaves the outcome unknown: the recorded
     obligation consumes the grant and prevents that grant from debiting again. The original error
