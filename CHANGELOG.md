@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before activation and preserve the full journal through recovery. Unkeyed
   calls and the existing settlement registry keep their previous contracts.
 
+### Fixed
+
+- Recovery documentation omitted activation crashes that leave an empty, partial
+  or complete migration backup before any journal is written. The recovery guide
+  now specifies the versioned envelope and a reviewed restoration procedure;
+  ordinary acknowledgement still refuses an incomplete fence and never infers
+  missing debit history from the legacy backup.
+
 ## [0.1.14] - 2026-10-23
 
 ### Fixed
