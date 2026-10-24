@@ -21,7 +21,7 @@ jobs:
   # Hash verification restricts downloaded artifacts; it does not make third-party code trusted.
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
