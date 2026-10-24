@@ -4,6 +4,13 @@ The mint chain records earnings, not spending. A valid chain cannot reconstruct
 missing debit history or prove real savings. The internal balance ledger and the
 separate settlement registry have different responsibilities.
 
+For opt-in keyed debits, see [operation identity](KRY_OPERATION_IDENTITY.md).
+Those calls record their result with the balance and require the complete
+versioned journal during recovery. Activated directories use `kry_ledger.v2.json`
+and an exact tombstone at `kry_ledger.json`, with the original legacy lock.
+The unkeyed return behavior below remains
+unchanged; keyed calls raise on unrecorded failure rather than returning zero.
+
 `spend()` reads current state and records its decision under the ledger's process
 lock. It records internal accounting; it is not transactional authorization for an
 external action. A positive `spend()` or `earn()` return confirms its ledger write.
@@ -40,7 +47,8 @@ If a ledger is missing while mint history remains, or its contents cannot be
 parsed and validated, automatic recovery refuses to create spendable value.
 An initial empty ledger must persist before the first receipt is appended. A
 cached empty object does not override missing history created by another process.
-Corrupt bytes are retained as `kry_ledger.json.corrupt`; another damaged file is
+Corrupt bytes are retained beside the active ledger as `kry_ledger.json.corrupt`
+or `kry_ledger.v2.json.corrupt`; another damaged file is
 retained under a unique suffix. An existing quarantine is not replaced. A blank
 object returned after quarantine is not permission to save a fresh balance.
 Read I/O failures do not quarantine bytes: accounting reports unavailable and
@@ -49,7 +57,8 @@ and null totals while the ledger is unavailable, rather than a fabricated zero.
 Invalid JSON or UTF-8 still requires recovery.
 
 Before replacing the ledger, a writer flushes a uniquely named
-`kry_ledger.json.pending.<id>` intent containing the target hash. A confirmed
+`kry_ledger.json.pending.<id>` or `kry_ledger.v2.json.pending.<id>` intent
+containing the target hash. A confirmed
 write or known pre-replace failure removes its intent. A crash, uncertain outcome,
 or intent-cleanup failure retains it and blocks other writers and restarts.
 Cleanup failure does not turn a proven committed debit into a zero return.
@@ -79,6 +88,16 @@ Before recovery:
    reduce the debit total. Establish the complete accounting basis before
    acknowledgement, including any earnings missing from a stale snapshot.
    Do not erase spending or invent credits to make the balance nonnegative.
+   If keyed debits have been activated, restore the entire versioned envelope
+   at `kry_ledger.v2.json` and its exact legacy-path tombstone, not just these
+   scalars. Preserve changed tombstone bytes as a uniquely named
+   `kry_ledger.json.corrupt.<id>` incident before restoring the marker.
+   Acknowledgement refuses an absent or altered marker and never falls back to
+   the retained `kry_ledger.json.pre-v2` migration backup. Interrupted activation
+   also requires review of both files and the retained intent; do not infer
+   whether the keyed debit committed from the marker alone.
+   Missing IDs cannot be reconstructed
+   from the bounded event list, and a valid old snapshot is not proof of completeness.
    Keep the incident evidence. If the debit total
    cannot be established, leave accounting blocked; the earn-only chain cannot
    supply the missing fact. A legacy blank replacement beside a quarantine is

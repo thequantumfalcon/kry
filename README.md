@@ -235,6 +235,8 @@ The checkout also includes baseline-history validation and the supported SNP
 policy. These changes do not expand what receipts prove about actual charges,
 settlement or savings veracity.
 Before upgrading an existing data directory, read [ledger recovery](docs/KRY_LEDGER_RECOVERY.md).
+The unreleased checkout adds optional internal debits with retained operation IDs;
+read [operation identity](docs/KRY_OPERATION_IDENTITY.md) before activating its ledger format.
 Missing debit history and unresolved writes require explicit recovery; a valid mint
 chain alone cannot establish the remaining spendable balance. Supported model
 snapshots and unpriced-event diagnostics are listed in the [LiteLLM guide](docs/KRY_LITELLM.md#explicit-model-identities-and-unpriced-events).
