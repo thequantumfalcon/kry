@@ -364,16 +364,20 @@ class KRYLedger:
     @classmethod
     def load_or_create(cls) -> "KRYLedger":
         ledger = cls()
-        if not _LEDGER_PATH.exists():
-            from kry.kry_mint import _MINT_LOG_PATH
-            ledger._recovery_required = bool(_ledger_incidents() or _MINT_LOG_PATH.exists())
+        if not _LEDGER_PATH.parent.exists():
             return ledger
-        # A quarantine decision and rename must refer to the same locked state.
+        # Initial absence and pending incidents must share the writer's lock:
+        # a first writer can remove its intent between an unlocked glob and read.
+        # A quarantine decision and rename must also refer to that locked state.
         # Callers acquire this loader before taking their own file lock.
         with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
             try:
+                if not _LEDGER_PATH.exists():
+                    from kry.kry_mint import _MINT_LOG_PATH
+                    ledger._recovery_required = bool(_ledger_incidents() or _MINT_LOG_PATH.exists())
                 raw = ledger._read_locked()
-                ledger._adopt(raw)
+                if raw:
+                    ledger._adopt(raw)
             except (OSError, ValueError):
                 # Read failure is not evidence that the bytes are corrupt. A
                 # later operation retries the read under the same process lock.

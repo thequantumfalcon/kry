@@ -38,10 +38,15 @@ done
 
 echo "-- [3/4] cross-process concurrency (lost must be 0) --"
 for r in $(seq 1 "$ROUNDS"); do
-  v=$("$PYTHON" lab/concurrency_check.py --workers 4 --earns 200 2>/dev/null \
+  out=$("$PYTHON" lab/concurrency_check.py --workers 4 --earns 200 2>&1)
+  rc=$?
+  v=$(printf "%s\n" "$out" \
         | "$PYTHON" -c "import json,sys;d=json.load(sys.stdin);print('OK' if d['pass'] else 'FAIL', d['lost'])")
   echo "  round $r: lost=${v#* } ($(echo "$v" | cut -d' ' -f1))"
-  [ "${v%% *}" = "OK" ] || fail=1
+  if [ "$rc" -ne 0 ] || [ "${v%% *}" != "OK" ]; then
+    printf "%s\n" "$out"
+    fail=1
+  fi
 done
 
 echo "-- [4/4] HOLE D cross-node double-spend + lease --"

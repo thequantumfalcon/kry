@@ -26,10 +26,11 @@ _PER_EARN = 100.0   # tokens per earn (cache_hit, avoided gh/opus -> 100 KRY eac
 # A worker mints PER_EARN-token cache hits into KRY_DATA_DIR; distinct evidence per earn
 # so the decay guard doesn't collapse them.
 _WORKER = (
-    "import sys,os; sys.path.insert(0,os.environ['SRC']);"
+    "import sys,os,json; sys.path.insert(0,os.environ['SRC']);"
     "import kry.kry_token as kt;"
-    "[kt.earn(100,'cache_hit',f'w{os.environ[\"WID\"]}-{i}',avoided_model='gh/claude-opus-4.8')"
-    " for i in range(int(os.environ['EARNS']))]"
+    "amounts=[kt.earn(100,'cache_hit',f'w{os.environ[\"WID\"]}-{i}',avoided_model='gh/claude-opus-4.8')"
+    " for i in range(int(os.environ['EARNS']))];"
+    "print(json.dumps({'calls':len(amounts),'returned_total':sum(amounts)}))"
 )
 
 
@@ -38,19 +39,46 @@ def run(workers: int, earns: int, share: str) -> dict:
     env = {**os.environ, "SRC": _SRC, "KRY_DATA_DIR": share, "EARNS": str(earns)}
     procs = []
     for w in range(workers):
-        procs.append(subprocess.Popen([sys.executable, "-c", _WORKER],
-                                      env={**env, "WID": str(w)}))
-    for p in procs:
+        stdout = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+        stderr = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+        process = subprocess.Popen([sys.executable, "-c", _WORKER],
+                                   env={**env, "WID": str(w)}, stdout=stdout, stderr=stderr)
+        procs.append((process, stdout, stderr))
+    outcomes = []
+    for w, (p, stdout, stderr) in enumerate(procs):
         p.wait()
-    ledger = json.loads((Path(share) / "kry_ledger.json").read_text(encoding="utf-8"))
+        stdout.seek(0)
+        stderr.seek(0)
+        output, errors = stdout.read(), stderr.read()
+        stdout.close()
+        stderr.close()
+        try:
+            reported = json.loads(output)
+        except json.JSONDecodeError:
+            reported = {}
+        if not isinstance(reported, dict):
+            reported = {}
+        outcomes.append({"worker": w, "returncode": p.returncode, "stdout": output,
+                         "stderr": errors, "reported": reported})
     expected = workers * earns * _PER_EARN
-    got = float(ledger.get("total_earned", 0.0))
+    ledger_error = None
+    try:
+        ledger = json.loads((Path(share) / "kry_ledger.json").read_text(encoding="utf-8"))
+        got = float(ledger["total_earned"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        got = None
+        ledger_error = str(exc)
     return {
         "workers": workers, "earns_each": earns,
         "expected_total_earned": expected,
-        "actual_total_earned": round(got, 2),
-        "lost": round(expected - got, 2),
-        "pass": abs(expected - got) < 1e-6,
+        "actual_total_earned": round(got, 2) if got is not None else None,
+        "lost": round(expected - got, 2) if got is not None else None,
+        "ledger_error": ledger_error,
+        "worker_outcomes": outcomes,
+        "pass": (got is not None and abs(expected - got) < 1e-6 and all(
+            outcome["returncode"] == 0 and outcome["reported"].get("calls") == earns and
+            outcome["reported"].get("returned_total") == earns * _PER_EARN
+            for outcome in outcomes)),
     }
 
 

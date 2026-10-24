@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An empty-ledger loader could read a first writer's temporary intent without
+  holding its lock, terminating a concurrent worker when that intent disappeared.
+  Startup now checks absence and incidents under the writer's lock. The concurrency
+  lab also checks every worker's exit and returned credits and retains failure output.
 - Failed ledger writes could leave pending debits or credits that were applied
   after another process spent or reconciled the same value. Public earning and
   spending now return a positive amount only for a confirmed ledger write, discard
