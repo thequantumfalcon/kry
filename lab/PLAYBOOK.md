@@ -52,12 +52,13 @@ Smoke-test the loop on each node:
 PYTHONPATH=src python3 examples/try_kry.py # earn -> mint -> attest -> stranger-verifies -> carbon
 ```
 
-## 0c. Prove the WHOLE pipeline locally first (one command, no models/meters)
+## 0c. Run the local synthetic checks (one command, no models/meters)
 
 ```bash
 PYTHONPATH=src python3 lab/run_local.py
-# Tests 1, 2, 3, 5, 6 all run + PASS on one machine. If this is green, the only things
-# the cluster adds are live model calls and real wall-meter readings.
+# Tests 1-6 exercise synthetic inputs and local coordination on one machine.
+# Model/meter and cross-machine trials are separate; independent source/corpus
+# validation and customer savings still require external evidence.
 
 # Reproducibility check (prove the proofs aren't one-offs — N rounds of all four families:
 # the current suite, run_local, cross-process concurrency, HOLE D). Exits non-zero on any fail:

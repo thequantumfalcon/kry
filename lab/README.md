@@ -42,7 +42,7 @@ experiments need no paid API.
 
 ## Test 3 — cross-node double-spend (HOLE D) — RUNNABLE NOW
 
-The killer test; only multiple nodes can run it. Demonstrated locally (4 dirs):
+This local exercise simulates four participants using separate directories:
 
 ```bash
 PYTHONPATH=src python3 lab/hole_d_double_spend.py
@@ -78,10 +78,11 @@ every participant must use the authority, and shared-storage lock semantics matt
 
 ## Honest boundary
 
-- This harness **simulates** four nodes locally (separate data dirs); the double-spend
- it shows is real given unmerged registries, and the lease is a **prototype** of the
- lease/nonce/TTL fix ranked in `docs/KRY_VERACITY_BINDING.md` — not a production
- consensus system.
+- This harness **simulates** four nodes locally (separate data dirs). Unmerged
+ registries each accept the same attested capacity; the local shared counter checks
+ a cumulative ceiling and a two-thread race. It has no nonce/TTL lifecycle or crash
+ recovery. The separate settlement lease implementation is described in
+ `docs/KRY_VERACITY_BINDING.md`; this demonstration does not qualify its deployment.
 - Provider usage, dated price estimates and observed account charges are separate
  records. A paid key does not establish the counterfactual, customer benefit or cash
  savings. Keep those claims pending independently obtained evidence.
