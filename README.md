@@ -437,13 +437,13 @@ documented in `src/kry/_locks.py` rather than the matrix; and real-world validat
 
 ## Authenticity (optional): who signed this attestation
 
-Integrity proves the ledger is untampered; veracity proves the events happened. Neither
-proves **who** vouched for an attestation — to a stranger, a real ledger and a fabricated
-one are cryptographically indistinguishable, because the stdlib core has no public-key
-crypto. The **optional `kry_pqc/` tier** fills exactly that gap: it signs an attestation's
-raw bytes with NIST **ML-DSA (FIPS 204)** so the holder of a published public key is
-provably the signer **to a verifier who supplies that published key out-of-band**
-(`--public-key` / `--expect-fingerprint`) — a signature under the artifact's *own embedded*
+Integrity checks the supplied chain against its commitments; veracity asks whether the
+events happened. Neither establishes **who** vouched for an attestation — to a stranger,
+a real ledger and a fabricated one are cryptographically indistinguishable, because the
+stdlib core has no public-key crypto. The **optional `kry_pqc/` tier** signs an attestation's
+raw bytes with NIST **ML-DSA (FIPS 204)**. A verifier checks that signature against an
+**independently pinned public key** (`--public-key` / `--expect-fingerprint`) — a signature
+under the artifact's *own embedded*
 key proves nothing (anyone can self-sign), so the verifier reports it UNVERIFIED. The
 **m-of-n council** mode distributes that trust **as long as the council's public keys are
 themselves published/pinned** (otherwise an operator who generates all N keys is the council). It is opt-in and

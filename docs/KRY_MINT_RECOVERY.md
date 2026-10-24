@@ -84,6 +84,11 @@ PY
    journal) with the verified receipt totals and
    independently retained spend records. A valid chain proves recorded integrity,
    not the truth of the underlying efficiency events.
+   Mint and action writers refuse a nonempty log whose last record has no final
+   newline. A parser may still accept that record, but appending would join two
+   JSON objects. Preserve the original bytes and establish the complete intended
+   history before restoring a newline-terminated JSONL copy; do not discard or
+   guess at a partial record. This refusal does not reconcile earlier writes.
 5. Record the discrepancy and choose a recovery procedure before resuming writes.
    Do not blindly retry or mint a replacement receipt. With
    `idempotent_evidence=True`, a complete retained receipt blocks the same evidence
