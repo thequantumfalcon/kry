@@ -94,9 +94,8 @@ def _load() -> dict:
         # write-ahead confirm() idempotency state and opens a re-mint window (a previously
         # confirmed displacement could be recorded and confirmed a second time). Quarantine
         # the bad file for forensics, log loudly, and FAIL CLOSED. This mirrors
-        # kry_mint._decayed_tokens (also fails closed on a present-but-unparseable file);
-        # contrast kry_token's ledger, which may reset to a fresh balance because that is the
-        # honest UNDERcount direction — here a fresh store is the OVERcount risk.
+        # kry_mint._decayed_tokens (also fails closed on a present-but-unparseable file).
+        # kry_token likewise requires recovery before rewriting unavailable debit history.
         quarantine = _PENDING_PATH.with_name(_PENDING_PATH.name + ".corrupt")
         try:
             os.replace(_PENDING_PATH, quarantine)

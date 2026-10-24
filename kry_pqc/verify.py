@@ -98,7 +98,7 @@ def verify_signature(attestation_bytes: bytes, signature: bytes, public_key: byt
         return bool(verifier.verify(attestation_bytes, signature, public_key))
 
 
-def _chain_check(attestation_text: str):
+def _chain_check(attestation_bytes: bytes):
     """Run KRY's own stdlib chain verifier if KRY is importable.
 
     Returns (ran: bool, ok: bool, errors: list[str]).
@@ -107,6 +107,10 @@ def _chain_check(attestation_text: str):
         from kry.kry_attest import verify_attestation
     except Exception:
         return False, False, []
+    try:
+        attestation_text = attestation_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return True, False, [f"invalid UTF-8 attestation: {exc}"]
     ok, errors = verify_attestation(attestation_text)
     return True, ok, errors
 
@@ -198,7 +202,7 @@ def main(argv=None) -> int:
     print(f"[{'PASS' if sig_ok else 'FAIL'}] ML-DSA signature valid (authenticity)")
     ok = ok and sig_ok
 
-    ran, chain_ok, errors = _chain_check(attestation_bytes.decode("utf-8", "replace"))
+    ran, chain_ok, errors = _chain_check(attestation_bytes)
     if ran:
         print(f"[{'PASS' if chain_ok else 'FAIL'}] KRY hash chain intact (integrity)")
         for e in errors:

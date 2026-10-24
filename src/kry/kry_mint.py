@@ -550,6 +550,13 @@ def mint(
             # tip is what keeps the chain unforked under concurrent writers.
             _MINT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             with cross_process_lock(_MINT_LOG_PATH):
+                if _MINT_LOG_PATH.exists():
+                    with _MINT_LOG_PATH.open("rb") as retained:
+                        retained.seek(0, os.SEEK_END)
+                        if retained.tell():
+                            retained.seek(-1, os.SEEK_END)
+                            if retained.read(1) != b"\n":
+                                return None   # never join a new receipt to an unterminated record
                 if idempotent_evidence:
                     # The retained log is the authority, including zero-value
                     # receipts and complete writes whose acknowledgement failed.
@@ -1203,7 +1210,9 @@ def verify_chain() -> tuple[bool, list[str]]:
                         errors.append(
                             f"Line {lineno} ({rid}): earn_rate {rate_v} != published "
                             f"{pub_rate} for '{ev}' — non-standard rate")
-                    implied = kry_v / (ts_v * rate_v)
+                    basis = ts_v * rate_v
+                    implied = (kry_v / basis if math.isfinite(basis)
+                               else (kry_v / ts_v) / rate_v)
                     try:
                         from kry.kry_token import published_multipliers
                         legal = set(published_multipliers().values())
