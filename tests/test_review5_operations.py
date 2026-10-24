@@ -16,8 +16,13 @@ from kry import kry_mint as km, kry_token as kt
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def ledger_path():
+    journal = kt._LEDGER_PATH.with_name("kry_ledger.v2.json")
+    return journal if journal.exists() else kt._LEDGER_PATH
+
+
 def disk():
-    return json.loads(kt._LEDGER_PATH.read_text())
+    return json.loads(ledger_path().read_text())
 
 
 def other(code):
@@ -31,16 +36,16 @@ def other(code):
 def test_spend_replay_is_durable_and_does_not_reprice(monkeypatch):
     assert kt.earn(300, "cache_hit") == 300
     assert kt.spend("paid", 100, "logical request", op_id="request-1") == 100
-    before = kt._LEDGER_PATH.read_bytes()
+    before = ledger_path().read_bytes()
     record = kt.ledger_operation("request-1")
     assert record["kind"] == "spend" and record["amount"] == 100
     assert len(record["params_sha256"]) == 64 and record["ts"] > 0
     monkeypatch.setattr(kt, "spend_cost", lambda *args: pytest.fail("Replay must not reprice"))
     assert kt.spend("paid", 100.0, "logical request", op_id="request-1") == 100
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
     assert other("import json; from kry import kry_token as k; "
                  "print(json.dumps(k.spend('paid',100,'logical request',op_id='request-1')))") == 100
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
 
 
 def test_direct_partial_result_survives_later_earnings():
@@ -57,21 +62,21 @@ def test_direct_partial_result_survives_later_earnings():
 def test_same_key_different_spend_parameters_refused(model, tokens, detail):
     kt.earn(500, "cache_hit")
     kt.spend("paid", 100, "same", op_id="bound")
-    before = kt._LEDGER_PATH.read_bytes()
+    before = ledger_path().read_bytes()
     with pytest.raises(ValueError, match="parameters"):
         kt.spend(model, tokens, detail, op_id="bound")
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
 
 
 def test_same_key_cannot_change_operation_kind():
     kt.earn(500, "cache_hit")
     kt.debit_kry(100, op_id="bound")
-    before = kt._LEDGER_PATH.read_bytes()
+    before = ledger_path().read_bytes()
     with pytest.raises(ValueError, match="parameters"):
         kt.spend("paid", 100, op_id="bound")
     with pytest.raises(ValueError, match="parameters"):
         kt.debit_kry(101, op_id="bound")
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
 
 
 @pytest.mark.parametrize("case", ["empty", "free", "zero"])
@@ -227,10 +232,11 @@ def test_post_unlink_cancellation_replays_once_after_restart(monkeypatch, cancel
 @pytest.mark.parametrize("after_replace", [False, True])
 def test_keyed_replace_failure_is_unreported_or_exactly_replayed(monkeypatch, after_replace):
     kt.earn(300, "cache_hit")
+    assert kt.debit_kry(0, op_id="activate") == 0
     original = os.replace
 
     def replace(source, target):
-        if Path(target) == kt._LEDGER_PATH:
+        if Path(target) == kt._LEDGER_PATH.with_name("kry_ledger.v2.json"):
             if after_replace:
                 original(source, target)
             raise OSError("synthetic lost replace acknowledgement")
@@ -305,10 +311,10 @@ def test_invalid_v2_cannot_be_acknowledged_or_rewritten(damage):
     elif damage == "extra-field":
         entry["unexpected"] = 1
     damaged = json.dumps(raw).encode()
-    kt._LEDGER_PATH.write_bytes(damaged)
+    ledger_path().write_bytes(damaged)
     with pytest.raises((ValueError, KeyError, TypeError)):
         kt.acknowledge_ledger_recovery(reason="invalid schema must not be accepted")
-    assert kt._LEDGER_PATH.read_bytes() == damaged
+    assert ledger_path().read_bytes() == damaged
     kt._ledger_instance = None
     with pytest.raises(kt.LedgerPersistenceError):
         kt.debit_kry(1, op_id="new")
@@ -335,10 +341,10 @@ def test_keyed_numeric_identity_rejects_lossy_integer_conversion(api):
             return kt.spend("paid", number, op_id="precision")
         return kt.debit_kry(number, op_id="precision")
     assert call(2**53) == 2**53
-    before = kt._LEDGER_PATH.read_bytes()
+    before = ledger_path().read_bytes()
     with pytest.raises(ValueError, match="representable"):
         call(2**53 + 1)
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
     assert call(float(2**53)) == 2**53
 
 
@@ -367,14 +373,14 @@ def test_keyed_total_spent_overflow_is_not_written():
 def test_duplicate_operation_id_cannot_be_silently_replaced_during_ack():
     kt.earn(300, "cache_hit")
     kt.debit_kry(10, op_id="duplicate")
-    text = kt._LEDGER_PATH.read_text()
+    text = ledger_path().read_text()
     record = json.dumps(disk()["ops"]["duplicate"])
     text = text.replace('"ops": {', '"ops": {"duplicate": ' + record + ',')
-    kt._LEDGER_PATH.write_text(text)
-    before = kt._LEDGER_PATH.read_bytes()
+    ledger_path().write_text(text)
+    before = ledger_path().read_bytes()
     with pytest.raises(ValueError, match="duplicate"):
         kt.acknowledge_ledger_recovery(reason="duplicate record is not reviewed history")
-    assert kt._LEDGER_PATH.read_bytes() == before
+    assert ledger_path().read_bytes() == before
 
 
 def test_restored_lossy_operation_amount_cannot_pass_rounded_spent_bound():
@@ -384,10 +390,10 @@ def test_restored_lossy_operation_amount_cannot_pass_rounded_spent_bound():
     raw["ops"]["restored"]["amount"] = 2**53 + 1
     assert raw["ops"]["restored"]["amount"] > raw["accounting"]["total_spent"]
     damaged = json.dumps(raw).encode()
-    kt._LEDGER_PATH.write_bytes(damaged)
+    ledger_path().write_bytes(damaged)
     with pytest.raises(ValueError, match="representable"):
         kt.acknowledge_ledger_recovery(reason="restored operation must obey its exact amount bound")
-    assert kt._LEDGER_PATH.read_bytes() == damaged
+    assert ledger_path().read_bytes() == damaged
     kt._ledger_instance = None
     with pytest.raises(kt.LedgerPersistenceError):
         kt.ledger_operation("restored")
@@ -403,10 +409,10 @@ def test_operation_amount_is_compared_to_original_total_spent_before_rounding():
     raw["accounting"]["total_spent"] = 2**53 + 3
     assert raw["ops"]["restored"]["amount"] > raw["accounting"]["total_spent"]
     damaged = json.dumps(raw).encode()
-    kt._LEDGER_PATH.write_bytes(damaged)
+    ledger_path().write_bytes(damaged)
     with pytest.raises(ValueError, match="exceeds"):
         kt.acknowledge_ledger_recovery(reason="rounded header must not enlarge the operation bound")
-    assert kt._LEDGER_PATH.read_bytes() == damaged
+    assert ledger_path().read_bytes() == damaged
     kt._ledger_instance = None
     with pytest.raises(kt.LedgerPersistenceError):
         kt.ledger_operation("restored")
@@ -460,7 +466,7 @@ def fault_at(patch, boundary, error):
             stop("target_directory_after")
 
     def replace(source, target):
-        if Path(target) == kt._LEDGER_PATH:
+        if Path(target) == kt._LEDGER_PATH.with_name("kry_ledger.v2.json"):
             stop("replace_before")
             original_replace(source, target)
             stop("replace_after")
@@ -468,10 +474,10 @@ def fault_at(patch, boundary, error):
             original_replace(source, target)
 
     def adopt(self, raw):
-        if "ledger_format" in raw:
+        if "fault" in raw.get("ops", {}):
             stop("adopt_before")
         original_adopt(self, raw)
-        if "ledger_format" in raw:
+        if "fault" in raw.get("ops", {}):
             stop("adopt_after")
 
     def unlink(path, *args, **kwargs):
@@ -497,7 +503,8 @@ def fault_at(patch, boundary, error):
 @pytest.mark.parametrize("boundary", PRECOMMIT_BOUNDARIES + POSTCOMMIT_BOUNDARIES)
 def test_keyed_persistence_fault_matrix(monkeypatch, api, error_type, boundary):
     kt.earn(300, "cache_hit")
-    before = kt._LEDGER_PATH.read_bytes()
+    assert kt.debit_kry(0, op_id="activate") == 0
+    before = ledger_path().read_bytes()
     error = error_type(boundary)
     call = (lambda: kt.spend("paid", 100, op_id="fault")) if api == "spend" else (
         lambda: kt.debit_kry(100, op_id="fault"))
@@ -516,7 +523,7 @@ def test_keyed_persistence_fault_matrix(monkeypatch, api, error_type, boundary):
             assert observed == 100
         assert fired()
     if boundary in PRECOMMIT_BOUNDARIES:
-        assert kt._LEDGER_PATH.read_bytes() == before
+        assert ledger_path().read_bytes() == before
         assert not kt._ledger_incidents()
         assert kt.get_ledger().total_spent == 0
     else:

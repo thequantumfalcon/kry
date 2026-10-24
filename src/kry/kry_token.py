@@ -126,9 +126,39 @@ class LedgerPersistenceError(RuntimeError):
     """A ledger write may have committed; inspect retained state before retrying."""
 
 
+def _journal_path() -> Path:
+    return _LEDGER_PATH.with_name(_LEDGER_PATH.stem + ".v2" + _LEDGER_PATH.suffix)
+
+
+def _legacy_backup_path() -> Path:
+    return _LEDGER_PATH.with_name(_LEDGER_PATH.name + ".pre-v2")
+
+
+def _ledger_tombstone() -> bytes:
+    return (_json_dumps({"kry_ledger_tombstone": 2, "journal": _journal_path().name},
+                        separators=(",", ":")) + "\n").encode()
+
+
+def _ledger_storage_path() -> Path:
+    """Resolve storage under the unchanged legacy coordination lock, never by fallback."""
+    journal = _journal_path()
+    evidence = (journal.exists() or journal.is_symlink() or
+                _legacy_backup_path().exists() or _legacy_backup_path().is_symlink() or
+                any(journal.parent.glob(journal.name + ".pending.*")) or
+                any(journal.parent.glob(journal.name + ".corrupt*")))
+    marker = _LEDGER_PATH.read_bytes() if _LEDGER_PATH.exists() else None
+    if evidence or marker == _ledger_tombstone():
+        if marker != _ledger_tombstone() or not journal.is_file():
+            raise ValueError("ledger fence incomplete or changed; restore the marker and complete v2 journal")
+        return journal
+    return _LEDGER_PATH
+
+
 def _ledger_incidents() -> dict[str, str]:
-    paths = list(_LEDGER_PATH.parent.glob(_LEDGER_PATH.name + ".corrupt*"))
-    paths += list(_LEDGER_PATH.parent.glob(_LEDGER_PATH.name + ".pending.*"))
+    paths = []
+    for target in (_LEDGER_PATH, _journal_path()):
+        paths += list(target.parent.glob(target.name + ".corrupt*"))
+        paths += list(target.parent.glob(target.name + ".pending.*"))
     return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
@@ -451,14 +481,15 @@ class KRYLedger:
                 pass
             return ledger
 
-    def _quarantine(self) -> None:
+    def _quarantine(self, path: Path | None = None) -> None:
         self._recovery_required = True
-        if _LEDGER_PATH.exists():
-            corrupt = _LEDGER_PATH.with_suffix(_LEDGER_PATH.suffix + ".corrupt")
+        path = path if path is not None else _ledger_storage_path()
+        if path.exists():
+            corrupt = path.with_suffix(path.suffix + ".corrupt")
             if corrupt.exists():
                 corrupt = corrupt.with_name(corrupt.name + "." + uuid.uuid4().hex)
             try:
-                os.replace(_LEDGER_PATH, corrupt)
+                os.replace(path, corrupt)
             except OSError:
                 logger.error("KRY ledger could not be quarantined; writes remain blocked")
                 return
@@ -488,7 +519,12 @@ class KRYLedger:
     def _read_locked(self) -> dict:
         if self._recovery_required:
             raise ValueError("debit history unavailable; explicit ledger recovery acknowledgement required")
-        if not _LEDGER_PATH.exists():
+        try:
+            path = _ledger_storage_path()
+        except ValueError:
+            self._recovery_required = True
+            raise
+        if not path.exists():
             from kry.kry_mint import _MINT_LOG_PATH
             missing_history = any(self._baseline.values()) or _MINT_LOG_PATH.exists()
             if (self._recovery_required or missing_history or
@@ -498,12 +534,14 @@ class KRYLedger:
         # Only successfully read invalid contents warrant quarantine. In
         # particular EMFILE/EIO/permission failures must leave valid bytes alone.
         try:
-            text = _LEDGER_PATH.read_text(encoding="utf-8")
+            text = path.read_text(encoding="utf-8")
         except UnicodeError as exc:
-            self._quarantine()
+            self._quarantine(path)
             raise ValueError("debit history unavailable; invalid ledger encoding") from exc
         try:
             raw = _ledger_json_loads(text)
+            if path == _journal_path() and (not isinstance(raw, dict) or "ledger_format" not in raw):
+                raise ValueError("the journal path requires a format-2 envelope")
             accounting, _ = _ledger_parts(raw)
             for k in _MERGE_FIELDS:
                 _finite_number(accounting[k], k, nonnegative=(k != "balance"))
@@ -514,7 +552,7 @@ class KRYLedger:
             if not isinstance(recovery, dict):
                 raise ValueError("recovery must be an object")
         except (ValueError, KeyError, TypeError, AttributeError, OverflowError, RecursionError) as exc:
-            self._quarantine()
+            self._quarantine(path)
             raise ValueError("debit history unavailable; restore the ledger before further writes") from exc
         if recovery.get("incidents", {}) != _ledger_incidents():
             self._recovery_required = True
@@ -544,6 +582,11 @@ class KRYLedger:
         self._last_write_committed = False
         if self._recovery_required:
             raise ValueError("debit history unavailable; restore the ledger before further writes")
+        try:
+            storage = _ledger_storage_path()
+        except ValueError:
+            self._recovery_required = True
+            raise
         if on_disk is None:
             on_disk = self._read_locked()
         disk_format = 2 if "ledger_format" in on_disk else 1
@@ -601,8 +644,13 @@ class KRYLedger:
             data = {"ledger_format": 2, "accounting": data, "ops": operations}
             _ledger_parts(data)
         encoded = _json_dumps(data, indent=2)
+        target = _journal_path() if "ledger_format" in data else _LEDGER_PATH
+        activating = target == _journal_path() and storage == _LEDGER_PATH
+        original = _LEDGER_PATH.read_bytes() if activating and _LEDGER_PATH.exists() else None
         fd, tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
-        intent = _LEDGER_PATH.with_name(_LEDGER_PATH.name + ".pending." + uuid.uuid4().hex)
+        intent_base = _LEDGER_PATH if activating else target
+        intent = intent_base.with_name(intent_base.name + ".pending." + uuid.uuid4().hex)
+        marker_tmp = None
         replace_returned = False
         durable = False
         try:
@@ -610,6 +658,14 @@ class KRYLedger:
                 f.write(encoded)
                 f.flush()
                 os.fsync(f.fileno())   # durability: the ledger must survive power loss, not tear
+            if activating and original is not None:
+                # Retain the exact old bytes before either live path changes.
+                # An incomplete activation is never retried over this backup.
+                with _legacy_backup_path().open("xb") as f:
+                    f.write(original)
+                    f.flush()
+                    os.fsync(f.fileno())
+                _sync_ledger_directory()
             # A crash or unreadable post-replace state leaves a durable incident
             # marker. Another process must not assume that this operation failed.
             with intent.open("x", encoding="utf-8") as f:
@@ -618,9 +674,17 @@ class KRYLedger:
                 os.fsync(f.fileno())
             _sync_ledger_directory()
             self._recovery_required = True
-            os.replace(tmp, _LEDGER_PATH)
+            os.replace(tmp, target)
             replace_returned = True
             _sync_ledger_directory()
+            if activating:
+                marker_fd, marker_tmp = tempfile.mkstemp(dir=_LEDGER_PATH.parent, prefix=".kry_")
+                with os.fdopen(marker_fd, "wb") as f:
+                    f.write(_ledger_tombstone())
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(marker_tmp, _LEDGER_PATH)
+                _sync_ledger_directory()
             durable = True
             self._adopt(data)
             self._last_write_committed = True
@@ -632,12 +696,21 @@ class KRYLedger:
                 # Retrying the latter delta would credit/debit the same event twice.
                 if self._last_write_committed:
                     pass
+                elif activating and not durable and (
+                        _legacy_backup_path().exists() or intent.exists() or target.exists()):
+                    # A visible journal without a proven durable marker is not
+                    # a completed activation, even if its exact bytes are readable.
+                    self._recovery_required = True
+                    if os.path.exists(tmp):
+                        os.unlink(tmp)
+                    if marker_tmp is not None and os.path.exists(marker_tmp):
+                        os.unlink(marker_tmp)
                 elif not os.path.exists(tmp):
                     self._recovery_required = True
                     committed = durable
                     if not durable and not replace_returned:
                         try:
-                            committed = _LEDGER_PATH.read_text(encoding="utf-8") == encoded
+                            committed = target.read_text(encoding="utf-8") == encoded
                         except (OSError, UnicodeError):
                             committed = False
                     if committed and not durable:
@@ -736,6 +809,7 @@ def _durable_snapshot() -> KRYLedger:
             snapshot = KRYLedger()
             if raw:
                 snapshot._adopt(raw)
+            snapshot._journal_fenced = _ledger_storage_path() == _journal_path()
             return snapshot
 
 
@@ -749,7 +823,13 @@ def acknowledge_ledger_recovery(*, reason: str) -> None:
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("a recovery reason is required")
     with _LEDGER_LOCK, _cross_process_lock(_LEDGER_PATH):
-        raw = _ledger_json_loads(_LEDGER_PATH.read_text(encoding="utf-8"))
+        path = _ledger_storage_path()
+        raw = _ledger_json_loads(path.read_text(encoding="utf-8"))
+        versioned = isinstance(raw, dict) and "ledger_format" in raw
+        if path == _journal_path() and not versioned:
+            raise ValueError("the journal path requires a format-2 envelope")
+        if path == _LEDGER_PATH and versioned:
+            raise ValueError("legacy-path operation journal requires reviewed relocation")
         ledger = KRYLedger()
         ledger._adopt(raw)
         if ledger.balance < 0:
@@ -1045,6 +1125,8 @@ def _keyed_debit(kind: str, parameters: dict, op_id: str) -> float:
                 record = operations[op_id]
                 if record["kind"] != kind or record["params_sha256"] != digest:
                     raise ValueError("op_id already records different parameters")
+                if _ledger_storage_path() != _journal_path():
+                    raise LedgerPersistenceError("legacy-path operation journal requires reviewed relocation")
                 return record["amount"]
             if accounting.get("balance", 0.0) < 0 or ledger.balance < 0:
                 raise ValueError("negative ledger balance requires reviewed recovery")
@@ -1091,6 +1173,8 @@ def ledger_operation(op_id: str) -> dict | None:
         raise LedgerPersistenceError("operation journal unavailable; recovery required") from exc
     if ledger._ledger_format != 2:
         raise ValueError("legacy ledger has no operation journal")
+    if not ledger._journal_fenced:
+        raise ValueError("legacy-path operation journal requires reviewed relocation")
     record = ledger._ops.get(op_id)
     return record.copy() if record is not None else None
 

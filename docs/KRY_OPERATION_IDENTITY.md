@@ -72,28 +72,50 @@ credit a receiver merely because a payer debit record exists.
 
 ## Storage and recovery
 
-The first successful keyed write changes only that data directory's ledger to a
-versioned envelope containing its accounting state and permanent `ops` map.
-There is no additional journal file or separate balance/journal commit. The
-existing lock, replacement, intent and recovery protocol still applies.
+The first successful keyed write creates `kry_ledger.v2.json`, containing both
+accounting state and the permanent `ops` map in one atomic replacement. It
+replaces `kry_ledger.json` with an exact tombstone naming that journal. All
+versions still coordinate on the original `kry_ledger.json.lock`; the journal
+must not use a separate writer lock. Legacy-only directories keep their existing
+file format until a keyed debit activates the journal. An envelope left at the
+legacy path is not a fenced journal: read-only lookup and recovery acknowledgement
+refuse it until reviewed relocation.
+
+Activation retains the original ledger bytes in `kry_ledger.json.pre-v2` when a
+legacy ledger exists. Activation has additional durability steps for this backup
+and the tombstone. An interruption can therefore require recovery even before
+any new debit commits. A retained migration backup or intent prevents silently
+falling back to a fresh legacy ledger. Do not delete these files to unblock work.
+
+Once activated, a missing or changed tombstone, a missing journal, or a legacy
+snapshot substituted for the journal blocks accounting and operation lookup.
+Recovery acknowledgement does not recreate the tombstone or infer missing
+operations. Preserve any altered old-path bytes as incident evidence, restore
+the exact tombstone and the complete reviewed versioned journal, then follow
+[ledger recovery](KRY_LEDGER_RECOVERY.md). Restoring the marker alone does not
+resolve retained pending-write or quarantine incidents. The pre-v2 backup is a
+migration record, not a current journal or permission to discard later debits.
+
 Operation IDs are separate from the bounded 500-event list and are never pruned
 in this version. The journal grows with the number of distinct IDs, and each
 ledger replacement includes the full map. This is a small local ledger design,
 not a high-volume payment database.
 
-Keep the complete envelope, including every operation record, in backups and
-restores. Earnings, reconciliation and recovery acknowledgement preserve the
+Keep both live files, the retained migration backup, and all incident files in
+backups. Earnings, reconciliation and recovery acknowledgement preserve the
 journal; acknowledgement does not reconstruct missing IDs or establish that a
-restored snapshot is complete. Do not flatten the envelope into legacy scalars.
-Do not remove entries to reduce file size. No pruning API or watermark is
-implemented; old IDs remain valid for replay while their records are retained.
+restored snapshot is complete. Do not flatten the envelope into legacy scalars
+or remove operation entries. No pruning API or watermark is implemented.
 
-Do not downgrade an activated directory. v0.1.14 refuses this envelope and may
-quarantine its unchanged bytes; v0.1.12 can instead overwrite it with a blank
-legacy ledger. A format marker cannot repair historical writer behavior. If an
-old writer touches the directory, stop writers, preserve all retained files and
-review the complete journal before resuming. Restoring an older valid snapshot
-or deleting the entire history is not automatically detected.
+The separate filename protects journal bytes from the tested legacy writers
+that know only `kry_ledger.json`. A legacy writer can still quarantine or replace
+the tombstone; the new code detects that interference and blocks. This is
+containment and detection, not support for mixed-version operation. It does not
+prevent every old writer from reporting a debit in its own legacy file. Upgrade
+all writers before activation, and do not downgrade an activated directory.
+Restoring an older valid journal together with its marker, or deleting all
+history and migration evidence, is not automatically detected. These local
+files do not authenticate history or prove its completeness.
 
 ## Settlement scope
 

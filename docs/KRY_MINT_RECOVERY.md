@@ -31,7 +31,9 @@ that an external saving happened.
    procedure. Work from a retained copy; do not delete or rewrite malformed rows.
 2. Confirm the exact `KRY_DATA_DIR` used by the affected process. Preserve
    `kry_mint_log.jsonl`, `kry_mint_tip.json`, `kry_evidence_decay.json` and
-   `kry_ledger.json`, including which files were absent. Keep this material private.
+   `kry_ledger.json`, `kry_ledger.v2.json`, `kry_ledger.json.pre-v2`, and all ledger
+   `.pending.*` and `.corrupt*` files, including which files were absent.
+   Keep this material private.
 3. From the checkout, inspect a retained copy with the command below. Replace the
    path explicitly. It reports file hashes, sizes and chain-verification status,
    without printing receipt contents or verifier error strings. It writes no KRY
@@ -46,8 +48,11 @@ from pathlib import Path
 from kry.kry_mint import verify_chain
 
 directory = Path(os.environ["KRY_DATA_DIR"]).expanduser()
-for name in ("kry_mint_log.jsonl", "kry_mint_tip.json",
-             "kry_evidence_decay.json", "kry_ledger.json"):
+names = {"kry_mint_log.jsonl", "kry_mint_tip.json", "kry_evidence_decay.json",
+         "kry_ledger.json", "kry_ledger.v2.json", "kry_ledger.json.pre-v2"}
+for pattern in ("kry_ledger*.json.pending.*", "kry_ledger*.json.corrupt*"):
+    names.update(path.name for path in directory.glob(pattern))
+for name in sorted(names):
     path = directory / name
     if not path.exists():
         print(json.dumps({"file": name, "present": False}))
@@ -68,7 +73,8 @@ PY
 4. Review receipt presence, newline completeness and checkpoint count/tip on the
    retained copy. Chain verification alone does not reconcile the balance or
    establish a missing log is legitimate. Compare the persisted ledger's
-   `total_earned`, `total_spent` and `balance` with the verified receipt totals and
+   `total_earned`, `total_spent` and `balance` (inside `accounting` for the v2
+   journal) with the verified receipt totals and
    independently retained spend records. A valid chain proves recorded integrity,
    not the truth of the underlying efficiency events.
 5. Record the discrepancy and choose a recovery procedure before resuming writes.

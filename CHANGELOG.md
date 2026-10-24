@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A same-parameter retry returns the recorded result without another debit,
   including after a committed write was interrupted before returning. IDs are
   stored atomically with the balance and retained beyond the bounded event list.
-  The first keyed write opts into a new local ledger format; upgrade every writer
+  The journal lives at `kry_ledger.v2.json`, with a checked tombstone at the legacy
+  path and the original shared lock. Old writers cannot overwrite the journal
+  through the legacy filename; marker interference blocks new accounting.
+  Activation retains the original ledger and fails closed on uncertain migration.
+  The first keyed write opts into this local ledger format; upgrade every writer
   before activation and preserve the full journal through recovery. Unkeyed
   calls and the existing settlement registry keep their previous contracts.
 
