@@ -1,7 +1,7 @@
 # Recovering interrupted journal activation
 
-This procedure applies to the unreleased operation journal. It is not part of
-the v0.1.14 package. Read [ledger recovery](KRY_LEDGER_RECOVERY.md) and
+This procedure applies to the operation journal introduced in v0.1.15.
+Read [ledger recovery](KRY_LEDGER_RECOVERY.md) and
 [operation identity](KRY_OPERATION_IDENTITY.md) first.
 
 New activations publish a versioned attempt record before the backup, journal,
