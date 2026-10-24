@@ -207,7 +207,11 @@ and [OpenAI organization usage API](https://developers.openai.com/api/reference/
 return time-bucket aggregates. Do not describe them as per-request exports or infer that
 an inference credential grants reporting access. `kry_reconcile.py` needs a separately
 retrievable source with the required coverage; accepting a JSON shape does not establish
-its provenance. Its per-request mode matches token pairs, not request identity.
+its provenance. When either input contains request IDs, per-request reconciliation
+requires unique matching supplied IDs and token counts; missing, duplicate or
+conflicting IDs cannot fall back to count-only matching. When neither side has
+IDs, the legacy diagnostic compares token pairs and labels the result
+`token_counts_only`. Neither mode authenticates the supplied records.
 
 ## Bounded single-process evaluation procedure
 

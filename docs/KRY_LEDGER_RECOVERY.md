@@ -96,6 +96,9 @@ Before recovery:
    the retained `kry_ledger.json.pre-v2` migration backup. Interrupted activation
    also requires review of both files and the retained intent; do not infer
    whether the keyed debit committed from the marker alone.
+   If activation stopped before the journal was written, follow
+   [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md), including
+   its empty/partial backup case and complete reviewed envelope format.
    Missing IDs cannot be reconstructed
    from the bounded event list, and a valid old snapshot is not proof of completeness.
    Keep the incident evidence. If the debit total

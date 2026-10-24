@@ -100,11 +100,13 @@ Sealed at 2026-09-15T04:21:04Z; hashes are in `PROMPT_CACHE_PLAN.md` §2.
 
 ## 6. Separate candidate: refresh the output price basis
 
-**Status:** implemented after 0.1.5 as its own change (see the CHANGELOG under Unreleased). Exact
+**Status:** implemented in [0.1.6](../CHANGELOG.md#016---2026-09-19) as its own change. Exact
 current ids were added ahead of the class entries; every existing multiplier and vector verdict is
 unchanged, and the published set grew from 30 to 40 values.
 
 Not part of the prompt-cache profile, but found in the same investigation.
+The bullets below describe the pre-refresh state and its design constraints;
+the current output price basis is dated 2026-09-15.
 
 - `PRICE_BASIS_AS_OF` is 2026-06-03. `_MODEL_OUTPUT_USD_PER_M` and its copy in `scripts/kry_verify.py`
   have Sonnet 7.5 and Haiku 1.25. The current list prices are Sonnet 5 $10 and Haiku 4.5 $5.

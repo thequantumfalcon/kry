@@ -22,6 +22,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before activation and preserve the full journal through recovery. Unkeyed
   calls and the existing settlement registry keep their previous contracts.
 
+### Fixed
+
+- Recovery documentation omitted activation crashes that leave an empty, partial
+  or complete migration backup before any journal is written. The recovery guide
+  now specifies the versioned envelope and a reviewed restoration procedure;
+  ordinary acknowledgement still refuses an incomplete fence and never infers
+  missing debit history from the legacy backup.
+- Python savings verifiers now reject a finite positive token/rate product that
+  underflows to zero with a normal invalid verdict, matching the JavaScript
+  verifier, instead of raising a division-by-zero exception.
+- All three public savings verifiers and the internal mint-chain verifier now
+  use stable division when a token/rate product overflows, rejecting an illegal
+  multiplier while preserving legal ratios near the floating-point limit.
+- Generic mint and action writers now refuse to append after an unterminated
+  retained record, preserving the existing log and accounting state instead of
+  joining two JSON receipts on one line.
+- The optional PQC verifier now rejects invalid UTF-8 during its chain check
+  instead of checking replacement-decoded bytes. Signature-only verification
+  when the core package is absent retains its existing byte-signature behavior.
+- Reproducibility checks now reject failed child processes even when they print a
+  success marker, reject incomplete lease races, and reject zero or malformed
+  round counts. Release checks and direct reproducibility runs ignore inherited
+  pytest options that could select only part of the required test suite.
+- Keep the local proof runner's synthetic reputation updates in its temporary
+  data directory, preserving the caller's accounting data.
+- Restore the caller's lease configuration after lab node verification and keep
+  the no-authority demonstration from using or altering an inherited authority.
+- Allow the 501-write ledger regression more time on slower runners, retaining
+  every write and accounting assertion and the existing timeout for other cases.
+- Correct current recovery and request-ID reconciliation guidance, and remove
+  unsupported lab-readiness, carbon, holdout, notary-import and sanctions claims.
+- Label LiteLLM shadow-call costs as pricing-table estimates rather than provider
+  receipts; document the extra call and the raw rows' limited evidence scope.
+
 ## [0.1.14] - 2026-10-23
 
 ### Fixed

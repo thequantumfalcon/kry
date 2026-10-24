@@ -306,7 +306,7 @@ python3 scripts/kry_release_verify.py --full # one-command release gate
  compression ┼──► value_multiplier(model) ──► KRY ──► (free tiers cost 0,
  displacement ┘ × EARN_RATES[event] ▲ paid tiers debit)
  │
- │ every mutation
+ │ each minted earning event
  ▼
  ┌───────────────────────────────────────────────────────────────────────────┐
  │ MINT — SHA-256 hash-chained receipt │
@@ -437,13 +437,13 @@ documented in `src/kry/_locks.py` rather than the matrix; and real-world validat
 
 ## Authenticity (optional): who signed this attestation
 
-Integrity proves the ledger is untampered; veracity proves the events happened. Neither
-proves **who** vouched for an attestation — to a stranger, a real ledger and a fabricated
-one are cryptographically indistinguishable, because the stdlib core has no public-key
-crypto. The **optional `kry_pqc/` tier** fills exactly that gap: it signs an attestation's
-raw bytes with NIST **ML-DSA (FIPS 204)** so the holder of a published public key is
-provably the signer **to a verifier who supplies that published key out-of-band**
-(`--public-key` / `--expect-fingerprint`) — a signature under the artifact's *own embedded*
+Integrity checks the supplied chain against its commitments; veracity asks whether the
+events happened. Neither establishes **who** vouched for an attestation — to a stranger,
+a real ledger and a fabricated one are cryptographically indistinguishable, because the
+stdlib core has no public-key crypto. The **optional `kry_pqc/` tier** signs an attestation's
+raw bytes with NIST **ML-DSA (FIPS 204)**. A verifier checks that signature against an
+**independently pinned public key** (`--public-key` / `--expect-fingerprint`) — a signature
+under the artifact's *own embedded*
 key proves nothing (anyone can self-sign), so the verifier reports it UNVERIFIED. The
 **m-of-n council** mode distributes that trust **as long as the council's public keys are
 themselves published/pinned** (otherwise an operator who generates all N keys is the council). It is opt-in and
@@ -564,7 +564,7 @@ All under `src/kry/`, stdlib only (`wc -l src/kry/*.py` gives the current size).
 | `kry_referee.py` | adversarial-stability gate + ascension (ratify / revoke / escalate, challenge budget, probation) |
 | `kry_carbon.py` | second denomination — avoided inference → kWh → CO₂ (clearly-labeled **estimate**) |
 | `kry_baseline.py` | counterfactual holdout — randomized holdout + Wilson CI → the `holdout_validated` tier |
-| `kry_sanctions.py` | makes cheating unprofitable — host-sanction reputation + reciprocal audit rate + an ESS condition (biomimicry) |
+| `kry_sanctions.py` | host-sanction reputation, reciprocal audit rate and a modeled stability condition; effectiveness depends on audit evidence, enforcement and costly identity |
 | `kry_capabilities.py` | capability matrix + the readiness grader (`readiness_label`, `verify_capabilities`) |
 | `kry_prompt_cache.py` | report-only valuation of a provider's prompt-cache discount from its own usage fields at dated list prices — never mints, never touches the chain or the published multipliers |
 | `try_demo.py` | the `kry-try` command: mints a throwaway chain from synthetic events, attests it, verifies it |
@@ -598,7 +598,9 @@ python3 scripts/kry_reconcile.py kry_data/kry_mint_log.jsonl --provider-export u
 # --mode aggregate requires --since/--until; here --tolerance-pct defaults to 2.0 (max 5.0).
 # Aggregate tolerance is applied exactly to integer token totals. Empty or zero-token
 # receipt windows return NO_T1_RECEIPTS and exit nonzero, not successful reconciliation.
-# Supplying JSON does not establish its provenance; matching token pairs does not prove request identity.
+# Per-request mode joins unique supplied IDs when either side has them; missing or conflicting
+# IDs cannot fall back to counts. With no IDs on either side, token_counts_only is diagnostic.
+# Supplied identifiers and matching counts do not authenticate the export or prove charges.
 # An aggregate-mode external packet (kry_verified_artifact.py) is capped at --tolerance-pct 2.0, and that
 # script defaults to 5.0, so pass --tolerance-pct 2 (or lower) to it explicitly.
 

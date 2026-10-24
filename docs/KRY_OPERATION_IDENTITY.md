@@ -86,6 +86,9 @@ legacy ledger exists. Activation has additional durability steps for this backup
 and the tombstone. An interruption can therefore require recovery even before
 any new debit commits. A retained migration backup or intent prevents silently
 falling back to a fresh legacy ledger. Do not delete these files to unblock work.
+The backup can be empty or partial if its creation was interrupted. For the
+no-journal case, see [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md)
+for the envelope format and an explicit reviewed restoration procedure.
 
 Once activated, a missing or changed tombstone, a missing journal, or a legacy
 snapshot substituted for the journal blocks accounting and operation lookup.

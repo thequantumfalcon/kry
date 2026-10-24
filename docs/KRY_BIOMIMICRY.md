@@ -88,9 +88,9 @@ clones are deleted by negative selection. The default is *fail-closed*.
 trust — it should be "anergic": recorded, but trust-weight 0 until an independent anchor
 (signal 2) arrives.
 
-**🛠 In KRY.** `two_signal_trust()` formalises exactly this: trust accrues only to the
-externally-anchored fraction; self-report alone is anergic. This *is* `veracity_floor`,
-recast as the immune costimulation rule.
+**🛠 In KRY.** `two_signal_trust()` uses the fraction assigned to declared tiers
+above self-report. This is a model over tier labels, not authentication of an
+external witness; the underlying evidence must be checked separately.
 
 ## 6. Quorum-sensing policing — couple the public good to a private one 🔬
 
@@ -139,19 +139,19 @@ This makes the design knobs explicit and is implemented in `kry_sanctions`:
 
 So KRY's 2% holdout is *exactly enough* to make fabrication unprofitable **if** a caught
 cheat forfeits ~49× the cheated amount (reputation collapse + lost settlement). The
-mechanism delivers that: one discrepancy multiplies reputation down and drives the
-cheater's audit rate toward 100%, while honest partners settle into the 2% floor.
+reputation mechanism changes a score and proposed audit rate; it does not deliver
+or collect a 49× economic penalty. Enforcement, detection quality and costly
+identity must come from the host. The default controls are advisory.
 
 ## What this does — and does NOT — solve
 
-- **Does:** turns the fabricated cache hit from "undetectable and unpriced" into "stable
- to *report honestly*, costly to *fake repeatedly*." The fabricator's first lie still
- verifies VALID — but it reads `veracity_floor = 0.0`, and a *party* who keeps it up
- loses reputation, gets force-audited, and finds cheating a losing strategy. That is how
- nature stabilises every one of the mutualisms above.
+- **Does:** computes reputation, proposed audit rates and the stated model's stability
+ condition from supplied outcomes. It does not authenticate those outcomes, force
+ an audit or make fabrication economically costly by itself.
 - **Does not:** make a single fabricated claim cryptographically impossible (no system
  can — it's a counterfactual). It bounds the *equilibrium*, not the *one-shot*. Absolute
- per-event proof still requires the unbuilt TEE/T2 tier.
+ per-event counterfactual proof is not supplied by the shipped optional TEE verifier
+ either: authenticating an enclave document does not establish an avoided call.
 - **Caveat:** the ESS arithmetic is a first-order model. Real adversaries collude, and λ
  is only real if reputation is *costly to rebuild* (Sybil-resistant identity) — itself an
  open problem, flagged honestly.

@@ -17,8 +17,15 @@ include operator data. The fixed messages distinguish these outcomes:
 | `mint receipt acknowledgement failed; stage=receipt_persisted` | An exception followed the receipt write. | Later operations and the caller's acknowledgement are incomplete. |
 | `tip checkpoint did not advance or was not acknowledged` | Receipt persistence completed; checkpoint update raised. | The checkpoint may be stale; an exceptional acknowledgement does not establish the exact file outcome. |
 | `balance update was not acknowledged` | The receipt was retained; the balance call raised. | The balance may be unchanged or already updated. |
-| `KRY earn: ledger persistence unconfirmed` | The balance save raised inside `earn()`. | The credit may be only in memory or already on disk. This warning does not propagate as a mint failure. |
-| `KRY spend: ledger persistence unconfirmed` | The debit save raised inside `spend()`. | The debit may be only in memory or already on disk. The mint chain cannot reconstruct an unrecorded debit. |
+| `KRY earn: ledger write failed; no credit recorded` | A known pre-commit failure returned zero and rolled back this public operation's pending credit. | The retained mint receipt may still need balance reconciliation. |
+| `KRY spend: ledger write failed; no debit recorded` | A known pre-commit failure returned zero and rolled back this public operation's pending debit. | This does not describe an uncertain replacement or an external action. |
+
+An uncertain ledger replacement raises `LedgerPersistenceError` and blocks accounting;
+it is not reported as a confirmed zero debit. An interrupted operation propagates the
+interrupt, which does not establish whether its write committed. A lost replacement
+acknowledgement can still return the committed amount when the ledger proves the write.
+See [ledger recovery](KRY_LEDGER_RECOVERY.md) for these outcomes and the separate
+lower-level direct-save contract.
 
 These messages report exceptions observed by the process. They cannot report a
 process killed before logging, certify survival of a power loss, or establish
@@ -77,6 +84,11 @@ PY
    journal) with the verified receipt totals and
    independently retained spend records. A valid chain proves recorded integrity,
    not the truth of the underlying efficiency events.
+   Mint and action writers refuse a nonempty log whose last record has no final
+   newline. A parser may still accept that record, but appending would join two
+   JSON objects. Preserve the original bytes and establish the complete intended
+   history before restoring a newline-terminated JSONL copy; do not discard or
+   guess at a partial record. This refusal does not reconcile earlier writes.
 5. Record the discrepancy and choose a recovery procedure before resuming writes.
    Do not blindly retry or mint a replacement receipt. With
    `idempotent_evidence=True`, a complete retained receipt blocks the same evidence

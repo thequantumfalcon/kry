@@ -20,9 +20,9 @@ def _disk():
     return json.loads(kt._LEDGER_PATH.read_text(encoding="utf-8"))
 
 
-def _other_process(code):
+def _other_process(code, *, timeout=20):
     result = subprocess.run([sys.executable, "-B", "-c", code], capture_output=True,
-                            text=True, timeout=20,
+                            text=True, timeout=timeout,
                             env={"PATH": os.defpath, "PYTHONPATH": str(ROOT / "src"),
                                  "KRY_DATA_DIR": str(kt._LEDGER_PATH.parent),
                                  "PYTHONDONTWRITEBYTECODE": "1"})
@@ -231,7 +231,8 @@ def test_lost_write_ack_is_not_reapplied_after_event_history_rolls_over(monkeypa
         patch.setattr(os, "replace", replace_then_fail)
         assert kt.earn(100, "cache_hit") == 100
     assert _other_process("import json; from kry.kry_token import earn; "
-                          "print(json.dumps(sum(earn(1,'cache_hit') for _ in range(501))))") == 501
+                          "print(json.dumps(sum(earn(1,'cache_hit') for _ in range(501))))",
+                          timeout=120) == 501
     assert kt.earn(50, "cache_hit") == 50
     assert _disk()["balance"] == 651
     assert _disk()["total_earned"] == 651

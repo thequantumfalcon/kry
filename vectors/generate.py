@@ -760,6 +760,22 @@ def gen_hardening() -> None:
     emit("rounding_inflated_total", canon(reseal(a)),
          "A double-rounded total is not the exact rounded link sum.", "INVALID")
 
+    a = receipt()
+    a["links"][0].update(event_type="continuity_capsule", tokens_saved=5e-324,
+                           earn_rate=0.1, kry_minted=0.0)
+    emit("magnitude_basis_underflow", canon(rechain(a)),
+         "Positive finite tokens and rate multiply to zero; magnitude cannot be derived.", "INVALID")
+    a = receipt()
+    a["links"][0].update(tokens_saved=sys.float_info.max, earn_rate=1.0000001,
+                           kry_minted=1.234567e308)
+    emit("magnitude_basis_overflow", canon(rechain(a)),
+         "An overflowing product must not turn an illegal price ratio into zero.", "INVALID")
+    a = receipt()
+    a["links"][0].update(tokens_saved=sys.float_info.max, earn_rate=1.0000001,
+                           kry_minted=sys.float_info.max)
+    emit("magnitude_basis_overflow_legal", canon(rechain(a)),
+         "Stable division preserves a legal near-one ratio when the product overflows.", "VALID")
+
     for version in (4, 5, 6, 7):
         raw = canon(receipt(version=version))
         emit(f"valid_v{version}", raw, "Canonical version-specific public block.", "VALID")

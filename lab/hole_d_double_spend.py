@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Lab Test 3 — cross-node double-spend (HOLE D), and the lease fix.
+"""Lab Test 3 — separate-registry double-spend and a local shared-counter prototype.
 
-This is the one experiment that *requires* more than one node: KRY's settlement
-double-spend guard is proven only WITHIN a single process/registry. HOLE D (disclosed
-in docs/KRY_VERACITY_BINDING.md) is that two nodes settling the SAME attested balance
-against their OWN unmerged registries are not caught. With four nodes you can both
-demonstrate the hole and prove a fix.
+Separate unmerged registries can each accept the SAME attested balance without
+shared coordination. This script demonstrates that case and a cumulative ceiling
+with cooperating local writers. Debit callbacks report synthetic success; this is
+not a transfer between independent payer and receiver ledgers. The prototype does
+not exercise the separate settlement lease implementation's nonce/TTL lifecycle.
 
 Topology (this script simulates the four nodes locally as four data dirs; on real
 hardware each role is a separate machine):
@@ -13,7 +13,7 @@ hardware each role is a separate machine):
     Node A  (earner)            — mints KRY, emits ONE content-sealed attestation
     Node B  (counterparty)      — verifies A's attestation, accepts an offer
     Node C  (counterparty)      — verifies the SAME attestation, accepts an offer
-    Node D  (registry authority)— a shared lease service B and C must consult first
+    Node D  (registry authority)— a shared local counter B and C consult first
 
 Run:
     PYTHONPATH=src python3 lab/hole_d_double_spend.py
@@ -22,8 +22,8 @@ It prints two phases:
   PHASE 1 (no authority): B and C each accept 7,000 KRY against A's 10,000 balance,
            each against its own registry -> 14,000 settled -> DOUBLE-SPEND (VULNERABLE).
   PHASE 2 (with Node D lease authority): the second lease that would exceed the
-           attested balance is DENIED -> only 7,000 settles -> PROTECTED. A concurrent
-           race is run to show the lease grant is atomic (exactly one of two wins).
+           attested balance is DENIED -> only 7,000 is granted -> PROTECTED. A concurrent
+           two-thread race checks that exactly one of two grants succeeds locally.
 """
 from __future__ import annotations
 
@@ -68,7 +68,16 @@ def _accept_and_settle(reg_path: Path, party: str, att_json: str,
     accepted, settle (record to that registry). Returns True if it settled."""
     ks._REGISTRY_PATH = reg_path
     offer = ks.make_offer(party, "counterparty", amount, 1000, now=time.time())
-    grant, reason = ks.verify_and_accept(offer, att_json, now=time.time())
+    previous_lease_dir = os.environ.get("KRY_SETTLE_LEASE_DIR")
+    try:
+        # This phase demonstrates separate registries without a lease authority.
+        os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        grant, reason = ks.verify_and_accept(offer, att_json, now=time.time())
+    finally:
+        if previous_lease_dir is None:
+            os.environ.pop("KRY_SETTLE_LEASE_DIR", None)
+        else:
+            os.environ["KRY_SETTLE_LEASE_DIR"] = previous_lease_dir
     if grant is None:
         print(f"      node sees registry {reg_path.parent.name}: REJECTED ({reason[:50]})")
         return False
@@ -115,8 +124,8 @@ def _unlock(authdir: Path) -> None:
 
 def lease(authdir: Path, key: str, amount: float, ceiling: float) -> bool:
     """Grant a lease iff cumulative leased for `key` stays within `ceiling` (the
-    attested balance). Cross-process safe via an O_EXCL lockfile — this is the
-    shared state HOLE D needs (one authority both B and C consult)."""
+    attested balance). Cooperating local writers serialize via an O_EXCL lockfile;
+    this demonstration does not exercise crash recovery or network storage."""
     authdir.mkdir(parents=True, exist_ok=True)
     _lock(authdir)
     try:
@@ -162,7 +171,7 @@ def main() -> int:
     print(f"   VERDICT: {'*** DOUBLE-SPEND (VULNERABLE) — HOLE D confirmed on separate registries' if vulnerable else 'no double-spend'}\n")
 
     # ── PHASE 2: Node D lease authority — both must lease before accepting ──────
-    print("PHASE 2 — Node D shared lease authority (the fix):")
+    print("PHASE 2 — Node D shared counter (local prototype):")
     att_hash = json.loads(att_json).get("chain_head", "")[:16]
     key = f"A:{att_hash}"
     b_lease = lease(D, key, 7000, attested)
@@ -172,8 +181,8 @@ def main() -> int:
           f"(cumulative would be 14,000 > {attested:.0f})")
     settled_2 = (7000 if b_lease else 0) + (7000 if c_lease else 0)
     protected = settled_2 <= attested
-    print(f"   only leased work settles: {settled_2:.0f} KRY <= {attested:.0f} attested")
-    print(f"   VERDICT: {'PROTECTED — the second over-balance settlement is refused' if protected else '*** still vulnerable'}\n")
+    print(f"   total granted: {settled_2:.0f} KRY <= {attested:.0f} attested")
+    print(f"   VERDICT: {'PROTECTED — the second over-balance grant is refused' if protected else '*** still vulnerable'}\n")
 
     # ── PHASE 2b: concurrency — prove the lease grant is atomic under a race ────
     print("PHASE 2b — concurrent race (atomicity of the authority):")
@@ -192,15 +201,16 @@ def main() -> int:
     for t in threads:
         t.join()
     granted = sum(results)
-    print(f"   2 nodes race to lease 7,000 each (10,000 ceiling): granted={granted}, denied={2 - granted}")
-    print(f"   VERDICT: {'ATOMIC — exactly one wins, no double grant' if granted == 1 else '*** race not atomic'}\n")
+    atomic = len(results) == 2 and granted == 1
+    print(f"   2 nodes race to lease 7,000 each (10,000 ceiling): granted={granted}, denied={len(results) - granted}")
+    print(f"   VERDICT: {'ATOMIC — exactly one wins, no double grant' if atomic else '*** race not atomic'}\n")
 
     print("=" * 72)
-    ok = vulnerable and protected and granted == 1
-    print(f"RESULT: hole demonstrated={vulnerable}  fix holds={protected}  lease atomic={granted == 1}")
-    print("  On real hardware: A/B/C are three machines, Node D is a shared lease")
-    print("  service (HTTP or a leased file on shared storage). This prototype proves")
-    print("  the lease/nonce/TTL approach ranked best in docs/KRY_VERACITY_BINDING.md.")
+    ok = vulnerable and protected and atomic
+    print(f"RESULT: hole demonstrated={vulnerable}  fix holds={protected}  lease atomic={atomic}")
+    print("  This local prototype checks a cumulative ceiling and a two-thread race.")
+    print("  It has no nonce/TTL lifecycle and does not test crash recovery or a network service.")
+    print("  Separate settlement lease implementation: see docs/KRY_VERACITY_BINDING.md.")
     print("=" * 72)
     return 0 if ok else 1
 

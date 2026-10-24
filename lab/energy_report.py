@@ -89,8 +89,9 @@ def report(measurements: dict) -> dict:
             "avoided_kwh": round(kwh, 6),
             "avoided_co2_g": round(kwh * grid, 4),
         },
-        "note": ("measured at the wall (smart plug) — set KRY_JOULES_PER_TOKEN to the "
-                 "greenest measured value to make kry_carbon a MEASURED number for this lab"),
+        "note": ("computed from supplied wall-energy readings; routing deltas assume equivalent work "
+                 "and a valid avoided baseline. CO2 uses the supplied grid intensity. "
+                 "Setting KRY_JOULES_PER_TOKEN does not change kry_carbon's ESTIMATE status."),
     }
 
 

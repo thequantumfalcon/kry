@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Prove the WHOLE pipeline on ONE machine before touching the cluster.
+"""Exercise the lab's synthetic checks on one machine.
 
-Runs every test that doesn't need real hardware (corpus -> router dry-run -> Test 1
-holdout-vs-truth, Test 2 energy, Test 3 HOLE D, Test 4 F1 reconcile->research_grade,
-Test 5 sanctions, Test 6 concurrency) and prints a PASS/FAIL table. If this is green,
-the only things left for the real nodes are the live model calls (router
---judge frontier-compare), the wall-meter readings, and Test 4's cross-machine
-stranger-verify leg.
+Runs a generated corpus through the dry-run router, holdout comparison, synthetic
+energy calculation, separate-registry/lease demonstration, exact-ID reconciliation,
+modeled audit rates, and local shared-ledger concurrency. Prints a PASS/FAIL table.
+Real model calls, meter readings and cross-machine checks are separate experiments;
+independent source truth, corpus validation and customer savings remain unestablished.
 
 Usage:
     python lab/run_local.py
@@ -27,12 +26,13 @@ _ENV = {"PYTHONPATH": str(_ROOT / "src")}
 
 def _run(cmd, **kw):
     import os
-    return subprocess.run(cmd, capture_output=True, text=True, env={**os.environ, **_ENV}, **kw)
+    return subprocess.run(cmd, capture_output=True, text=True, check=True, env={**os.environ, **_ENV}, **kw)
 
 
 def main() -> int:
     argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     d = Path(tempfile.mkdtemp(prefix="kry_runlocal_"))
+    _ENV["KRY_DATA_DIR"] = str(d / "kry_data")
     results = []
 
     # Phase 1: corpus -> router (dry-run) -> truth + report
@@ -47,7 +47,7 @@ def main() -> int:
     t1 = _run([_PY, "lab/holdout_truth_check.py", "--report", str(d / "report.json"),
                "--truth", str(d / "truth.json")], cwd=_ROOT)
     a1 = json.loads(t1.stdout)
-    results.append(("Test 1  holdout vs real truth", a1["pass"], f"agreement {a1['agreement']}"))
+    results.append(("Test 1  holdout vs synthetic truth", a1["pass"], f"agreement {a1['agreement']}"))
 
     # Test 2 (synthetic measurements stand in for the wall meter)
     (d / "meas.json").write_text(json.dumps({"grid_co2_g_per_kwh": 400,
@@ -55,17 +55,17 @@ def main() -> int:
                   "mac_m4": {"tokens": 50000, "energy_wh": 7.0}}}), encoding="utf-8")
     e = json.loads(_run([_PY, "lab/energy_report.py", str(d / "meas.json")], cwd=_ROOT).stdout)
     ok2 = e["per_million_tokens_displaced"]["avoided_co2_g"] > 0
-    results.append(("Test 2  measured energy->carbon", ok2,
+    results.append(("Test 2  synthetic energy->carbon", ok2,
                     f"{e['per_million_tokens_displaced']['avoided_co2_g']} g CO2/M tok (demo)"))
 
     # Test 3 HOLE D
     h = _run([_PY, "lab/hole_d_double_spend.py"], cwd=_ROOT)
     ok3 = "fix holds=True" in h.stdout and "lease atomic=True" in h.stdout
-    results.append(("Test 3  cross-node double-spend", ok3, "vulnerable -> protected, lease atomic"))
+    results.append(("Test 3  simulated double-spend", ok3, "vulnerable -> protected, lease atomic"))
 
     # Test 4 (F1 reconcile leg): synthetic T1 mints + a matching provider export ->
-    # kry_research_grade should reach research_grade. The stranger-verify + cross-machine
-    # legs of Test 4 still need the cluster; this dry-proves the reconcile->grade pipeline.
+    # kry_research_grade should reach research_grade for exact matching IDs and tokens.
+    # This exercises the grading path; both sides of the comparison are synthetic.
     ml = d / "t1.jsonl"
     ml.write_text("\n".join(json.dumps({
         "receipt_id": f"KRY-{i}", "evidence_tier": "provider_metered",
@@ -76,7 +76,7 @@ def main() -> int:
     rg = _run([_PY, "scripts/kry_research_grade.py", str(ml), "--provider-export", str(d / "or.json")],
               cwd=_ROOT)
     ok4 = rg.returncode == 0 and "research_grade REACHED" in rg.stdout
-    results.append(("Test 4  F1 reconcile -> research_grade", ok4, "agreement 1.00 vs bar 0.80 (synthetic)"))
+    results.append(("Test 4  F1 reconcile -> research_grade", ok4, "RECONCILED; exact IDs/tokens (synthetic)"))
 
     # Test 5 sanctions
     s = _run([_PY, "-c",
@@ -85,7 +85,7 @@ def main() -> int:
         "[ks.record_reconciliation('cheater',False) for _ in range(6)];"
         "print(ks.audit_rate_for('honest'), ks.audit_rate_for('cheater'))"], cwd=_ROOT)
     hon, ch = map(float, s.stdout.split())
-    results.append(("Test 5  sanctions (ESS)", hon < 0.2 and ch > 0.5 and ch > hon,
+    results.append(("Test 5  modeled audit rates", hon < 0.2 and ch > 0.5 and ch > hon,
                     f"honest {hon:.2f} / cheater {ch:.2f}"))
 
     # Test 6 concurrency
@@ -102,8 +102,8 @@ def main() -> int:
         print(f"  [{'PASS' if ok else 'FAIL'}]  {name:34s} {detail}")
     print("=" * 64)
     print("All local tests pass." if allok else "Some local tests FAILED — see above.")
-    print("Next on the cluster: router --judge frontier-compare (real truth) + wall-meter")
-    print("readings for Test 2 + lab/node.py for the real cross-machine HOLE D / verify.")
+    print("Next experiments: model-call judgments, wall-meter readings and cross-machine checks.")
+    print("Independent source/corpus validation and customer savings still need external evidence.")
     return 0 if allok else 1
 
 

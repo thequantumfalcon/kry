@@ -1,6 +1,6 @@
 {
   "spec": "KRY-SPEC v1.3",
-  "count": 392,
+  "count": 395,
   "vectors": [
     {
       "id": "canon_f64",
@@ -241,6 +241,21 @@
       "id": "rounding_inflated_total",
       "category": "hardening",
       "verdict": "INVALID"
+    },
+    {
+      "id": "magnitude_basis_underflow",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "magnitude_basis_overflow",
+      "category": "hardening",
+      "verdict": "INVALID"
+    },
+    {
+      "id": "magnitude_basis_overflow_legal",
+      "category": "hardening",
+      "verdict": "VALID"
     },
     {
       "id": "valid_v4",

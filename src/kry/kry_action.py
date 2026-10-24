@@ -325,6 +325,13 @@ def record(
         # workers (a multi-worker MCP/ASGI server) append against the real tip instead of each process's
         # stale in-memory _CHAIN_TIP — otherwise concurrent records fork the chain. Mirrors kry_mint.mint().
         with cross_process_lock(path):
+            if path.exists():
+                with path.open("rb") as retained:
+                    retained.seek(0, os.SEEK_END)
+                    if retained.tell():
+                        retained.seek(-1, os.SEEK_END)
+                        if retained.read(1) != b"\n":
+                            raise ValueError("action log has an unterminated record; recover before appending")
             count, prev_tip = _load_tip_from_log()
             receipt = ActionReceipt.create(
                 receipt_id=f"act-{count + 1}",
