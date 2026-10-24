@@ -36,8 +36,8 @@ treat the advisory default as a vulnerability — it is a labeled limit, like `v
 
 | Version | Supported |
 |---|---|
-| 0.1.12 (current) | ✅ |
-| < 0.1.12 | ❌ |
+| 0.1.13 (current) | ✅ |
+| < 0.1.13 | ❌ |
 
 ## Reporting a vulnerability
 
