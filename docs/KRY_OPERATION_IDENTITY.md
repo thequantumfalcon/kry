@@ -81,14 +81,15 @@ file format until a keyed debit activates the journal. An envelope left at the
 legacy path is not a fenced journal: read-only lookup and recovery acknowledgement
 refuse it until reviewed relocation.
 
-Activation retains the original ledger bytes in `kry_ledger.json.pre-v2` when a
-legacy ledger exists. Activation has additional durability steps for this backup
-and the tombstone. An interruption can therefore require recovery even before
-any new debit commits. A retained migration backup or intent prevents silently
-falling back to a fresh legacy ledger. Do not delete these files to unblock work.
-The backup can be empty or partial if its creation was interrupted. For the
-no-journal case, see [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md)
-for the envelope format and an explicit reviewed restoration procedure.
+Activation publishes a versioned intent before retaining the original ledger in
+`kry_ledger.json.pre-v2`. The final backup is published complete or remains absent.
+It then writes the journal, tombstone and `kry_ledger.json.v2-activated` completion
+sentinel. An interruption can require recovery before any debit commits. Active
+activation attempts block generic acknowledgement; use the explicit completion or
+operator-asserted abandonment procedure in
+[interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md).
+That guide also covers older interrupted backups that can be empty or partial.
+Do not delete files to unblock work or infer missing journal history from a backup.
 
 Once activated, a missing or changed tombstone, a missing journal, or a legacy
 snapshot substituted for the journal blocks accounting and operation lookup.
@@ -104,7 +105,7 @@ in this version. The journal grows with the number of distinct IDs, and each
 ledger replacement includes the full map. This is a small local ledger design,
 not a high-volume payment database.
 
-Keep both live files, the retained migration backup, and all incident files in
+Keep both live files, the completion sentinel, retained migration backup, and all incident files in
 backups. Earnings, reconciliation and recovery acknowledgement preserve the
 journal; acknowledgement does not reconstruct missing IDs or establish that a
 restored snapshot is complete. Do not flatten the envelope into legacy scalars

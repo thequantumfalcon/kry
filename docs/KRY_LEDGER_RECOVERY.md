@@ -8,6 +8,10 @@ For opt-in keyed debits, see [operation identity](KRY_OPERATION_IDENTITY.md).
 Those calls record their result with the balance and require the complete
 versioned journal during recovery. Activated directories use `kry_ledger.v2.json`
 and an exact tombstone at `kry_ledger.json`, with the original legacy lock.
+New activations also retain an activation identity and completion sentinel.
+An active activation or abandonment intent requires the explicit helpers in
+[interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md); generic
+acknowledgement cannot clear it. Existing journals keep their older contract.
 The unkeyed return behavior below remains
 unchanged; keyed calls raise on unrecorded failure rather than returning zero.
 
@@ -96,9 +100,10 @@ Before recovery:
    the retained `kry_ledger.json.pre-v2` migration backup. Interrupted activation
    also requires review of both files and the retained intent; do not infer
    whether the keyed debit committed from the marker alone.
-   If activation stopped before the journal was written, follow
-   [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md), including
-   its empty/partial backup case and complete reviewed envelope format.
+   For an interrupted activation, follow
+   [interrupted activation recovery](KRY_JOURNAL_ACTIVATION_RECOVERY.md). It separates
+   explicit new-protocol completion/abandonment from older empty/partial backups
+   requiring a complete reviewed restoration.
    Missing IDs cannot be reconstructed
    from the bounded event list, and a valid old snapshot is not proof of completeness.
    Keep the incident evidence. If the debit total
