@@ -1,6 +1,6 @@
 # Retrying internal debits
 
-This API is unreleased and is not part of the v0.1.14 package.
+This opt-in API is available starting with v0.1.15.
 
 The keyed debit API records an operation ID and its result in the same atomic
 ledger replacement as the balance change. Retrying the same ID with the same
