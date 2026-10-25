@@ -52,8 +52,13 @@ guide before relying on a specific storage setup.
 `kry_or_fetch.py` retries only reads. Its default is four attempts, each with a
 30-second request timeout. Between attempts it uses exponential full jitter starting
 at 0.5 seconds, capped at 30 seconds per wait. A valid `Retry-After` sets the minimum
-wait; if it exceeds 30 seconds the invocation returns unavailable instead of retrying
-early. There is no sleep after the last failure. This is an attempt and wait bound,
+wait; an unresolved 429 raises `RateLimitError` when that delay exceeds 30 seconds
+or the final attempt is reached. The CLI stops before the next ID, reports the
+rate-limited and unattempted IDs separately, and exits 1. Other unavailable records
+also make the export incomplete and the exit code nonzero. Partial exports contain
+only fetched records; check the exit status before using them for reconciliation.
+The research-grade driver's inline fetch stops before assessment on a rate limit.
+There is no sleep after the last failure. This is an attempt and wait bound,
 not an end-to-end deadline: blocking I/O and scheduling still affect elapsed time.
 It does not retry inference, purchase credits or authenticate supplied export files.
 

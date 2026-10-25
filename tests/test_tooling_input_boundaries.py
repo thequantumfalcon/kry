@@ -136,7 +136,8 @@ def test_fetch_retry_after_respected_or_stops_within_wait_budget(fetch, monkeypa
         raise urllib.error.HTTPError(req.full_url, 429, "rate limited",
                                      {"Retry-After": header}, io.BytesIO())
 
-    assert module.fetch_generation("synthetic", "unused", retries=2, backoff=0, opener=opener) is None
+    with pytest.raises(module.RateLimitError):
+        module.fetch_generation("synthetic", "unused", retries=2, backoff=0, opener=opener)
     assert sleeps == expected
     assert len(calls) == (2 if expected else 1)
 

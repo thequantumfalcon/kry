@@ -41,6 +41,25 @@ def _source_identity() -> dict[str, object]:
         return {"error": str(exc)}
 
 
+def _untracked_package_inputs() -> list[str]:
+    """Include ignored source files; mirror build_backend._collect's exclusions."""
+    try:
+        raw = subprocess.check_output(
+            ["git", "ls-files", "-z", "--", "src/"], cwd=ROOT, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as exc:
+        raise ValueError("cannot inventory untracked package inputs") from exc
+    tracked = {os.fsdecode(name) for name in raw.split(b"\0") if name}
+    extra = []
+    # Walk what the backend walks: git's untracked listing can stop at a nested repo.
+    for candidate in sorted((ROOT / "src").rglob("*")):
+        path = candidate.relative_to(ROOT)
+        if (path.suffix != ".pyc"
+                and not any(part.startswith(".") or part == "__pycache__" for part in path.parts)
+                and candidate.is_file() and path.as_posix() not in tracked):
+            extra.append(path.as_posix())
+    return extra
+
+
 def verify_proof(path: Path, expected_tag: str) -> None:
     """Check a full proof against this checkout; provenance authenticates its bytes separately."""
     report = _json_load(path)
@@ -65,6 +84,9 @@ def verify_proof(path: Path, expected_tag: str) -> None:
             or not isinstance(before.get("tags"), list)
             or expected_tag not in before["tags"] or expected_tag not in current["tags"]):
         raise ValueError("proof must bind unchanged clean source and the expected tag to this checkout")
+    extra = _untracked_package_inputs()
+    if extra:
+        raise ValueError(f"untracked or ignored package inputs: {extra}")
 
 
 def _dev_requirements() -> tuple[str, ...]:
@@ -324,6 +346,14 @@ def _prepare_dev_tools(temp_root: Path) -> tuple[dict[str, object], list[str], l
 
 def _untracked_files_check() -> dict[str, object]:
     result = _run("untracked-files", ["git", "clean", "-nd"])
+    try:
+        extra = _untracked_package_inputs()
+    except (OSError, ValueError) as exc:
+        result.update(ok=False, detail=str(exc))
+        return result
+    if extra:
+        result.update(ok=False, detail=f"untracked or ignored package inputs: {extra}")
+        return result
     if result["ok"] and str(result["output"]).strip():
         result["ok"] = False
         result["detail"] = "untracked files would be removed by git clean -nd"

@@ -127,6 +127,8 @@ jobs:
           # `[build-system] requires` are both empty and the backend is in-tree.
           python -m pip install --require-hashes --only-binary=:all: --force-reinstall -r .github/build-requirements.txt
           mkdir -p dist
+          # Recheck source and package inputs after installing the frontend, before building.
+          python3 scripts/kry_release_verify.py --verify-proof release-verify.json --expected-tag "${GITHUB_REF_NAME}"
           python -m build --no-isolation --wheel --outdir dist
           python -m build --no-isolation --sdist --outdir dist    # the PyPI source distribution (PKG-INFO included)
           git archive --format=tar.gz --prefix="kry-${GITHUB_REF_NAME}/" \
