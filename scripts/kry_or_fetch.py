@@ -45,6 +45,17 @@ _OR_REF = re.compile(r"/openrouter:([^/\s]+)")
 _MAX_RETRY_DELAY = 30.0
 
 
+class RateLimitError(RuntimeError):
+    """The provider still limits requests; a batch must stop before its next ID."""
+
+    def __init__(self, retry_after: float | None):
+        self.retry_after = retry_after
+        delay = ("unspecified" if retry_after is None else
+                 f"{retry_after:g} seconds" if math.isfinite(retry_after) else
+                 "beyond the 30-second wait budget")
+        super().__init__(f"rate limited; retry after: {delay}")
+
+
 def _reject_json_constant(value: str):
     raise ValueError(f"non-standard JSON constant {value} is not allowed")
 
@@ -128,7 +139,9 @@ def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float 
     may not have flushed yet, or has aged out). `opener` is injectable for tests.
     Between attempts, full jitter uses an exponential ceiling capped at 30 seconds.
     Retry-After is a minimum wait; a longer delay ends this invocation without
-    retrying early. No sleep follows the final attempt. Only GETs are retried.
+    retrying early. An unresolved 429 raises RateLimitError, including on the final
+    attempt; callers must stop their batch. No sleep follows the final attempt.
+    Only GETs are retried. None does not establish that a record has expired.
     """
     if isinstance(retries, bool) or not isinstance(retries, int) or retries < 1:
         raise ValueError("retries must be a positive integer")
@@ -140,6 +153,7 @@ def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float 
     ceiling = min(backoff, _MAX_RETRY_DELAY)
     for attempt in range(retries):
         retry_after = None
+        rate_limited = False
         try:
             with opener(req, timeout=30) as resp:
                 body = _json_loads(resp.read().decode())
@@ -151,11 +165,14 @@ def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float 
         except urllib.error.HTTPError as e:
             if e.code not in (404, 429):       # 404 = not-yet-flushed, 429 = rate
                 raise
+            rate_limited = e.code == 429
             retry_after = _retry_after(e.headers.get("Retry-After") if e.headers else None)
             e.close()
         except urllib.error.URLError:
             pass
         if attempt + 1 == retries or (retry_after is not None and retry_after > _MAX_RETRY_DELAY):
+            if rate_limited:
+                raise RateLimitError(retry_after)
             break
         delay = random.uniform(0, ceiling)
         time.sleep(max(delay, retry_after or 0.0))
@@ -207,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--since", type=float, default=None, help="receipts with ts >= SINCE")
     p.add_argument("--until", type=float, default=None, help="receipts with ts < UNTIL")
     args = p.parse_args(argv)
+    exit_code = 0
 
     try:
         ids = extract_or_ids(args.mint_log, since=args.since, until=args.until)
@@ -225,18 +243,28 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         records = []
         missing: list[str] = []
-        for gid in ids:
-            gen = fetch_generation(gid, key)
+        unattempted: list[str] = []
+        for index, gid in enumerate(ids):
+            try:
+                gen = fetch_generation(gid, key)
+            except RateLimitError as exc:
+                print(f"  {gid}: {exc}", file=sys.stderr)
+                unattempted = ids[index + 1:]
+                exit_code = 1
+                break
             if gen is None:
                 missing.append(gid)
+                exit_code = 1
                 continue
             records.append(to_export_record(gen))
-        print(f"fetched {len(records)}/{len(ids)} OpenRouter generation records "
-              f"({len(missing)} unavailable)", file=sys.stderr)
-        if missing:
-            shown = ", ".join(missing[:10]) + ("…" if len(missing) > 10 else "")
-            print(f"  unavailable ids (async-flush delay or expired): {shown}",
-                  file=sys.stderr)
+        print(f"fetched {len(records)}/{len(ids)} OpenRouter generation records", file=sys.stderr)
+        for label, group in (("unavailable within retry budget", missing),
+                             ("not attempted", unattempted)):
+            if group:
+                shown = ", ".join(group[:10]) + ("…" if len(group) > 10 else "")
+                print(f"  {label}: {shown}", file=sys.stderr)
+        if exit_code:
+            print("incomplete export: only fetched records are included; exiting 1", file=sys.stderr)
 
     out_json = _json_dumps(records, indent=2)
     if args.out:
@@ -245,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"wrote {len(records)} records -> {args.out}", file=sys.stderr)
     else:
         print(out_json)
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

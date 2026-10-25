@@ -157,8 +157,12 @@ def main(argv: list[str] | None = None) -> int:
         if not key:
             print("OPENROUTER_API_KEY not set — cannot --fetch.", file=sys.stderr)
             return 2
-        export = [kry_or_fetch.to_export_record(g) for g in
-                  (kry_or_fetch.fetch_generation(i, key) for i in ids) if g is not None]
+        try:
+            export = [kry_or_fetch.to_export_record(g) for g in
+                      (kry_or_fetch.fetch_generation(i, key) for i in ids) if g is not None]
+        except kry_or_fetch.RateLimitError as exc:
+            print(f"fetch stopped: {exc}; assessment not run", file=sys.stderr)
+            return 1
         print(f"fetched {len(export)}/{len(ids)} OpenRouter records", file=sys.stderr)
     elif args.provider_export:
         try:

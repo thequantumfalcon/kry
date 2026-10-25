@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Stop OpenRouter batches on unresolved rate limits, including cooldowns on the
+  final attempt. Report unattempted IDs separately and return nonzero for incomplete
+  exports; inline research-grade fetching stops before assessment on rate limiting.
+- Reject untracked or ignored package inputs during release verification, and
+  recheck the source and inventory immediately before the publication build.
+- Correct the specification-history table and describe the existing fresh-seed CI gate.
 - Bind new release-gate reports to the commit, tree, tags, Python version and
   tracked source state before and after testing. Publication rejects mismatched,
   dirty or incomplete full proofs; the proof itself joins checksums and provenance.

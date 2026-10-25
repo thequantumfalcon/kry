@@ -140,3 +140,76 @@ def test_published_proof_is_checked_checksummed_and_attested():
     subjects = workflow.split("subject-path: |", 1)[1].split("- name:", 1)[0]
     assert "dist/release-verify.json" in subjects
     assert "dist/checksums.txt dist/release-verify.json" in workflow
+
+
+@pytest.mark.parametrize("ignored", [False, True])
+@pytest.mark.parametrize("name", ["src/kry/extra.py", "src/kry/data.json", "src/extra.txt"])
+def test_proof_refuses_extra_packaged_files(checkout, name, ignored):
+    root, _ = checkout
+    path = root / "release-verify.json"
+    path.write_text(json.dumps(gate.run_release_gate(full=True)))
+    extra = root / name
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text("synthetic extra package input\n")
+    if ignored:
+        (root / ".git/info/exclude").write_text(name + "\n")
+    assert gate.main(["--verify-proof", str(path), "--expected-tag", "v9.9.9"]) == 1
+
+
+def test_gate_refuses_ignored_package_input(checkout):
+    root, _ = checkout
+    extra = root / "src/kry/dist/extra.py"
+    extra.parent.mkdir(parents=True)
+    extra.write_text("synthetic ignored package input\n")
+    (root / ".git/info/exclude").write_text("dist/\n")
+    report = gate.run_release_gate(full=True)
+    assert report["ok"] is False
+    assert next(c for c in report["checks"] if c["name"] == "untracked-files")["ok"] is False
+
+
+@pytest.mark.parametrize("name", [
+    "src/kry/__pycache__/cache.pyc", "src/kry/.mypy_cache/data.json", "src/kry/cache.pyc",
+])
+def test_proof_allows_files_excluded_from_archives(checkout, name):
+    root, _ = checkout
+    path = root / "release-verify.json"
+    path.write_text(json.dumps(gate.run_release_gate(full=True)))
+    extra = root / name
+    extra.parent.mkdir(parents=True, exist_ok=True)
+    extra.write_text("synthetic excluded cache\n")
+    assert gate.main(["--verify-proof", str(path), "--expected-tag", "v9.9.9"]) == 0
+
+
+def test_publish_rechecks_inputs_after_frontend_install():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text()
+    install = workflow.index("python -m pip install --require-hashes")
+    verify = workflow.rindex('--verify-proof release-verify.json --expected-tag "${GITHUB_REF_NAME}"')
+    build = workflow.index("python -m build --no-isolation --wheel")
+    assert install < verify < build
+
+
+def test_proof_refuses_files_inside_untracked_nested_repository(checkout):
+    root, _ = checkout
+    path = root / "release-verify.json"
+    path.write_text(json.dumps(gate.run_release_gate(full=True)))
+    nested = root / "src/kry/vendor"
+    nested.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(nested)], check=True)
+    subprocess.run(["git", "-C", str(nested), "config", "user.name", "Thomas Albrecht"], check=True)
+    subprocess.run(["git", "-C", str(nested), "config", "user.email",
+                    "241560317+thequantumfalcon@users.noreply.github.com"], check=True)
+    (nested / "extra.py").write_text("synthetic nested package input\n")
+    assert gate.main(["--verify-proof", str(path), "--expected-tag", "v9.9.9"]) == 1
+
+
+def test_tracked_package_input_remains_accepted(checkout):
+    root, git = checkout
+    tracked = root / "src/kry/py.typed"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_text("")
+    git("add", "src")
+    git("commit", "-qm", "Synthetic tracked package data")
+    git("tag", "v9.9.10")
+    path = root / "release-verify.json"
+    path.write_text(json.dumps(gate.run_release_gate(full=True)))
+    assert gate.main(["--verify-proof", str(path), "--expected-tag", "v9.9.10"]) == 0

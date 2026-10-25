@@ -174,6 +174,23 @@ def test_main_no_export_exits_nonzero(tmp_path, capsys):
     assert "oracle missing" in out
 
 
+def test_rate_limit_stops_fetch_before_assessment(tmp_path, monkeypatch, capsys):
+    mod = _load()
+    log = _t1_log(tmp_path, 3)
+    calls = []
+
+    def limited(gen_id, key):
+        calls.append(gen_id)
+        raise mod.kry_or_fetch.RateLimitError(120)
+
+    monkeypatch.setattr(mod.kry_or_fetch, "fetch_generation", limited)
+    assert mod.main([log, "--fetch", "--api-key", "unused"]) == 1
+    output = capsys.readouterr()
+    assert len(calls) == 1
+    assert output.out == ""
+    assert "rate limited" in output.err and "assessment not run" in output.err
+
+
 def test_main_rejects_nonstandard_provider_export_json(tmp_path, capsys):
     mod = _load()
     log = _t1_log(tmp_path, 1)

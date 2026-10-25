@@ -139,6 +139,9 @@ Expected packet result on bundled sample data:
 - Before building, `publish` validates the downloaded full proof against its own
   clean checkout and expected tag with `--verify-proof ... --expected-tag ...`.
   Old-format, missing-check, failed, dirty or mismatched proofs are refused. The
+  check also rejects untracked or ignored files that would enter the package, and
+  runs again after frontend installation immediately before building. Cache files
+  excluded by the backend remain excluded from this package-input check. The
   identical proof bytes are included in `checksums.txt` and the provenance subjects.
   Historical release assets remain unchanged; this binding applies to new releases.
 - Approve `publish` in the `release` environment. It creates the GitHub Release with the wheel,
