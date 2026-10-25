@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -15,6 +16,55 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+_FULL_CHECKS = {
+    "install:editable", "install:wheel", "dev-tooling", "compileall", "ruff", "pytest",
+    "attribution", "diff-check", "cached-diff-check", "untracked-files", "packet_gate",
+    "reproducibility-full", "source-stable",
+}
+
+
+def _source_identity() -> dict[str, object]:
+    """Record tracked source, including dirty bytes; never label them as the HEAD tree."""
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=ROOT, stderr=subprocess.PIPE)
+
+    try:
+        diff = git("diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--")
+        return {
+            "commit": git("rev-parse", "HEAD").decode().strip(),
+            "tree": git("rev-parse", "HEAD^{tree}").decode().strip(),
+            "tags": sorted(git("tag", "--points-at", "HEAD").decode().splitlines()),
+            "tracked_dirty": bool(diff),
+            "tracked_diff_sha256": hashlib.sha256(diff).hexdigest(),
+        }
+    except (OSError, subprocess.CalledProcessError) as exc:
+        return {"error": str(exc)}
+
+
+def verify_proof(path: Path, expected_tag: str) -> None:
+    """Check a full proof against this checkout; provenance authenticates its bytes separately."""
+    report = _json_load(path)
+    if (not isinstance(report, dict) or report.get("schema") != "kry_release_verify/v2"
+            or report.get("full") is not True or report.get("ok") is not True
+            or not isinstance(report.get("python"), str) or not report["python"]):
+        raise ValueError("expected a successful full v2 release proof with Python identity")
+    checks = report.get("checks")
+    if (not isinstance(checks, list) or len(checks) != len(_FULL_CHECKS)
+            or any(not isinstance(c, dict) or c.get("ok") is not True
+                   or not isinstance(c.get("name"), str) for c in checks)
+            or {c["name"] for c in checks} != _FULL_CHECKS):
+        raise ValueError("proof must include every successful full-gate check exactly once")
+    before = report.get("source_before")
+    current = _source_identity()
+    if (not isinstance(before, dict) or "error" in current
+            or before != report.get("source_after")
+            or before.get("tracked_dirty") is not False
+            or current.get("tracked_dirty") is not False
+            or any(before.get(k) != current.get(k)
+                   for k in ("commit", "tree", "tracked_diff_sha256"))
+            or not isinstance(before.get("tags"), list)
+            or expected_tag not in before["tags"] or expected_tag not in current["tags"]):
+        raise ValueError("proof must bind unchanged clean source and the expected tag to this checkout")
 
 
 def _dev_requirements() -> tuple[str, ...]:
@@ -283,6 +333,7 @@ def _untracked_files_check() -> dict[str, object]:
 
 
 def run_release_gate(*, full: bool) -> dict[str, object]:
+    source_before = _source_identity()
     temp_root = Path(tempfile.mkdtemp(prefix="kry-release-verify."))
     checks: list[dict[str, object]] = []
 
@@ -311,14 +362,23 @@ def run_release_gate(*, full: bool) -> dict[str, object]:
 
     reproduce_cmd = ["bash", "lab/reproduce.sh", "10" if full else "1"]
     checks.append(_run("reproducibility-full" if full else "reproducibility-smoke", reproduce_cmd, env=clean_env))
+    source_after = _source_identity()
+    checks.append({
+        "name": "source-stable",
+        "ok": "error" not in source_before and source_before == source_after,
+        "detail": "commit, tree, tags and tracked diff must remain unchanged during verification",
+    })
 
     return {
-        "schema": "kry_release_verify/v1",
+        "schema": "kry_release_verify/v2",
         "full": full,
         "ok": all(check["ok"] for check in checks),
         "root": str(ROOT),
         "temp_root": str(temp_root),
         "checks": checks,
+        "source_before": source_before,
+        "source_after": source_after,
+        "python": sys.version,
     }
 
 
@@ -326,7 +386,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the KRY release-candidate gate.")
     parser.add_argument("--full", action="store_true", help="run the 10-round reproducibility proof")
     parser.add_argument("--json-out", help="write the full machine-readable report to this path")
+    parser.add_argument("--verify-proof", help="validate an existing full proof before publication")
+    parser.add_argument("--expected-tag", help="release tag required by --verify-proof")
     args = parser.parse_args(argv)
+    if args.verify_proof:
+        if not args.expected_tag or args.full or args.json_out:
+            parser.error("--verify-proof requires --expected-tag and excludes --full/--json-out")
+        try:
+            verify_proof(Path(args.verify_proof), args.expected_tag)
+        except (OSError, ValueError) as exc:
+            print(f"[FAIL] release proof: {exc}", file=sys.stderr)
+            return 1
+        print("[PASS] release proof matches this checkout and tag")
+        return 0
+    if args.expected_tag:
+        parser.error("--expected-tag requires --verify-proof")
 
     report = run_release_gate(full=args.full)
     if args.json_out:

@@ -109,11 +109,14 @@ jobs:
           git verify-tag "${GITHUB_REF_NAME}"
 
       # Pulled in before anything is built or signed: a missing gate proof fails here rather than
-      # after the OIDC identity has already minted an attestation. Lands at the workspace root —
-      # not in dist/, which is checksummed as a unit below.
+      # after the OIDC identity has already minted an attestation. Validate it against this checkout,
+      # then copy those same bytes into dist/ for checksums and provenance.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-verify
+
+      - name: Bind the full gate proof to the source being published
+        run: python3 scripts/kry_release_verify.py --verify-proof release-verify.json --expected-tag "${GITHUB_REF_NAME}"
 
       - name: Build artifacts (wheel + source tarball + checksums)
         run: |
@@ -128,6 +131,7 @@ jobs:
           python -m build --no-isolation --sdist --outdir dist    # the PyPI source distribution (PKG-INFO included)
           git archive --format=tar.gz --prefix="kry-${GITHUB_REF_NAME}/" \
             -o "dist/kry-${GITHUB_REF_NAME}-source.tar.gz" HEAD
+          cp release-verify.json dist/release-verify.json
           ( cd dist && sha256sum ./* > checksums.txt )
           cat dist/checksums.txt
 
@@ -137,6 +141,7 @@ jobs:
           subject-path: |
             dist/*.whl
             dist/*.tar.gz
+            dist/release-verify.json
 
       - name: Create GitHub Release
         env:
@@ -144,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "${GITHUB_REF_NAME}" \
-            dist/*.whl dist/*.tar.gz dist/checksums.txt release-verify.json \
+            dist/*.whl dist/*.tar.gz dist/checksums.txt dist/release-verify.json \
             --title "${GITHUB_REF_NAME}" --generate-notes
 
       # Hand exactly the attested wheel and sdist to `pypi` (not the git-archive source tarball,

@@ -109,3 +109,51 @@ evidence; a private ledger engine would fight the stdlib, public-by-default post
   tooling the repo doesn't need.
 - **Re-scaffolding under new names** what kry already has: kill gates, claims boundary,
   pre-registered readiness rubric, adversarial audit rounds. Renaming is churn, not signal.
+
+## Deferred contract acceptance
+
+These are design acceptance requirements for a future versioned profile, not
+implemented features or a scheduled release. The current registry and receipt
+formats retain their meaning. Runtime migration requires a separate proposal,
+implementation, conformance vectors and compatibility review.
+
+### Settlement resolutions
+
+- Bind each debit to a durable operation identity and exact parameters. New grant
+  IDs need at least 128 bits of generated entropy; retain explicit compatibility
+  rules for older grants. Receiver credit needs durable deduplication too;
+  debit idempotency alone is not a transfer protocol.
+- Define canonical, version-dispatched registry encoding, including resolutions.
+  Unknown versions and entry kinds must fail closed in stranger verifiers.
+- Preserve append-only history and monotonically growing obligation and release
+  totals per party. Anchor both; available capacity derives from attested capacity
+  minus obligations plus authorized releases. A release cannot disguise a rollback.
+- Resolve each obligation at most once. Validate finite amounts and
+  `0 <= moved <= obligation`, with `released = obligation - moved`. Partial debits
+  must append a resolution rather than rewrite an earlier registry entry.
+- A journal-based resolution requires a healthy, correctly bound and complete
+  ledger over the obligation's lifetime. Absence from a pruned, restored or
+  incomplete journal must remain unknown, never become zero movement. Specify
+  recovery epochs and completeness evidence before permitting automatic release.
+- Label foreign-callback resolutions as operator assertions with reason and bound
+  evidence. Evidence hashes establish identity of supplied material, not its truth.
+  Define callback ID support explicitly and preserve legacy refusal/unknown rules.
+- Compaction must carry unresolved obligations, consumed IDs and both cumulative
+  totals. Any future pruning must refuse old retries and preserve all references
+  needed by unresolved obligations.
+- Acceptance tests must cover every durable-write interruption, same-ID retries,
+  parameter mismatch, committed/absent/partial/blocked outcomes, restored and
+  pruned journals, resolution replay, receiver replay, compaction and anchor
+  rollback. Reference and stranger verifiers must agree on adversarial vectors.
+
+### Public notary identity
+
+- A future evidence profile should commit to the notary key fingerprint, signature
+  scheme, policy and referenced evidence in the authenticated preimage. Define
+  key rotation and trust-policy handling without changing historical hashes.
+- A verifier must distinguish signature validity, an operator's chosen pin and
+  independent acceptance of that witness. Publishing a fingerprint does not prove
+  independence, trustworthy capture, provider billing or settlement.
+- Include self-operated-notary, substituted-key, missing-evidence, policy-mismatch
+  and legacy-verifier rejection vectors. Describe which evidence a stranger can
+  actually retrieve and verify, including privacy and availability limits.

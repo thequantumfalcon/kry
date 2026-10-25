@@ -76,8 +76,19 @@ if (arg === "--vectors") {
   process.exit(runVectors(args[1]) ? 0 : 1);
 } else if (arg === "--batch") {
   if (args.length < 2 || args.length > 3 || !args[1]) argumentError("--batch requires an ndjson path and an optional multiplier path");
-  if (process.argv[4]) {
-    try { setMultipliers(JSON.parse(readFileSync(process.argv[4], "utf8")).multipliers); } catch { /* default */ }
+  if (args.length === 3) {
+    try {
+      const raw = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readDocument(process.argv[4]));
+      const values = JSON.parse(raw).multipliers;
+      if (!Array.isArray(values) || values.length === 0 ||
+          !values.every(v => typeof v === "number" && Number.isFinite(v) && v >= 0)) {
+        throw new Error("expected a non-empty array of finite non-negative numbers");
+      }
+      setMultipliers(values);
+    } catch (e) {
+      console.error(`multiplier configuration invalid: ${e.message}`);
+      process.exit(1);
+    }
   }
   const lines = readFileSync(process.argv[3], "utf8").split("\n");
   const out = [];

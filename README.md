@@ -236,6 +236,8 @@ The checkout also includes baseline-history validation and the supported SNP
 policy. These changes do not expand what receipts prove about actual charges,
 settlement or savings veracity.
 Before upgrading an existing data directory, read [ledger recovery](docs/KRY_LEDGER_RECOVERY.md).
+The [operating guide](docs/OPERATING_LIMITS.md) covers storage assumptions, callback
+constraints, retry behavior and the limits of recovery and evidence.
 Version 0.1.16 supports optional internal debits with retained operation IDs;
 read [operation identity](docs/KRY_OPERATION_IDENTITY.md) before activating its ledger format.
 Missing debit history and unresolved writes require explicit recovery; a valid mint
