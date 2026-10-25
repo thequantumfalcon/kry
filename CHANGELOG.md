@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Bind new release-gate reports to the commit, tree, tags, Python version and
+  tracked source state before and after testing. Publication rejects mismatched,
+  dirty or incomplete full proofs; the proof itself joins checksums and provenance.
+- Reject unreadable or invalid explicit JS batch multiplier files before emitting
+  verdicts, instead of silently falling back to defaults or accepting malformed policy.
+- Stop OpenRouter polling sleeps after the final attempt; use bounded exponential
+  jitter, respect valid Retry-After headers and reject invalid retry parameters.
+- Document operating limits and deferred settlement-resolution and notary-identity
+  acceptance requirements without changing receipt or registry formats.
+
 ## [0.1.16] - 2026-10-24
 
 ### Fixed

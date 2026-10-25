@@ -43,6 +43,9 @@ blocked until real evidence exists.
  whitespace checks, dry-run untracked-file check, packet workflow, doctor, and
  reproducibility smoke.
 - Full release gate: `python3 scripts/kry_release_verify.py --full`.
+- New reports use `kry_release_verify/v2`: commit, tree, tags, Python version and
+  tracked-diff identity are recorded before and after testing. Source changes fail
+  the gate. Local dirty-source reports remain identifiable but cannot authorize publication.
 - Local reproducibility harness: `bash lab/reproduce.sh 10`.
 
 ## Not Shipped As External Validation
@@ -133,12 +136,23 @@ Expected packet result on bundled sample data:
 - The Release workflow checks the tag format, package-version match and signature before
   gating or publishing. Its `gate` job runs
   `scripts/kry_release_verify.py --full`.
+- Before building, `publish` validates the downloaded full proof against its own
+  clean checkout and expected tag with `--verify-proof ... --expected-tag ...`.
+  Old-format, missing-check, failed, dirty or mismatched proofs are refused. The
+  identical proof bytes are included in `checksums.txt` and the provenance subjects.
+  Historical release assets remain unchanged; this binding applies to new releases.
 - Approve `publish` in the `release` environment. It creates the GitHub Release with the wheel,
   sdist, source tarball, `checksums.txt`, the release-verify proof and build provenance.
 - Approve `pypi` in the `pypi` environment. It uploads the same wheel and sdist to PyPI after matching
   them to the release's `checksums.txt`. PyPI must list this repository as a trusted publisher for
   `kry-attest` (workflow `release.yml`, environment `pypi`).
 - Both environments accept deployments only from `v*.*.*` tags.
+
+The proof is a test report, not independent evidence that the tests are sufficient.
+Source checks compare the beginning and end of the gate; they do not detect a
+transient edit that is restored between those observations. Run releases in the
+isolated hosted checkout. Provenance authenticates the workflow and artifact bytes;
+trust still depends on the reviewed workflow, repository access and approval policy.
 
 ## Release Stop Conditions
 

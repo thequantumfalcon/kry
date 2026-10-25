@@ -28,9 +28,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from email.utils import parsedate_to_datetime
 import json
 import math
 import os
+import random
 import re
 import sys
 import time
@@ -40,6 +42,7 @@ import urllib.request
 
 _GEN_URL = "https://openrouter.ai/api/v1/generation"
 _OR_REF = re.compile(r"/openrouter:([^/\s]+)")
+_MAX_RETRY_DELAY = 30.0
 
 
 def _reject_json_constant(value: str):
@@ -99,6 +102,23 @@ def extract_or_ids(mint_log_path: str, *, since: float | None = None,
     return out
 
 
+def _retry_after(value: str | None) -> float | None:
+    """HTTP delay-seconds or an aware HTTP date; invalid headers use local backoff."""
+    if value is None:
+        return None
+    value = value.strip()
+    if value.isascii() and value.isdecimal():
+        # A valid, very large delay must stop retries, never overflow or retry early.
+        return float(value)
+    try:
+        date = parsedate_to_datetime(value)
+        if date.tzinfo is not None:
+            return max(0.0, date.timestamp() - time.time())
+    except (ValueError, TypeError, OverflowError):
+        pass
+    return None
+
+
 def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float = 0.5,
                      opener=urllib.request.urlopen) -> dict | None:
     """GET one generation record, polling for OpenRouter's async flush.
@@ -106,10 +126,20 @@ def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float 
     Returns the record dict (the API's `data` envelope is unwrapped) once token
     counts are present, or None if never available within `retries` (the record
     may not have flushed yet, or has aged out). `opener` is injectable for tests.
+    Between attempts, full jitter uses an exponential ceiling capped at 30 seconds.
+    Retry-After is a minimum wait; a longer delay ends this invocation without
+    retrying early. No sleep follows the final attempt. Only GETs are retried.
     """
+    if isinstance(retries, bool) or not isinstance(retries, int) or retries < 1:
+        raise ValueError("retries must be a positive integer")
+    if (isinstance(backoff, bool) or not isinstance(backoff, (int, float))
+            or (isinstance(backoff, float) and not math.isfinite(backoff)) or backoff < 0):
+        raise ValueError("backoff must be a finite non-negative number")
     url = f"{_GEN_URL}?id={urllib.parse.quote(gen_id)}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {key}"})
+    ceiling = min(backoff, _MAX_RETRY_DELAY)
     for attempt in range(retries):
+        retry_after = None
         try:
             with opener(req, timeout=30) as resp:
                 body = _json_loads(resp.read().decode())
@@ -121,9 +151,15 @@ def fetch_generation(gen_id: str, key: str, *, retries: int = 4, backoff: float 
         except urllib.error.HTTPError as e:
             if e.code not in (404, 429):       # 404 = not-yet-flushed, 429 = rate
                 raise
+            retry_after = _retry_after(e.headers.get("Retry-After") if e.headers else None)
+            e.close()
         except urllib.error.URLError:
             pass
-        time.sleep(backoff * (2 ** attempt))
+        if attempt + 1 == retries or (retry_after is not None and retry_after > _MAX_RETRY_DELAY):
+            break
+        delay = random.uniform(0, ceiling)
+        time.sleep(max(delay, retry_after or 0.0))
+        ceiling = min(ceiling * 2, _MAX_RETRY_DELAY)
     return None
 
 
