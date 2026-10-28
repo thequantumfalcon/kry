@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Action recording hashes all raw content, including 64-character hex strings.
+  Callers supplying existing commitments must now pass `precommitted=True` and
+  provide valid lowercase SHA-256 digests for every supplied content field.
+  Previously, automatic detection could store a raw hex-shaped value unchanged.
+  Existing receipt hashes and verifier verdicts are unchanged.
+- Nitro and SNP mint adapters reject a supplied measurement ID that differs from
+  the verified payload, or tries to fill a missing payload ID. An attestation for
+  one measurement can no longer select another receipt for a tier upgrade.
+  `--measurement-id` now asserts an expected ID; it does not replace one.
 - Stop OpenRouter batches on unresolved rate limits, including cooldowns on the
   final attempt. Report unattempted IDs separately and return nonzero for incomplete
   exports; inline research-grade fetching stops before assessment on rate limiting.

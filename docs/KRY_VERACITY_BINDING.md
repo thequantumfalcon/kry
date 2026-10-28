@@ -81,6 +81,12 @@ Every mint is classified by **how the event was witnessed** (weakest → stronge
  per-link tiers and rejects a misstated one. It checks the labels' consistency;
  their underlying source evidence requires separate verification.
 
+The Nitro and SNP mint adapters select a measurement only by the ID inside the
+verified payload. `--measurement-id`, when supplied, must match that ID; it cannot
+replace or supply it. This prevents evidence for one measurement from selecting
+another receipt. It does not authenticate operator-supplied savings amounts or
+models, prove the counterfactual, or change historical receipt verification.
+
 A balance containing only `self_reported` receipts reads `veracity_floor = 0.0` (100%
 `self_reported`). That is the **honest label** for what KRY is by default:
 internal-operator measurement.

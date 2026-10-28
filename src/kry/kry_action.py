@@ -290,13 +290,17 @@ def record(
     evidence_tier: str = TIER_SELF_REPORTED,
     server_evidence=None,
     ts: Optional[float] = None,
+    precommitted: bool = False,
 ) -> ActionReceipt:
     """Record one agent action and append a content-free receipt to the chain.
 
-    `args` / `result` / `server_evidence` are passed RAW and committed internally —
-    only their SHA-256 commitments are stored. Pass already-computed 64-hex strings
-    for args_commit/result_commit/server_evidence_commit if you committed them
-    elsewhere (they are detected and passed through).
+    `args` / `result` / `server_evidence` are RAW by default and committed
+    internally, including strings that happen to look like SHA-256 digests.
+    Set `precommitted=True` only when every supplied content value is already
+    a lowercase 64-hex SHA-256 commitment. Those values are validated and stored
+    unchanged. `has_result=False` and absent server evidence still store None.
+    A caller supplying precomputed commitments must opt in explicitly; automatic
+    hex detection could expose a raw value that happened to have that shape.
 
     Returns the ActionReceipt (whose .chain_hash is the new tip — publish it as an
     anchor with `export_anchor()` to make a later re-mint detectable).
@@ -307,15 +311,26 @@ def record(
     cannot fork the action chain. Mirrors kry_mint.mint().
     """
     global _COUNTER, _CHAIN_TIP
-    args_commit = args if _is_commit(args) else commit(args)
+    if not isinstance(precommitted, bool):
+        raise ValueError("precommitted must be a boolean")
+    if precommitted:
+        supplied = {"args": args}
+        if has_result:
+            supplied["result"] = result
+        if server_evidence is not None:
+            supplied["server_evidence"] = server_evidence
+        for field, value in supplied.items():
+            if not _is_commit(value):
+                raise ValueError(f"{field} must be a lowercase 64-hex commitment")
+    args_commit = args if precommitted else commit(args)
     if not has_result:
         result_commit = None
     else:
-        result_commit = result if _is_commit(result) else commit(result)
+        result_commit = result if precommitted else commit(result)
     server_evidence_commit = None
     if server_evidence is not None:
         server_evidence_commit = (
-            server_evidence if _is_commit(server_evidence) else commit(server_evidence))
+            server_evidence if precommitted else commit(server_evidence))
 
     with _LOCK:
         from kry._locks import cross_process_lock
