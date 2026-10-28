@@ -85,6 +85,57 @@ def test_release_gate_runs_reproduce_with_tool_python(tmp_path, monkeypatch):
     assert captured["env"]["PYTHON"] == tool_python
 
 
+@pytest.mark.parametrize("layout", ["cmd", "bin", "mingw64/bin"])
+def test_release_gate_finds_git_for_windows_bash_from_every_git_layout(tmp_path, layout):
+    # WINDOWS-BASH: Git for Windows' own bash.exe is derived from git, whichever directory git.exe
+    # was found in; Git Bash puts mingw64\bin first, the installer puts cmd\ on PATH.
+    bash = tmp_path / "Git" / "bin" / "bash.exe"
+    bash.parent.mkdir(parents=True)
+    bash.write_bytes(b"")
+    git = tmp_path / "Git" / layout / "git.exe"
+    git.parent.mkdir(parents=True, exist_ok=True)
+    git.write_bytes(b"")
+
+    assert release_verify._git_for_windows_bash(str(git)) == str(bash.resolve())
+
+
+def test_release_gate_fails_closed_without_a_host_bash(tmp_path, monkeypatch):
+    # WINDOWS-BASH: with no host bash the proof must not fall back to a bare "bash" (the WSL
+    # launcher on such a host) — the check fails instead of running somewhere else.
+    ran: list[str] = []
+
+    monkeypatch.setattr(release_verify.tempfile, "mkdtemp", lambda prefix: str(tmp_path))
+    monkeypatch.setattr(
+        release_verify,
+        "_verify_install",
+        lambda mode, temp_root: {"name": f"install:{mode}", "ok": True},
+    )
+    monkeypatch.setattr(
+        release_verify,
+        "_prepare_dev_tools",
+        lambda temp_root: (
+            {"name": "dev-tooling", "ok": True},
+            ["ruff", "check"],
+            ["python", "-B", "-m", "pytest", "tests/", "-q"],
+        ),
+    )
+    monkeypatch.setattr(release_verify, "_packet_gate", lambda temp_root: {"name": "packet_gate", "ok": True})
+    monkeypatch.setattr(release_verify, "_bash", lambda: None)
+
+    def fake_run(name, cmd, *, env=None, **kwargs):
+        ran.append(name)
+        return {"name": name, "cmd": " ".join(cmd), "ok": True, "returncode": 0, "output": ""}
+
+    monkeypatch.setattr(release_verify, "_run", fake_run)
+
+    report = release_verify.run_release_gate(full=False)
+
+    smoke = next(check for check in report["checks"] if check["name"] == "reproducibility-smoke")
+    assert smoke["ok"] is False
+    assert "reproducibility-smoke" not in ran
+    assert report["ok"] is False
+
+
 def test_untracked_files_check_fails_on_git_clean_output(monkeypatch):
     monkeypatch.setattr(
         release_verify,

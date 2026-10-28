@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -123,6 +124,28 @@ def _cmd_text(cmd: list[str]) -> str:
 
 def _python() -> str:
     return sys.executable or "python3"
+
+
+def _git_for_windows_bash(git: str) -> str | None:
+    # WINDOWS-BASH: git.exe sits one level below the Git for Windows root (cmd\, bin\) or two
+    # (mingw64\bin\); bash.exe is in the root's bin\ in every layout.
+    executable = Path(git).resolve()
+    for root in executable.parents[1:3]:
+        bash = root / "bin" / "bash.exe"
+        if bash.is_file():
+            return str(bash)
+    return None
+
+
+def _bash() -> str | None:
+    # WINDOWS-BASH: CreateProcess searches System32 before PATH, so a bare "bash" on a Windows host
+    # with WSL starts the WSL launcher. The reproducibility proof then ran in a Linux guest that
+    # never received PYTHON, under the guest's python3, while the report named the host
+    # interpreter. None fails the check closed rather than falling back to a bare "bash".
+    if os.name != "nt":
+        return "bash"
+    git = shutil.which("git")
+    return _git_for_windows_bash(git) if git else None
 
 
 def _clean_python_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -390,8 +413,17 @@ def run_release_gate(*, full: bool) -> dict[str, object]:
 
     checks.append(_packet_gate(temp_root))
 
-    reproduce_cmd = ["bash", "lab/reproduce.sh", "10" if full else "1"]
-    checks.append(_run("reproducibility-full" if full else "reproducibility-smoke", reproduce_cmd, env=clean_env))
+    reproduce_name = "reproducibility-full" if full else "reproducibility-smoke"
+    bash = _bash()
+    if bash is None:
+        checks.append({
+            "name": reproduce_name,
+            "ok": False,
+            "detail": "no Git for Windows bash found next to git; a bare 'bash' would start the WSL launcher",
+        })
+    else:
+        reproduce_cmd = [bash, "lab/reproduce.sh", "10" if full else "1"]
+        checks.append(_run(reproduce_name, reproduce_cmd, env=clean_env))
     source_after = _source_identity()
     checks.append({
         "name": "source-stable",
