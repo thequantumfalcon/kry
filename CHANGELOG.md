@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-10-28
+
+Action-input compatibility and upgrade instructions are in the
+[0.1.17 migration guide](docs/MIGRATING_0_1_17.md). Existing receipt formats and
+verifier verdicts are unchanged.
+
 - Serialize complete settlements sharing a `ReceiverLedger` instance. Overlapping
   calls could previously debit two payers while overwriting one receiver credit,
   with both receipts reporting conservation. Receiver snapshots and final updates
@@ -1407,7 +1413,8 @@ missed; both were reproduced before fixing, and every fix ships with a regressio
   (tier forgery, magnitude skim, double-spend, rollback, re-mint, tail-truncation, fail-closed
   crypto), exercised by the stdlib suite.
 
-[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.16...HEAD
+[Unreleased]: https://github.com/thequantumfalcon/kry/compare/v0.1.17...HEAD
+[0.1.17]: https://github.com/thequantumfalcon/kry/compare/v0.1.16...v0.1.17
 [0.1.16]: https://github.com/thequantumfalcon/kry/compare/v0.1.15...v0.1.16
 [0.1.15]: https://github.com/thequantumfalcon/kry/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/thequantumfalcon/kry/compare/v0.1.13...v0.1.14

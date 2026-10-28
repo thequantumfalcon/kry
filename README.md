@@ -95,6 +95,12 @@ and step 4 uses them.
 [Verify your first receipt](docs/VERIFY_FIRST_RECEIPT.md) walks through it in about five minutes.
 The steps below use a checkout.
 
+This checkout targets version 0.1.17. It fixes concurrent settlements sharing one
+receiver and makes precomputed action commitments an explicit opt-in. Before
+upgrading, read the [0.1.17 migration guide](docs/MIGRATING_0_1_17.md), especially
+if a caller already hashes action inputs. Check the
+[published releases](https://github.com/thequantumfalcon/kry/releases) for package availability.
+
 Version 0.1.16 adds optional durable operation IDs for internal debit retries and
 explicit recovery for interrupted journal activation. It preserves current recovery
 metadata across stale handles and hardens numeric verifier boundaries, retained-log
