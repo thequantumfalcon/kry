@@ -27,6 +27,8 @@ Public attestations omit prompts and responses. The core has no runtime dependen
 
 </div>
 
+**Run it locally:** jump to the [Quickstart](#quickstart).
+
 <details>
 <summary><b>📜 Full demo output — readable text</b> (a representative run, ANSI-stripped; produced by <code>bash examples/demo.sh</code>)</summary>
 
