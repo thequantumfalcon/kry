@@ -174,5 +174,6 @@ def test_fetch_success_and_nonretryable_error_do_not_sleep(fetch):
 
     with pytest.raises(urllib.error.HTTPError) as exc:
         module.fetch_generation("synthetic", "unused", opener=denied)
-    assert exc.value.code == 401
-    assert sleeps == []
+    with exc.value:
+        assert exc.value.code == 401
+        assert sleeps == []

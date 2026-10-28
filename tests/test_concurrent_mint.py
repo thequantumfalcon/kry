@@ -38,7 +38,8 @@ def test_stale_in_memory_tip_does_not_fork():
     ok, errs = km.verify_chain()
     assert ok, f"chain forked under stale in-memory state: {errs}"
 
-    ids = [json.loads(line)["receipt_id"] for line in open(km._MINT_LOG_PATH, encoding="utf-8")]
+    with open(km._MINT_LOG_PATH, encoding="utf-8") as handle:
+        ids = [json.loads(line)["receipt_id"] for line in handle]
     assert ids == ["KRY-00000001", "KRY-00000002"], ids
 
 
@@ -87,7 +88,8 @@ def test_concurrent_threads_keep_chain_valid():
     for t in threads:
         t.join()
 
-    ids = [json.loads(line)["receipt_id"] for line in open(km._MINT_LOG_PATH, encoding="utf-8")]
+    with open(km._MINT_LOG_PATH, encoding="utf-8") as handle:
+        ids = [json.loads(line)["receipt_id"] for line in handle]
     assert len(ids) == len(set(ids)) == 90, f"{len(ids)} lines, {len(set(ids))} unique"
     ok, errs = km.verify_chain()
     assert ok, errs

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Close receipt and TLSNotary input files deterministically after reading,
+  including concurrent-mint test fixtures; preserve standard input ownership.
 - Action recording hashes all raw content, including 64-character hex strings.
   Callers supplying existing commitments must now pass `precommitted=True` and
   provide valid lowercase SHA-256 digests for every supplied content field.
