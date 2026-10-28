@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Nitro and SNP mint adapters reject a supplied measurement ID that differs from
+  the verified payload, or tries to fill a missing payload ID. An attestation for
+  one measurement can no longer select another receipt for a tier upgrade.
+  `--measurement-id` now asserts an expected ID; it does not replace one.
 - Stop OpenRouter batches on unresolved rate limits, including cooldowns on the
   final attempt. Report unattempted IDs separately and return nonzero for incomplete
   exports; inline research-grade fetching stops before assessment on rate limiting.
