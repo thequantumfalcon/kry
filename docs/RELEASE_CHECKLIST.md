@@ -90,6 +90,11 @@ Optional-tier semantics:
 
 ## Required Local Verification
 
+For 0.1.17, exercise the raw-input and explicit-commitment examples in the
+[migration guide](MIGRATING_0_1_17.md) in a disposable data directory. Confirm
+version metadata agrees before tagging. Runtime upgrades require their own
+backup and writer-stop procedure; publication alone upgrades no running writer.
+
 Run from a fresh checkout or tracked-file snapshot:
 
 ```bash
