@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Serialize complete settlements sharing a `ReceiverLedger` instance. Overlapping
+  calls could previously debit two payers while overwriting one receiver credit,
+  with both receipts reporting conservation. Receiver snapshots and final updates
+  now share one in-process lock; separate receiver instances remain independent.
+  This does not add durable receiver storage or atomic cross-ledger settlement.
+- Clarify receipt verification and operating limits in the README. Preserve the
+  synthetic demo transcript in a separate document, retain historical evidence
+  and commands, and keep prior section anchors available.
 - Close receipt and TLSNotary input files deterministically after reading,
   including concurrent-mint test fixtures; preserve standard input ownership.
 - Action recording hashes all raw content, including 64-character hex strings.

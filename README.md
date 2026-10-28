@@ -19,147 +19,17 @@ still need their underlying evidence checked. Verification establishes integrity
 and benchmark arithmetic, not actual provider charges or proven cash savings.
 Public attestations omit prompts and responses. The core has no runtime dependencies.
 
-`zero-dependency` · `pure Python stdlib` · `Python ≥ 3.11` · `stdlib suite green` · `historical research-grade run` <sub>(**n=52** matching request IDs and metered-token records; **0 KRY / $0** free-tier self-traffic. Offline agreement does not authenticate the original calls or prove savings · [details](#readiness-a-computed-grade-not-a-claim))</sub>
+Python ≥ 3.11 · Standard-library core · Apache-2.0
 
-![kry running live — a sample routing log becomes a tamper-evident savings receipt, then a stranger verifies it offline, start to finish](media/kry-demo.gif)
+![KRY generating and verifying receipts from a synthetic routing log](media/kry-demo.gif)
 
-<sub>The package actually running, start to finish — the proof is the attestation plus verifier, not the animation. Prefer text? Full transcript right below. 👇 Or **try to forge a receipt yourself**: the [live browser verifier](https://thequantumfalcon.github.io/kry/) has tamper, truncation, and re-mint demos — nothing uploads, the verifier runs in your browser.</sub>
+<sub>For the integrity and arithmetic checks shown here, the proof is the attestation plus verifier. The animation uses synthetic events; it does not establish customer savings. Read the [preserved demo transcript](docs/DEMO_TRANSCRIPT.md), or use the [browser verifier](https://thequantumfalcon.github.io/kry/) to inspect tampering, truncation and re-minting locally in your browser.</sub>
 
 </div>
 
-**Run it locally:** jump to the [Quickstart](#quickstart).
-
-<details>
-<summary><b>📜 Full demo output — readable text</b> (a representative run, ANSI-stripped; produced by <code>bash examples/demo.sh</code>)</summary>
-
-<br>
-
-The demo uses synthetic events. Its dollar labels are computed valuations, not
-observed account charges or evidence of customer savings.
-
-```text
-  K R Y   —   Proof-of-Efficiency Compute Credit
-  earn by avoiding inference cost · a stranger verifies the ledger · stdlib only
-
-━━━━━━ FULL LIFECYCLE  —  earn → mint → attest → STRANGER-verifies → carbon ━━━━━━
-The whole loop, on sample efficiency events, in one program:
-
-──────────────────────────────────────────────────────────────────────
-1. EARN — efficiency events become KRY (edge-weighted by what they avoided)
-──────────────────────────────────────────────────────────────────────
-  balance:            2,436.00 KRY
-  lifetime earned:    2,436.00 KRY
-  frontier basis: $25.0/M output tokens   (40,000 KRY / USD)
-
-──────────────────────────────────────────────────────────────────────
-2. RETAIN — the honest value TODAY (money kept, no counterparty needed)
-──────────────────────────────────────────────────────────────────────
-  retained_usd:                 $0.0609
-  value_type:                   retained_dollars (money kept) — NOT a tradeable token
-  external_counterparty_exists: False  (honest label)
-
-──────────────────────────────────────────────────────────────────────
-3. MINT — every earn is a SHA-256 hash-chain receipt (tamper-evident)
-──────────────────────────────────────────────────────────────────────
-  receipts:    3
-  chain_tip:   2bcb408aefd147b6...
-  chain_valid: True
-  veracity_floor: 0.3924  (fraction anchored by more than self-report — external OR operator-run)
-
-──────────────────────────────────────────────────────────────────────
-4. ATTEST — a public, content-sealed proof of the balance
-──────────────────────────────────────────────────────────────────────
-  wrote 3 links, total 2,436.00 KRY -> <tmpdir>/attestation.json
-  (contains only hashes + aggregates — no prompts, responses, or model
-   names beyond the event type; safe to hand to a third party)
-
-──────────────────────────────────────────────────────────────────────
-5. VERIFY — a STRANGER checks it with stdlib only (the differentiator)
-──────────────────────────────────────────────────────────────────────
-KRY external verification — attestation
-  receipts:        3 (recomputed from links)
-  total_kry:       2436.0 (recomputed from links, not the declared field)
-  veracity_floor:  0.3924 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
-                   ↳ anchored tiers are chain-bound LABELS — check TEE evidence with kry_tee_verify
-                     TLSN proofs require Rust attestation_verify with a trusted notary key
-                     kry_tlsn_verify trusts external verifier output; it does not check signatures
-  price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
-  magnitude:       3/3 links checked; 0 unchecked (legacy inputs absent)
-  anchor check:    NONE — ⚠ the anchored fraction is OPERATOR-ASSERTED
-                   here: a genesis re-mint with upgraded tiers passes this check.
-                   Re-run with --anchor <operator's pre-published chain head> to make
-                   a retroactive re-mint detectable.
-  VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
-
-──────────────────────────────────────────────────────────────────────
-6. CARBON — second denomination: avoided inference -> CO2 (ESTIMATE)
-──────────────────────────────────────────────────────────────────────
-  kry_avoided:        2,436.00
-  energy_kwh_avoided: 0.001353 kWh
-  co2_grams_avoided:  0.5413 g
-  status:             ESTIMATE — not a certified carbon credit (grid region unknowable: inference_geo redacted)
-
-══════════════════════════════════════════════════════════════════════
-Done. The balance was minted from sample efficiency events, anchored in a
-tamper-evident chain, and verified by a program that trusts nothing in
-this package. That is what 'proof-of-efficiency' means in practice.
-(temp data dir <tmpdir> — safe to delete)
-══════════════════════════════════════════════════════════════════════
-
-━━━━━━ OPERATOR VIEW  —  a sample routing log → a verifiable savings statement ━━━━━━
-SAVED vs SPEND + veracity_floor; --mint anchors it, --attest emits the public proof.
-  
-    minted savings into the chain; attestation -> <tmp>/att.json
-  KRY savings report
-    records analysed:     48  {'cache_hit': 10, 'holdout': 35, 'displacement': 1, 'paid_call': 2, 'free_call': 0}
-    SAVED (estimated):         3,080.50 KRY   = $0.0770
-    SPEND (estimated):         17,017.60 KRY   = $0.4254
-    efficiency_ratio:     15.33%  (saved / (saved+spend))
-    veracity_floor:       0.00%  (operator-supplied log; source truth is not verified)
-      self_reported:          3,080.50 KRY
-      holdout_validated:          0.00 KRY
-      provider_metered:           0.00 KRY
-    holdout measurement:  1 class(es) measured; cost 15,000.00 KRY ($0.3750) — estimated cost of reported holdouts
-    prompt cache:         provider prompt-cache discount, computed from reported usage at list price; not minted, not attested, self-reported (list prices as of 2026-09-16)
-      records:            priced 0, unpriced 38, modifier-excluded 0, malformed 0; 1-hour write price assumed for 0
-    by request-class:
-      code                                 treated=0     holdout=0    p̂=—                saved=    382.40 KRY [self_reported]
-      greet                                treated=2     holdout=0    p̂=—                saved=      0.00 KRY [self_reported]
-      summarize                            treated=5     holdout=35   p̂=86% (CI≥71%)     saved=  1,798.10 KRY [self_reported]
-      translate                            treated=3     holdout=0    p̂=—                saved=    900.00 KRY [self_reported]
-
-━━━━━━ STRANGER CHECK  —  verify that statement with stdlib only (imports nothing from KRY) ━━━━━━
-  KRY external verification — attestation
-    receipts:        11 (recomputed from links)
-    total_kry:       3080.4984 (recomputed from links, not the declared field)
-    veracity_floor:  0.0000 (fraction assigned to declared tiers above self-report; source evidence requires separate verification)
-    price basis:     $25.0/M frontier, as of 2026-09-15 (published benchmark; see magnitude coverage)
-    magnitude:       11/11 links checked; 0 unchecked (legacy inputs absent)
-    VERDICT: VALID — integrity + conservation + magnitude (where checkable) hold; source truth is not verified (read veracity_floor as declared tiers).
-  ↑ confirmed by code that does NOT trust the producer — the whole point.
-
-━━━━━━ T2  —  the same trust model, anchored to a REAL provider's TLS response ━━━━━━
-TLSNotary proves what openrouter.ai returned, verifiable by a stranger with real CA roots.
-Mechanism proven (2026-06-04) — NOT yet trustless: self-hosted notary != neutral party (§5).
-  docs/KRY_T2_FINDINGS_REPORT.md  ·  tlsnotary/
-
-  earn → mint → attest → verify → (T1 reconcile / T2 notarize).  That is proof-of-efficiency.
-```
-
-</details>
+**Run it locally:** follow the [Quickstart](#quickstart).
 
 ---
-
-KRY assigns internal credits to reported efficiency events—cache hits, compression
-and cheaper-model routing—and can spend those credits on routing permission.
-Its accounting model addresses a specific limitation:
-
-> **A hash chain can prove a balance is *intact*. It cannot prove the savings *happened*.**
-> So how much do you have to trust the operator — and can that number be made explicit,
-> machine-checkable, and driven toward zero?
-
-That question — **integrity ≠ veracity** — is the spine of this project. Everything
-below is organized so the answer is *computed and labeled*, never asserted.
 
 > [!IMPORTANT]
 > **A verified receipt is not a verified bill or cash saving.** KRY's
@@ -172,23 +42,25 @@ below is organized so the answer is *computed and labeled*, never asserted.
 
 ## Contents
 
-- [The idea in 60 seconds](#the-idea-in-60-seconds)
+- [What verification establishes](#what-verification-establishes)
 - [Quickstart](#quickstart)
 - [How it works](#how-it-works)
-- [Veracity: the trust ladder](#veracity-the-trust-ladder)
-- [Honest limitations](#honest-limitations-disclosed-not-hidden)
+- [Evidence tiers](#evidence-tiers)
+- [Operating limits](#operating-limits)
 - [Authenticity (optional): who signed this attestation](#authenticity-optional-who-signed-this-attestation)
 - [Magnitude: publicly-checkable arithmetic](#magnitude-publicly-checkable-arithmetic)
-- [Readiness: a computed grade, not a claim](#readiness-a-computed-grade-not-a-claim)
+- [Readiness and retained evidence](#readiness-and-retained-evidence)
 - [Modules](#modules)
-- [Verifying as a stranger](#verifying-as-a-stranger)
+- [Independent verification](#independent-verification)
 - [Repository layout](#repository-layout)
 - [Legal posture](#legal-posture)
 - [Documentation](#documentation)
 
 ---
 
-## The idea in 60 seconds
+<a id="the-idea-in-60-seconds"></a>
+
+## What verification establishes
 
 KRY assigns reported efficiency events a benchmark value using its published token
 rates and model multipliers. It records that value in a hash-chained ledger and
@@ -196,20 +68,19 @@ exposes a **public proof surface** so a third party can check the recorded arith
 without seeing the prompts. The benchmark does not reproduce every provider's
 input, output, cache, discount or subscription billing rules.
 
-What KRY refuses to do is pretend the proof is stronger than it is. A cache hit is a
-*counterfactual* — a call that never happened — and nothing outside your runtime can
-witness a call that was never made. KRY makes that limit a first-class, labeled property
-(`veracity_floor`) instead of hiding it behind a green checkmark.
+A cache hit avoids a provider call, so provider records cannot witness that
+individual event. KRY records the declared evidence tier and computes
+`veracity_floor`; the tier's supporting evidence requires separate verification.
 
-| KRY **is** | KRY **is not** |
-|---|---|
-| An internal efficiency & integrity meter | A cryptocurrency or tradeable token |
-| A stranger-verifiable receipt (integrity and benchmark arithmetic checked; evidence tiers disclosed as `veracity_floor`) | A claim that savings are externally guaranteed by default |
-| An honest accounting discipline (integrity vs veracity, separated) | A speculation, treasury, or exchange |
+| Check | What it establishes | What remains external |
+|---|---|---|
+| Integrity | The supplied chain and commitments are internally consistent | An independently retained prior anchor is needed to detect a complete re-mint |
+| Magnitude | Checkable amounts follow the published benchmark arithmetic | Actual provider charges and the avoided alternative |
+| Evidence tiers | Tier labels are bound into supported receipt formats, and `veracity_floor` is recomputed | Witness authenticity and the truth of the reported events |
 
-> **Claims hierarchy.** [`docs/CLAIMS_BOUNDARY.md`](docs/CLAIMS_BOUNDARY.md) is the **authoritative** scope
-> for what KRY does and does not claim — it governs this README's prose, the demos, and every module
-> docstring. Where any of those read stronger than the boundary, the boundary wins.
+The [claims boundary](docs/CLAIMS_BOUNDARY.md) governs this README, demonstrations
+and module documentation. KRY is an internal accounting unit; it supplies no market,
+exchange or external counterparty.
 
 ---
 
@@ -343,7 +214,9 @@ under `KRY_DATA_DIR` (default `./kry_data`, gitignored) and
 
 ---
 
-## Veracity: the trust ladder
+<a id="veracity-the-trust-ladder"></a>
+
+## Evidence tiers
 
 The hash chain proves **integrity** (untampered + conserved). It says nothing about
 whether the efficiency events *actually happened* — that is **veracity**. Every mint is
@@ -351,7 +224,7 @@ classified by *how the event was witnessed*, weakest to strongest:
 
 | Tier | Constant | Trust source | What earns it | Status |
 |------|----------|--------------|---------------|--------|
-| **T0** | `self_reported` | the operator's runtime, full stop | cache hits (counterfactual) — a **permanent** floor for them | shipped |
+| **T0** | `self_reported` | the operator's runtime | cache hits (counterfactual) — a **permanent** floor for them | shipped |
 | **T1** | `provider_metered` | the **provider**, for a call that *did* happen | a displacement's cheap leg, with a retained real `usage` payload | shipped + reconcilable (F1) |
 | **T2** | `tlsn_attested` (TLS-notary) | a TLS-notary signature over a real provider TLS session | a provider call that *did* happen (a displacement's cheap leg) — not a cache-hit counterfactual | mint shipped (`scripts/kry_tlsn_verify.py`, 2026-06-04) and exercised end-to-end against openrouter.ai; **self-hosted notary, so not yet a neutral third party** |
 | **T2** | `tee_attested` (TEE) | a signed enclave attestation document (AWS Nitro) | authenticates the document and its payload; the bundled PoC signs parent-supplied demonstration data, so trusted measurement code and input binding are still required to establish measurement truth | verify + mint shipped (`scripts/kry_tee_verify.py`, optional `tee` extra); its regression test verifies a genuine Nitro attestation captured 2026-06-06 |
@@ -382,26 +255,27 @@ classified by *how the event was witnessed*, weakest to strongest:
  the floor is re-derived (SPEC §3.4 step 4). That is tamper-evident against anyone who cannot recompute the
  chain; against the operator (who can), publish a chain anchor to be re-mint-evident.
 - A balance containing only `self_reported` receipts reads **`veracity_floor = 0.0`**.
- That is the *honest label* for what KRY is by default: internal-operator measurement.
- It is published as-is, never hidden.
+ This is the default for internally reported events.
 
 > **Why cache hits are structurally hard.** A cache hit is a call that *did not happen* —
 > zero provider-side footprint — so no external party can attest to it even in principle,
 > short of a witness inside the runtime (a TEE; a TLS notary can only witness a call that
 > reached the provider). Displacement is
 > different: the cheap leg that *did* happen leaves a real provider record. This asymmetry
-> is the honest core of the problem, and it is why "just meter it" does not rescue the
-> bulk of a cache-dominated balance. Full design: [docs/KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md).
+> limits what provider-side metering establishes for a cache-dominated balance. Full design: [docs/KRY_VERACITY_BINDING.md](docs/KRY_VERACITY_BINDING.md).
 
 ---
 
-## Honest limitations (disclosed, not hidden)
+<a id="honest-limitations-disclosed-not-hidden"></a>
 
-These are scope boundaries, disclosed rather than hidden. The first three are **permanent, by
-design**, and declared `not_guaranteed` in the capability matrix. The others are not permanent:
-cross-node settlement is `scaffolded` there, with a default-off fix; the locking limit is
-documented in `src/kry/_locks.py` rather than the matrix; and real-world validation is
-`not_guaranteed` today but closable with external evidence ([docs/KRY_READINESS.md](docs/KRY_READINESS.md)).
+## Operating limits
+
+The capability matrix marks per-event counterfactual proof, self-report source
+truth and identity guarantees as `not_guaranteed`. Cross-node settlement remains
+`scaffolded`; its optional lease authority does not remove filesystem assumptions.
+Real-world validation requires external evidence. The
+[operating guide](docs/OPERATING_LIMITS.md) covers storage, callbacks, concurrent
+settlement, retries and recovery.
 
 - **Per-event counterfactual proof** — a single cache hit cannot be externally witnessed;
  the holdout gives a *statistical* answer, never a per-event one.
@@ -501,30 +375,30 @@ of forgery the chain alone misses (the **F2** check).
 
 ---
 
-## Readiness: a computed grade, not a claim
+<a id="readiness-a-computed-grade-not-a-claim"></a>
 
-KRY grades itself against an **external, pre-dated rubric** (a prior epistemic-readiness ladder), mechanically — `readiness_label()` computes it; nobody
-narrates it.
+## Readiness and retained evidence
+
+`readiness_label()` computes a level using the repository's pre-dated epistemic-readiness
+rubric. Its inputs and retained evidence must be assessed separately from the label.
 
 ```text
 prototype < prototype_plus < internally_consistent < research_grade < production_ready
 ```
 
-| Level | Evidence required | KRY today |
+| Level | Evidence required | Evidence and limits |
 |---|---|---|
-| `internally_consistent` | the synthetic suite is fully green | ✅ cleared |
+| `internally_consistent` | the synthetic suite is fully green | Check the suite for the exact source revision and environment being evaluated. |
 | `research_grade` | + ≥ 0.80 agreement with an **independent, non-self-referential** oracle; the per-request driver also requires exact request IDs and `RECONCILED` | The retained 2026-06-10 bundle matches **52/52 IDs and token counts**. It records **0 KRY / $0 free-tier self-traffic**. Its historical v2 hashes do not bind request IDs or `metered_tokens`; offline agreement does not authenticate the export or prove savings. |
-| `production_ready` | + validation on an **independent real-world corpus** + clean audit | ❌ external — needs **live** real-world traffic + a real counterparty |
+| `production_ready` | + validation on an **independent real-world corpus** + clean audit | Not established; requires live real-world traffic and a real counterparty. |
 
-**The top label structurally requires external evidence** — the grader refuses to let
-*more code* buy a grade only *real data* can earn (enforced by
-`tests/test_capabilities.py`). The two steps to `production_ready` are both external and both already
-have tooling: run real `provider_metered`/holdout traffic, then
+**The top label requires external evidence**, as enforced by
+`tests/test_capabilities.py`. The documented evidence workflow is: run real `provider_metered`/holdout traffic, then
 `kry_or_fetch.py` → `kry_reconcile.py` (Step 1), then a live holdout through
 `kry_savings_report.py` (Step 2). See [docs/KRY_READINESS.md](docs/KRY_READINESS.md).
 
 > **Real-data evidence (2026-06-09/10).** The external mechanism has been exercised on real
-> traffic, well beyond the first anchor: provider reconciliation **18/18, agreement 1.00**; an
+> traffic: provider reconciliation **18/18, agreement 1.00**; an
 > **accepted-savings** run (8/8); a **real-corpus cache-holdout** replay of organic WildChat traffic
 > (kept as a historical record only: its 2026-06-10 attestation uses legacy `hash_version` 1 links
 > labelled `holdout_validated`, which every current verifier rejects since commit `e1195c1`
@@ -577,14 +451,17 @@ All under `src/kry/`, stdlib only (`wc -l src/kry/*.py` gives the current size).
 
 ---
 
-## Verifying as a stranger
+<a id="verifying-as-a-stranger"></a>
 
-The point of KRY is that **someone who does not trust you can check the claim** with
-nothing but the Python standard library and the published attestation.
+## Independent verification
 
-You don't even need Python: [`SPEC.md`](SPEC.md) is the normative wire format,
+A third party can check receipt integrity and benchmark arithmetic using the
+standalone Python verifier or the independent JavaScript verifier. Neither check
+authenticates the original usage or establishes cash savings.
+
+[`SPEC.md`](SPEC.md) is the normative wire format,
 [`vectors/`](vectors/) is its conformance corpus (exact-bytes primitives plus
-valid/adversarial attestations, generated from the reference so they cannot drift), and
+valid/adversarial attestations, generated from the reference and checked for drift in CI), and
 [`verifiers/js/`](verifiers/js/) is an independent, dependency-free JS verifier
 (`node verifiers/js/cli.mjs attestation.json`, or `--vectors vectors` to run the corpus)
 with a static browser page at [`verifiers/web/`](verifiers/web/) — hosted live (with
@@ -640,8 +517,9 @@ python3 scripts/kry_doctor.py --artifact packet/artifact.json
 # provider export, outside review, buyer feedback, and legal review exist.
 ```
 
-`kry_verify.py` imports no part of the package — it re-implements the checks from the
-spec, so passing it is meaningful precisely because it doesn't trust the producer's code.
+`kry_verify.py` imports no part of the package. It implements the specification
+separately from the producer; compare both implementations against the conformance
+corpus when changing verification rules.
 
 ---
 
@@ -698,6 +576,8 @@ grant and defensive-termination clause; provided **as is, without warranty**. Co
 | Doc | What it covers |
 |---|---|
 | [SPEC.md](SPEC.md) | **KRY-SPEC v1.3** — the normative wire format; verify from this + [`vectors/`](vectors/), never `src/kry` |
+| [OPERATING_LIMITS.md](docs/OPERATING_LIMITS.md) | Storage, callback, concurrency, recovery and evidence boundaries |
+| [DEMO_TRANSCRIPT.md](docs/DEMO_TRANSCRIPT.md) | Preserved synthetic output with historical wording and valuation limits |
 | [KRY_LITELLM.md](docs/KRY_LITELLM.md) | LiteLLM cache-event receipts, retry/deduplication limits, and benchmark versus provider cost |
 | [LiteLLM synthetic API evaluation](docs/evidence/LITELLM_SYNTHETIC_API_2026_10_20.md) | Maintainer-reported integration results, retained evidence digests, earlier failures and limits |
 | [KRY_TOKEN_SPEC.md](docs/KRY_TOKEN_SPEC.md) | the unit, rates, and the falsifier (v0.1, descriptive; superseded by [SPEC.md](SPEC.md) for verification) |

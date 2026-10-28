@@ -121,6 +121,29 @@ class ReceiverLedger:
     routing_sold: int = 0
     settlements: list = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # Keep synchronization outside the dataclass's public accounting fields.
+        self._settlement_lock = threading.Lock()
+
+    def __getstate__(self) -> dict | tuple:
+        # Copies and serialized receivers carry accounting state, never a live lock.
+        state = object.__getstate__(self)
+        if isinstance(state, tuple):
+            dictionary, slots = state
+            return ({name: value for name, value in (dictionary or {}).items()
+                     if name != "_settlement_lock"},
+                    {name: value for name, value in slots.items()
+                     if name != "_settlement_lock"})
+        return {name: value for name, value in state.items()
+                if name != "_settlement_lock"}
+
+    def __setstate__(self, state) -> None:
+        dictionary, slots = state if isinstance(state, tuple) else (state, {})
+        self.__dict__.update(dictionary or {})
+        for name, value in slots.items():
+            setattr(self, name, value)
+        self._settlement_lock = threading.Lock()
+
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
 
@@ -927,6 +950,10 @@ def settle(
 
     debit_a_fn debits A's real KRY ledger and returns the amount it REPORTS moving;
     receiver is B's ReceiverLedger, credited by exactly that amount.
+    Calls sharing that receiver instance are serialized through its final update.
+    The receiver lock is acquired before the registry locks; both callbacks must
+    be bounded and must not reenter settlement or reverse that lock order.
+    This protects in-process receiver state, not persistence across processes.
     A clean refusal that moved nothing must return 0; raising signals an unknown
     outcome, not proof that no debit occurred.
     A confirmed zero-debit shortfall leaves the grant retriable if rollback succeeds. An
@@ -956,6 +983,22 @@ def settle(
         not independently verified. Pass a_balance_after_fn for the measured basis whenever
         the settlement is recorded somewhere a stranger will later read it.
     """
+    with receiver._settlement_lock:
+        return _settle_locked(
+            offer, grant, debit_a_fn=debit_a_fn, receiver=receiver,
+            a_balance_before=a_balance_before, a_balance_after_fn=a_balance_after_fn)
+
+
+def _settle_locked(
+    offer: SettlementOffer,
+    grant: RoutingGrant,
+    *,
+    debit_a_fn,
+    receiver: ReceiverLedger,
+    a_balance_before: float,
+    a_balance_after_fn,
+) -> SettlementReceipt:
+    """Settle while the receiver's lock covers its snapshot and final update."""
     amount = _finite_number(grant.accepted_kry, "accepted_kry", positive=True)
     a_balance_before = _finite_number(a_balance_before, "a_balance_before",
                                       nonnegative=True)
