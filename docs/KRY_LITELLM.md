@@ -178,10 +178,12 @@ category-specific bill.
   passes `cache_hit=True`; in the tested 1.101.0 paths an ordinary call's field is absent or `None`, which is
   why the callback tests for `is True` rather than truthiness.
 
-The dedicated `litellm-integration` CI job installs LiteLLM 1.101.0 and runs
+The dedicated `litellm-integration` CI job installs LiteLLM 1.101.3 and runs
 `tests/test_litellm_integration.py` using mocked completions and
 `tests/test_litellm_anthropic_integration.py` using a constructed HTTP response through the
-provider adapter. These tests exercise real cache and callback dispatch, without API keys or
+provider adapter. It also runs `tests/test_litellm_observation_integration.py` to check
+content-free observations and request-ID commitments. These tests exercise real cache and
+callback dispatch, without API keys or
 paid provider calls. The stdlib-only jobs may skip these optional modules; the integration
 job requires the dependency to import successfully.
 
