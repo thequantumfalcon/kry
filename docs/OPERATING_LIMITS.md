@@ -32,13 +32,27 @@ cross-node lease has separate shared-storage and timing assumptions. It does not
 turn independent registries into a consensus system. See the implementation's
 `src/kry/_locks.py` and [settlement policy](KRY_SETTLEMENT_POLICY.md).
 
-`settle()` calls the debit callback while holding the registry locks. Keep it bounded,
-avoid network waits in that critical section, and do not reenter settlement or acquire
-locks in an order that can cycle back to the registry. KRY does not impose a timeout
-on arbitrary callbacks or guarantee deadlock freedom for host code. A callback must
+`settle()` serializes calls sharing one `ReceiverLedger` instance from the initial
+receiver snapshot through the final balance, routing and receipt-list updates. The
+lock order is receiver, in-process registry, then registry file. The debit callback
+runs under all three; the independent post-debit balance callback runs under the
+receiver lock after the registry locks are released. Keep both callbacks bounded,
+avoid network waits, and do not reenter settlement or acquire locks in an order that
+can cycle back to a receiver or the registry. KRY does not impose a timeout on
+arbitrary callbacks or guarantee deadlock freedom for host code. A debit callback must
 return `0` for a confirmed refusal that moved nothing; raising means the outcome is
 unknown and retains the obligation. Automatic operation-ID forwarding, obligation
 resolution and durable receiver deduplication are not implemented in this version.
+The caller still owns payer concurrency and the accuracy of `a_balance_before`;
+receiver serialization does not refresh or reserve that supplied payer snapshot.
+
+Receiver synchronization is instance-local and in-process. Separate instances with
+the same party label do not share a balance or a lock; the host must retain one
+authoritative instance for concurrent calls. Receiver state remains in memory, and
+direct host mutations are outside this synchronization. Copies and deserialized
+receivers get independent locks. Stop callers before capturing an operator-owned
+snapshot, whether through `dataclasses.asdict`, copying or serialization. Those
+operations do not supply durable receiver storage or cross-process coordination.
 
 The operation journal retains every ID and is rewritten with each ledger replacement.
 The bounded event list is not that journal. Monitor disk use and latency as history
