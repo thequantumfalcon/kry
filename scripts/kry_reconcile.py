@@ -144,7 +144,8 @@ def _metered_pair(value) -> list[int]:
 
 def _receipt_rows(path: str) -> list[dict]:
     """Load receipt rows from a private JSONL mint log or a T1 manifest."""
-    text = open(path, encoding="utf-8").read().strip()
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read().strip()
     if not text:
         return []
     try:

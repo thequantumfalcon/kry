@@ -121,7 +121,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="exit nonzero if the 'Successfully verified' line is absent")
     args = p.parse_args(argv)
 
-    text = sys.stdin.read() if args.verify_output == "-" else open(args.verify_output, encoding="utf-8").read()
+    if args.verify_output == "-":
+        text = sys.stdin.read()
+    else:
+        with open(args.verify_output, encoding="utf-8") as handle:
+            text = handle.read()
     pres = parse_verify_output(text)
 
     if args.notary_key:
