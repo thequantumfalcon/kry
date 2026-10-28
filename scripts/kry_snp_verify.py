@@ -431,8 +431,11 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
 
     Mirrors kry_tee_verify.run / kry_tlsn_verify.run: fail-closed gate → extract the
     attested measurement → promote a prior self_reported/holdout receipt to tee_attested
-    (no double-credit), or mint fresh tee_attested value when none exists. Measurement
-    IDs must be nonempty strings without '/' or whitespace, matching receipt markers."""
+    (no double-credit), or mint fresh tee_attested value when none exists. The optional
+    measurement_id asserts the identity in the verified payload; it cannot replace
+    it. Other overrides remain operator inputs, not authenticated document values.
+    Measurement IDs must be nonempty strings without '/' or whitespace, matching
+    receipt markers."""
     if att.get("verified") is not True:
         return {"verdict": "REJECTED", "errors": att.get("errors") or ["report not verified"]}
 
@@ -457,11 +460,24 @@ def run(att: dict, *, event_type: str, avoided_model: str | None,
     if mid is None:
         result["verdict"] = "NO_MEASUREMENT_ID"
         result["note"] = ("the attested measurement carries no measurement_id — cannot bind "
-                          "the report to a measurement (pass --measurement-id or embed it)")
+                          "the report to a measurement (embed it in the attested payload)")
         return result
     if not isinstance(mid, str) or re.fullmatch(r"[^/\s]+", mid) is None:
         result["verdict"] = "INVALID_MEASUREMENT_ID"
         result["note"] = "measurement_id must be a nonempty string without '/' or whitespace"
+        return result
+    attested_mid = m.get("measurement_id")
+    if attested_mid is None:
+        result["verdict"] = "NO_MEASUREMENT_ID"
+        result["note"] = "measurement_id must come from the attested payload, not a CLI argument"
+        return result
+    if not isinstance(attested_mid, str) or re.fullmatch(r"[^/\s]+", attested_mid) is None:
+        result["verdict"] = "INVALID_MEASUREMENT_ID"
+        result["note"] = "attested measurement_id must be a nonempty string without '/' or whitespace"
+        return result
+    if mid != attested_mid:
+        result["verdict"] = "MEASUREMENT_ID_MISMATCH"
+        result["note"] = "--measurement-id must equal the measurement_id in the attested payload"
         return result
     if basis <= 0:
         result["verdict"] = "NO_BASIS"
@@ -588,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--event-type", default="short_circuit",
                    help="efficiency event this attested measurement backs (default: short_circuit)")
     p.add_argument("--measurement-id", default=None,
-                   help="OVERRIDE the measurement id (default: from the measurement JSON)")
+                   help="require this measurement id in the bound measurement JSON (cannot override it)")
     p.add_argument("--avoided-model", default=None,
                    help="OVERRIDE the avoided model (default: from the measurement JSON). "
                         "Absent both → REFUSED (the counterfactual is never invented)")
@@ -653,7 +669,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  served model:     {result.get('served_model')}")
 
     if result["verdict"] in ("NO_BASIS", "NO_DISPLACEMENT_CONTEXT", "NO_MEASUREMENT_ID",
-                              "INVALID_MEASUREMENT_ID"):
+                              "INVALID_MEASUREMENT_ID", "MEASUREMENT_ID_MISMATCH"):
         print(f"  -> {result['note']}")
         return 1
     if result["verdict"] == "ALREADY_UPGRADED":
